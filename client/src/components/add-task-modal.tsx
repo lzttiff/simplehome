@@ -259,7 +259,8 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
                     <Textarea 
                       placeholder="Additional notes or instructions"
                       rows={2}
-                      {...field} 
+                      {...field}
+                      value={field.value ?? ""}
                     />
                   </FormControl>
                   <FormMessage />
