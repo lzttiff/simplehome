@@ -1,0 +1,264 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "category": "Structural & Exterior",
+      "items": [
+        {
+          "id": "d20d9aa3-6a47-44ce-91d6-bf06a1e39d80",
+          "name": "Foundation",
+          "brand": "Generic",
+          "model": "Slab",  
+          "installationDate": "2020-05-01",
+          "lastMinorServiceDate": "2024-05-01",
+          "lastMajorServiceDate": "",
+          "location": "Basement",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "8fb34f6c-0e2f-4c43-ae91-f7b9c1e3a6b0",
+          "name": "Roof",
+          "brand": "",
+          "model": "Composite Shingle",
+          "installationDate": "1995-10-20",
+          "lastMinorServiceDate": "2020-05-01",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "2020-05-01",
+          "nextMajorServiceDate": "",
+          "location": "Exterior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "40dcb320-5f25-4db7-9053-351184a1b8dd",
+          "name": "Gutter",
+          "brand": "",
+          "model": "quad",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Roof Edge",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "c1be3510-8a7c-4b37-93f5-79d11b2ebf89",
+          "name": "Garage Door",
+          "brand": "",
+          "model": "Sectional",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Garage",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          },
+          "relatedItemIds": ["f223c1f0-3a20-4f19-b812-efc05894c6de"]
+        },
+        {
+          "id": "f23db302-236d-4458-b46f-642d9b8f7d4e",
+          "name": "Windows",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior/Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "8a7a5bb2-8c69-4b11-b7c6-349f8bb4eaba",
+          "name": "Doors",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior/Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "5c6f5f7c-82a2-4f5f-81d8-42964a6b4e16",
+          "name": "Fence",
+          "brand": "",
+          "model": "wood",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "af28ff45-c9f5-41c2-a3b9-d7274c2dbad9",
+          "name": "Patio",
+          "brand": "",
+          "model": "wood",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Backyard/Outdoor",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "b5f4c8e2-3c1e-4f3a-9f4e-2d6e5f7c8a9b",
+          "name": "Deck",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Backyard/Outdoor",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "7e2f3d4c-5b6a-4c7d-8e9f-0a1b2c3d4e5f",
+          "name": "Driveway",
+          "brand": "",
+          "model": "concrete",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Front Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "e1f2d3c4-b5a6-7d8e-9f0a-1b2c3d4e5f6a",
+          "name": "Chimney",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Roof/Exterior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "a3b4c5d6-e7f8-90a1-b2c3-d4e5f6a7b8c9",
+          "name": "Siding",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior Walls",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "",
+            "major": ""
+          }
+        },
+        {
+          "id": "b6c7d8e9-f0a1-2b3c-4d5e-6f7a8b9c0d1e",
+          "name": "Porch",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Front/Back of House",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect for damage annually.",
+            "major": "Repaint or reseal wood every 2–3 years, replace as needed."
+          }
+        }, 
+        {
+          "id": "d4e5f6a7-b8c9-0a1b-2c3d-4e5f6a7b8c9d",
+          "name": "Awning",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Windows/Doors",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean fabric and inspect frame annually.",
+            "major": "Replace fabric every 5 years, check hardware every 10 years."
+          }
+        }, 
+        {
+          "id": "e7f8a9b0-c1d2-3e4f-5a6b-7c8d9e0f1a2b",
+          "name": "Mailbox",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Front Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect for damage annually.",
+            "major": "Repaint or replace every 10–15 years."
+          }
+        }
+      ]
+    }
+  ]
+}

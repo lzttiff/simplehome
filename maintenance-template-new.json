@@ -1,0 +1,1522 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "category": "Structural & Exterior",
+      "items": [
+        {
+          "id": "d20d9aa3-6a47-44ce-91d6-bf06a1e39d80",
+          "name": "Foundation",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Basement / Slab",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Annual visual inspection for cracks, leaks, or pests.",
+            "major": "Professional structural inspection every 5 years or after seismic events."
+          }
+        },
+        {
+          "id": "8fb34f6c-0e2f-4c43-ae91-f7b9c1e3a6b0",
+          "name": "Roof",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect shingles and flashing annually, clean debris.",
+            "major": "Re-roofing or membrane replacement every 20–30 years."
+          }
+        },
+        {
+          "id": "40dcb320-5f25-4db7-9053-351184a1b8dd",
+          "name": "Gutter",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Roof Edge",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean leaves/debris twice per year.",
+            "major": "Replace or reseal every 15–20 years."
+          }
+        },
+        {
+          "id": "c1be3510-8a7c-4b37-93f5-79d11b2ebf89",
+          "name": "Garage Door",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Garage",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Lubricate tracks and hinges annually.",
+            "major": "Replace springs, rollers, and balance check every 5–7 years."
+          },
+          "relatedItemIds": ["f223c1f0-3a20-4f19-b812-efc05894c6de"]
+        },
+        {
+          "id": "f23db302-236d-4458-b46f-642d9b8f7d4e",
+          "name": "Windows",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior/Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean glass and lubricate tracks quarterly.",
+            "major": "Replace seals or full units every 20–30 years."
+          }
+        },
+        {
+          "id": "8a7a5bb2-8c69-4b11-b7c6-349f8bb4eaba",
+          "name": "Doors",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior/Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Lubricate hinges and locks annually.",
+            "major": "Replace weatherstripping every 5 years."
+          }
+        },
+        {
+          "id": "5c6f5f7c-82a2-4f5f-81d8-42964a6b4e16",
+          "name": "Fence",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect for damage annually, repaint/reseal wood every 2–3 years.",
+            "major": "Replace sections as needed, full replacement every 20 years."
+          }
+        },
+        {
+          "id": "af28ff45-c9f5-41c2-a3b9-d7274c2dbad9",
+          "name": "Patio",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Backyard/Outdoor",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Pressure wash annually.",
+            "major": "Re-seal concrete/stone every 5–10 years."
+          }
+        },
+        {
+          "id": "b5f4c8e2-3c1e-4f3a-9f4e-2d6e5f7c8a9b",
+          "name": "Deck",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Backyard/Outdoor",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect for damage annually, reseal wood every 1–2 years.",
+            "major": "Replace boards or railings as needed, full replacement every 15–20 years."
+          }
+        },
+        {
+          "id": "7e2f3d4c-5b6a-4c7d-8e9f-0a1b2c3d4e5f",
+          "name": "Driveway",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Front Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Seal cracks and clean annually.",
+            "major": "Resurface every 10–15 years."
+          }
+        },
+        {
+          "id": "e1f2d3c4-b5a6-7d8e-9f0a-1b2c3d4e5f6a",
+          "name": "Chimney",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Roof/Exterior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect and clean flue annually.",
+            "major": "Rebuild or reliner every 15–20 years."
+          }
+        },
+        {
+          "id": "a3b4c5d6-e7f8-90a1-b2c3-d4e5f6a7b8c9",
+          "name": "Siding",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior Walls",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect for damage annually.",
+            "major": "Repaint or reseal every 5–10 years, replace damaged sections as needed."
+          }
+        },
+        {
+          "id": "b6c7d8e9-f0a1-2b3c-4d5e-6f7a8b9c0d1e",
+          "name": "Porch",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Front/Back of House",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect for damage annually.",
+            "major": "Repaint or reseal wood every 2–3 years, replace as needed."
+          }
+        }, 
+        {
+          "id": "d4e5f6a7-b8c9-0a1b-2c3d-4e5f6a7b8c9d",
+          "name": "Awning",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Windows/Doors",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean fabric and inspect frame annually.",
+            "major": "Replace fabric every 5 years, check hardware every 10 years."
+          }
+        }, 
+        {
+          "id": "e7f8a9b0-c1d2-3e4f-5a6b-7c8d9e0f1a2b",
+          "name": "Mailbox",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Front Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect for damage annually.",
+            "major": "Repaint or replace every 10–15 years."
+          }
+        }
+      ]
+    },
+    {
+      "category": "Plumbing & Water",
+      "items": [
+        {
+          "id": "3f28a650-bafc-4a8d-b1b7-77133b29b0a0",
+          "name": "Faucet",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen/Bathroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Check aerators, clean, and replace washers yearly.",
+            "major": "Replace faucet every 15–20 years."
+          }
+        },
+        {
+          "id": "d63bce13-5969-4f72-b9e1-8e4a25e3df59",
+          "name": "Spigot",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Check for leaks annually, winterize in freezing climates.",
+            "major": "Replace as needed, typically 20 years."
+          }
+        },
+        {
+          "id": "29e6dd91-81c3-4689-931d-93e6aef7e2f2",
+          "name": "Sinks",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen/Bathroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean drains monthly, check caulking annually.",
+            "major": "Replace basin every 20–30 years."
+          }
+        },
+        {
+          "id": "bdf52792-d6fd-41e3-b20f-2ac32a061c39",
+          "name": "Showers",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bathroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean showerhead, descale annually.",
+            "major": "Replace enclosure every 20 years."
+          }
+        },
+        {
+          "id": "a8f2e3a2-cc9d-47a1-a2b8-9f17663e2f55",
+          "name": "Bath Tub",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bathroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and check caulking annually.",
+            "major": "Resurface every 10–15 years, replace after 25–30 years."
+          }
+        },
+        {
+          "id": "c9d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f",
+          "name": "Toilet",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bathroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Check for leaks and proper flushing annually.",
+            "major": "Replace toilet every 15–20 years."
+          }
+        },
+        {
+          "id": "d1e2f3a4-b5c6-7d8e-9f0a-1b2c3d4e5f6a",
+          "name": "Water Softener",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Utility Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Check salt levels monthly, clean brine tank annually.",
+            "major": "Replace resin bed every 10 years, unit every 15–20 years."
+          }
+        },
+        {
+          "id": "e2f3a4b5-c6d7-8e9f-0a1b-2c3d4e5f6a7b",
+          "name": "Water Filter",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Under Sink/Utility Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Replace filters every 6–12 months.",
+            "major": "Replace housing every 5 years."
+          }
+        },
+        {
+          "id": "f3a4b5c6-d7e8-9f0a-1b2c-3d4e5f6a7b8c",
+          "name": "Pipes",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Throughout House",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect for leaks and corrosion annually.",
+            "major": "Replace galvanized pipes every 40–50 years, PVC/PEX as needed."
+          }
+        },
+        {
+          "id": "a4b5c6d7-e8f9-0a1b-2c3d-4e5f6a7b8c9d",
+          "name": "Sump Pump",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Basement/Crawl Space",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Test pump and clean pit annually.",
+            "major": "Replace pump every 7–10 years."
+          }
+        },
+        {
+          "id": "b5c6d7e8-f9a0-1b2c-3d4e-5f6a7b8c9d0e",
+          "name": "Septic System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect annually, pump tank every 3–5 years.",
+            "major": "Replace drain field every 20–30 years."
+          }
+        },
+        {
+          "id": "c6d7e8f9-a0b1-2c3d-4e5f-6a7b8c9d0e1f",
+          "name": "Water Main",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard/Street",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect for leaks annually.",
+            "major": "Replace galvanized pipes every 40–50 years, PVC/PEX as needed."
+          }
+        },
+        {
+          "id": "d7e8f9a0-b1c2-3d4e-5f6a-7b8c9d0e1f2a",
+          "name": "Irrigation System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect and adjust heads seasonally, check for leaks annually.",
+            "major": "Replace valves and controllers every 10–15 years."
+          }
+        },
+        {
+          "id": "e8f9a0b1-c2d3-4e5f-6a7b-8c9d0e1f2a3b",
+          "name": "Backflow Preventer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard/Utility Area",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Test annually as required by local regulations.",
+            "major": "Replace every 10 years."
+          }
+        },
+        {
+          "id": "f9a0b1c2-d3e4-5f6a-7b8c-9d0e1f2a3b4c",
+          "name": "Water Meter",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard/Street",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect for leaks and proper function annually.",
+            "major": "Replace every 15–20 years."
+          }
+        },
+        {
+          "id": "0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+          "name": "Pressure Regulator",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard/Utility Area",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect annually for leaks and proper function.",
+            "major": "Replace every 10–15 years."
+          }
+        },
+        {
+          "id": "1b2c3d4e-5f6a-7b8c-9d0e-1f2a3b4c5d6e",
+          "name": "Main Shutoff Valve",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Basement/Utility Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Exercise valve annually to ensure it operates smoothly.",
+            "major": "Replace every 20–30 years or if leaking."
+          }
+        }
+      ]
+    },
+    {
+      "category": "Electrical & Lighting",
+      "items": [
+        {
+          "id": "f223c1f0-3a20-4f19-b812-efc05894c6de",
+          "name": "Garage Door Opener",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Garage Ceiling",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Test safety reverse monthly, lubricate annually.",
+            "major": "Replace motor/belt every 10–15 years."
+          },
+          "relatedItemIds": ["c1be3510-8a7c-4b37-93f5-79d11b2ebf89"]
+        },
+        {
+          "id": "1f01e8c9-ae9e-4d26-8729-993bc62a7278",
+          "name": "Indoor Lights",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Throughout Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Replace bulbs as needed, dust fixtures quarterly.",
+            "major": "Rewire fixtures every 15–20 years."
+          }
+        },
+        {
+          "id": "b18a87da-9a50-4e77-97af-2e0a2fd338b3",
+          "name": "Outdoor Lights",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Exterior Walls / Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Replace bulbs and clean covers annually.",
+            "major": "Upgrade fixtures every 15 years."
+          }
+        },
+        {
+          "id": "c556a89f-0443-42f4-85a2-1c8a56d8a508",
+          "name": "Exhaust Fans",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bathrooms/Kitchen",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean grilles and fan blades annually.",
+            "major": "Replace fan units every 10–15 years."
+          }
+        },
+        {
+          "id": "d4e5f6a7-b8c9-0a1b-2c3d-4e5f6a7b8c9d",
+          "name": "Ceiling Fans",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Areas/Bedrooms",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean blades and motor housing annually.",
+            "major": "Replace motor or entire unit every 15–20 years."
+          }
+        },
+        {
+          "id": "e5f6a7b8-c9d0-e1f2-a3b4-c5d6e7f8a9b0",
+          "name": "Electrical Panel",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Basement/Utility Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect for corrosion and tight connections annually.",
+            "major": "Upgrade panel every 20–30 years or as needed for capacity."
+          }
+        },
+        {
+          "id": "f6a7b8c9-d0e1-f2a3-b4c5-d6e7f8a9b0c1",
+          "name": "Smoke Detectors",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Throughout House",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Test monthly, replace batteries annually.",
+            "major": "Replace units every 10 years."
+          }
+        },
+        {
+          "id": "a7b8c9d0-e1f2-a3b4-c5d6-e7f8a9b0c1d2",
+          "name": "Carbon Mon,oxide Detectors",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bedrooms/Hallways",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Test monthly, replace batteries annually.",
+            "major": "Replace units every 5–7 years."
+          }
+        }
+      ]
+    },
+    {
+      "category": "Interior & Finishes",
+      "items": [
+        {
+          "id": "ecf7c82f-b4c6-4d9b-a23e-27e1a89e7a77",
+          "name": "Carpet",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Areas/Bedrooms",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Vacuum weekly, deep clean annually.",
+            "major": "Replace every 8–12 years."
+          }
+        },
+        {
+          "id": "8cd67b90-88ff-4147-b907-84b9c65c0e88",
+          "name": "Hardwood Floor",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Areas/Bedrooms",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Sweep/vacuum weekly, refinish every 3–5 years.",
+            "major": "Full sanding/refinish every 15–20 years."
+          }
+        },
+        {
+          "id": "6c72cf4f-0142-4b85-9579-445d2c635da8",
+          "name": "Counter Top",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen/Bathroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and reseal stone annually.",
+            "major": "Replace after 20–30 years."
+          }
+        },
+        {
+          "id": "8a6a9285-24d1-4688-8b5f-07d6ef291bdd",
+          "name": "Cabinets",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen/Bathroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Tighten hinges, adjust doors annually.",
+            "major": "Refinish or replace every 20 years."
+          }
+        },
+        {
+          "id": "4e5f6a7b-8c9d-0e1f-2a3b-4c5d6e7f8a9b",
+          "name": "Tile Floor",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen/Bathroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean grout and tiles quarterly, reseal grout annually.",
+            "major": "Replace tiles as needed, full replacement every 20–30 years."
+          }
+        },
+        {
+          "id": "5f6a7b8c-9d0e-1f2a-3b4c-5d6e7f8a9b0c",
+          "name": "Walls",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Throughout Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Touch up paint and clean walls annually.",
+            "major": "Repaint every 5–7 years."
+          }
+        },
+        {
+          "id": "6a7b8c9d-0e1f-2a3b-4c5d-6e7f8a9b0c1d",
+          "name": "Ceilings",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Throughout Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect for damage annually.",
+            "major": "Repaint every 5–7 years."
+          }
+        },
+        {
+          "id": "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1",
+          "name": "Baseboards & Trim",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Throughout Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and touch up paint annually.",
+            "major": "Repaint every 5–7 years."
+          }
+        } 
+      ]
+    },
+    {
+      "category": "Appliances",
+      "items": [
+        {
+          "id": "b52a0c68-54fb-46f0-9e6d-3c6c6b7ef16e",
+          "name": "Fridge",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean coils annually, replace water filter as needed.",
+            "major": "Replace appliance every 12–15 years."
+          }
+        },
+        {
+          "id": "eac9d94c-9f83-4bb9-a302-013f3c4c8f4f",
+          "name": "Washer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Laundry Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean filter and drum monthly.",
+            "major": "Replace hoses every 5 years, replace machine after 10–12 years."
+          }
+        },
+        {
+          "id": "d03de431-6c26-4b0e-90a0-1b7e3e6c7e14",
+          "name": "Dryer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Laundry Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean lint trap after each load, vent annually.",
+            "major": "Replace appliance every 10–15 years."
+          }
+        },
+        {
+          "id": "c2ef0349-94b0-4494-bb64-3ff5eb1f2f92",
+          "name": "Vacuum Cleaner",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Storage/Closet",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean filters monthly, replace bags as needed.",
+            "major": "Replace unit every 8–10 years."
+          }
+        },
+        {
+          "id": "0878e8ab-f3d5-4d40-8f67-b67a708ca601",
+          "name": "Air Purifier",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Areas",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Replace filters every 6–12 months.",
+            "major": "Replace unit every 8–10 years."
+          }
+        },
+        {
+          "id": "fc6e85f9-6a8b-4b83-b9d3-642f2f1f97b6",
+          "name": "Humidifier",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bedrooms/Living Rooms",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean tank weekly, replace filters annually.",
+            "major": "Replace unit every 8–10 years."
+          }
+        },
+                {
+          "id": "c9c7f5b3-8437-40f2-a6b7-9e1a4a98a94f",
+          "name": "Water Heater",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Utility Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Flush tank annually, inspect anode rod.",
+            "major": "Replace tank every 10–15 years."
+          }
+        },
+        {
+          "id": "f1e2d3c4-b5a6-7d8e-9f0a-1b2c3d4e5f6b",
+          "name": "Dishwasher",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean filter and spray arms monthly.",
+            "major": "Replace appliance every 10–15 years."
+          }
+        },
+        {
+          "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+          "name": "Oven/Stove",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean oven and stovetop monthly.",
+            "major": "Replace appliance every 15–20 years."
+          }
+        },
+        {
+          "id": "d4e5f6a7-b8c9-0a1b-2c3d-4e5f6a7b8c9e",
+          "name": "Microwave",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean interior and exterior monthly.",
+            "major": "Replace appliance every 10 years."
+          }
+        },
+        {
+          "id": "f7e8d9c0-b1a2-3c4d-5e6f-7a8b9c0d1e2f",
+          "name": "Toaster",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Kitchen",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean crumb tray monthly.",
+            "major": "Replace appliance every 5–7 years."
+          }
+        },
+        {
+          "id": "f7e8d9c0-b1a2-3c4d-5e6f-7a8b9c0d1e2f",
+          "name": "TV",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Room/Bedrooms",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Dust screen and vents monthly.",
+            "major": "Replace every 7–10 years." 
+          }
+        }
+      ]
+    },
+    {
+      "category": "Yard & Outdoor Equipment",
+      "items": [
+        {
+          "id": "482f3621-f22c-4789-8170-2a81adf8cfc0",
+          "name": "Sprinklers",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Check for leaks and alignment each spring.",
+            "major": "Replace valves/heads every 10–15 years."
+          }
+        },
+        {
+          "id": "97d0b05b-09db-40b7-bac5-9a36ee2f899d",
+          "name": "Mower",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Garage/Shed",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Sharpen blades annually, change oil seasonally.",
+            "major": "Replace mower every 8–12 years."
+          }
+        },
+        {
+          "id": "37224d39-1738-465f-90a2-3fa8a730bda9",
+          "name": "Trimmer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Garage/Shed",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Replace string/line regularly, clean filters annually.",
+            "major": "Replace unit every 8–10 years."
+          }
+        },
+        {
+          "id": "5a6b7c8d-9e0f-1a2b-3c4d-5e6f7a8b9c0d",
+          "name": "Leaf Blower",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Garage/Shed",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean air filter and check spark plug annually.",
+            "major": "Replace unit every 8–10 years."
+          }
+        },
+        {
+          "id": "9f8e7d6c-5b4a-3c2d-1e0f-9a8b7c6d5e4f",
+          "name": "Grill",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Patio/Backyard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean grates and check propane levels after each use.",
+            "major": "Replace grill every 8–12 years."
+          }
+        },
+        {
+          "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6e",
+          "name": "Outdoor Furniture",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Patio/Backyard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and cover furniture seasonally.",
+            "major": "Replace cushions every 3–5 years, furniture every 10–15 years."
+          }
+        },
+        {
+          "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+          "name": "Garden Tools",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Shed/Garage",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and sharpen tools after each use.",
+            "major": "Replace tools as needed, typically every 10 years."
+          }
+        },
+        {
+          "id": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+          "name": "Compost Bin",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Turn compost weekly, monitor moisture levels.",
+            "major": "Replace bin every 5–10 years."
+          }
+        },
+        {
+          "id": "4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+          "name": "Outdoor Heater",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Patio/Backyard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect annually.",
+            "major": "Replace unit every 8–10 years."
+          }
+        },
+        {
+          "id": "5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
+          "name": "Fire Pit",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Patio/Backyard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean ash and inspect for damage annually.",
+            "major": "Replace fire pit every 10–15 years."
+          }
+        },
+        {
+          "id": "6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+          "name": "Pool Equipment",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Pool Area",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Check chemical levels weekly, clean filters monthly.",
+            "major": "Service pump and heater annually, replace equipment every 10–15 years."
+          }
+        },
+        {
+          "id": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
+          "name": "Hot Tub",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Patio/Backyard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Check chemical levels weekly, clean filters monthly.",
+            "major": "Service pump and heater annually, replace every 10–15 years."
+          }
+        },
+        {
+          "id": "8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e",
+          "name": "Outdoor Storage Shed",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Inspect for leaks and damage annually, clean interior.",
+            "major": "Repaint or reseal every 5–10 years, replace as needed."
+          }
+        },
+        {
+          "id": "9c0d1e2f-3a4b-5c6d-7e8f-9a0b1c2d3e4f",
+          "name": "Outdoor Umbrella",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Patio/Backyard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean fabric and inspect frame annually.",
+            "major": "Replace fabric every 5 years, check hardware every 10 years."
+          }
+        },
+        {
+          "id": "0d1e2f3a-4b5c-6d7e-8f9a-0b1c2d3e4f5g",
+          "name": "Outdoor Speakers",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Patio/Backyard",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and inspect annually.",
+            "major": "Replace every 10 years."
+          }
+        },
+        {
+          "id": "1e2f3a4b-5c6d-7e8f-9a0b-1c2d3e4f5g6h",
+          "name": "Outdoor Lighting System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard/Pathways",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Replace bulbs and clean fixtures annually.",
+            "major": "Upgrade system every 10–15 years."
+          }
+        },
+        {
+          "id": "2f3a4b5c-6d7e-8f9a-0b1c-2d3e4f5g6h7i",
+          "name": "Garden Fountain",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Yard/Patio",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean pump and basin monthly, check water levels.",
+            "major": "Replace pump every 5–10 years."
+          }
+        }
+      ]
+    },
+    {
+      "category": "Furniture & Fixtures",
+      "items": [
+        {
+          "id": "3a4b5c6d-7e8f-9a0b-1c2d-3e4f5g6h7i8j",
+          "name": "Sofa",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Vacuum and spot clean monthly.",
+            "major": "Reupholster or replace every 7–10 years."
+          }
+        },
+        {
+          "id": "4b5c6d7e-8f9a-0b1c-2d3e-4f5g6h7i8j9k",
+          "name": "Dining Table",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Dining Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and polish monthly.",
+            "major": "Refinish every 5–7 years, replace as needed."
+          }
+        },
+        {
+          "id": "5c6d7e8f-9a0b-1c2d-3e4f-5g6h7i8j9k0l",
+          "name": "Bed",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bedroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Rotate mattress every 3 months.",
+            "major": "Replace mattress every 7–10 years."
+          }
+        },
+        {
+          "id": "6d7e8f9a-0b1c-2d3e-4f5g-6h7i8j9k0l1m",
+          "name": "Desk",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Office/Bedroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and organize monthly.",
+            "major": "Refinish every 5–7 years, replace as needed."
+          }
+        },
+        {
+          "id": "7e8f9a0b-1c2d-3e4f-5g6h-7i8j9k0l1m2n",
+          "name": "Bookshelf",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Room/Office",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Dust and organize quarterly.",
+            "major": "Refinish every 5–7 years, replace as needed."
+          }
+        },
+        {
+          "id": "8f9a0b1c-2d3e-4f5g-6h7i-8j9k0l1m2n3o",
+          "name": "Dresser",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bedroom",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and organize quarterly.",
+            "major": "Refinish every 5–7 years, replace as needed."
+          }
+        },
+        {
+          "id": "9a0b1c2d-3e4f-5g6h-7i8j-9k0l1m2n3o4p",
+          "name": "Coffee Table",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Room",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and polish monthly.",
+            "major": "Refinish every 5–7 years, replace as needed."
+          }
+        },
+        {
+          "id": "0b1c2d3e-4f5g-6h7i-8j9k-0l1m2n3o4p5q",
+          "name": "Rugs",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Living Areas/Bedrooms",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Vacuum weekly, deep clean annually.",
+            "major": "Replace every 8–12 years."
+          }
+        },
+        {
+          "id": "1c2d3e4f-5g6h-7i8j-9k0l-1m2n3o4p5q6r",
+          "name": "Curtains/Blinds",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Throughout Interior",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean or wash quarterly.",
+            "major": "Replace every 5–7 years."
+          }
+        },
+        {
+          "id": "2d3e4f5g-6h7i-8j9k-0l1m-2n3o4p5q6r7s",
+          "name": "build-in Closet Systems",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMinorServiceDate": "",
+          "nextMinorServiceDate": "",
+          "lastMajorServiceDate": "",
+          "nextMajorServiceDate": "",
+          "location": "Bedrooms",
+          "notes": "",
+          "maintenanceSchedule": {
+            "minor": "Clean and organize quarterly.",
+            "major": "Refinish or replace every 10–15 years."
+          }
+        }
+      ]
+    }
+  ]
+}
+

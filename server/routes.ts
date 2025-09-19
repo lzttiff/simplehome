@@ -3,9 +3,50 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMaintenanceTaskSchema, insertQuestionnaireResponseSchema } from "@shared/schema";
 import { generateMaintenanceTasks, generateQuickSuggestions } from "./services/openai";
+import { generateGeminiContent } from "./services/gemini";
 import { z } from "zod";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+// ...existing imports...
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // AI Maintenance Schedule for Structural & Exterior
+  app.post("/api/ai/structural-exterior-schedule", async (req, res) => {
+    try {
+      // Load catalog from JSON file
+      //const fs = require("fs");
+      //const path = require("path");
+      const catalogPath = path.join(__dirname, "../maintenance-template-new.json");
+      const catalogData = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
+      const provider = catalogData.provider;
+      const category = catalogData.householdCatalog.find((c: any) => c.category === "Structural & Exterior");
+      if (!category) {
+        return res.status(404).json({ message: "Category not found" });
+      }
+
+      console.log(`In structure-exterior-schedule: [AI] Using provider: ${provider}`);
+
+      // Optionally, allow user to provide field overrides via req.body
+      const userItems = req.body.items || [];
+      // Merge user-provided fields into catalog items
+      const items = category.items.map((item: any) => {
+        const userItem = userItems.find((u: any) => u.id === item.id) || {};
+        // If provider is set at top level in JSON, apply to each item
+        return provider ? { ...item, ...userItem, provider } : { ...item, ...userItem };
+      });
+
+      // Import AI service
+      const { generateCategoryMaintenanceSchedules } = require("./services/maintenanceAi");
+      const results = await generateCategoryMaintenanceSchedules(items);
+      res.json({ results });
+    } catch (error) {
+      console.error("AI schedule error:", error);
+      res.status(500).json({ message: "Failed to generate maintenance schedules" });
+    }
+  });
   // Property Templates
   app.get("/api/templates", async (_req, res) => {
     try {
@@ -99,29 +140,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Task Generation
   app.post("/api/ai/generate-tasks", async (req, res) => {
     try {
-      const { propertyType, assessment } = req.body;
-      
+  const { propertyType, assessment, provider = "gemini", geminiApiKey } = req.body;
       if (!propertyType || !assessment) {
         return res.status(400).json({ message: "Property type and assessment are required" });
       }
-
-      const suggestions = await generateMaintenanceTasks(propertyType, assessment);
+      let suggestions;
+      if (provider === "gemini") {
+        if (!geminiApiKey) {
+          return res.status(400).json({ message: "Gemini API key required" });
+        }
+        const prompt = `Generate maintenance tasks for property type: ${propertyType}, assessment: ${typeof assessment === 'string' ? assessment : JSON.stringify(assessment)}`;
+        const geminiResponse = await generateGeminiContent(prompt, geminiApiKey);
+        suggestions = [geminiResponse];
+      } else {
+        suggestions = await generateMaintenanceTasks(propertyType, assessment);
+      }
       res.json({ suggestions });
     } catch (error) {
       console.error("AI task generation error:", error);
-      res.status(500).json({ message: "Failed to generate AI maintenance tasks" });
+      const errMsg = (error instanceof Error) ? error.message : "Failed to generate AI maintenance tasks";
+      res.status(500).json({ message: errMsg });
     }
   });
 
   app.post("/api/ai/quick-suggestions", async (req, res) => {
     try {
-      const { existingTasks, propertyInfo } = req.body;
-      
-      const suggestions = await generateQuickSuggestions(existingTasks || [], propertyInfo);
+  const { existingTasks, propertyInfo, provider = "openai", geminiApiKey } = req.body;
+      let suggestions;
+      if (provider === "gemini") {
+        const keyToUse = geminiApiKey || process.env.GEMINI_API_KEY;
+        if (!keyToUse) {
+          return res.status(400).json({ message: "Gemini API key required" });
+        }
+        const prompt = `Suggest quick maintenance tasks for property info: ${JSON.stringify(propertyInfo)}, existing tasks: ${JSON.stringify(existingTasks)}`;
+        const geminiResponse = await generateGeminiContent(prompt, keyToUse);
+        suggestions = [geminiResponse];
+      } else {
+        suggestions = await generateQuickSuggestions(existingTasks || [], propertyInfo);
+      }
+      if (Array.isArray(suggestions)) {
+        suggestions = suggestions.flat(Infinity);
+      }
       res.json({ suggestions });
     } catch (error) {
       console.error("AI quick suggestions error:", error);
-      res.status(500).json({ message: "Failed to generate AI suggestions" });
+      const errMsg = (error instanceof Error) ? error.message : "Failed to generate AI suggestions";
+      res.status(500).json({ message: errMsg });
     }
   });
 

@@ -91,6 +91,12 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
   };
 
   const suggestions: AISuggestion[] = suggestionsData?.suggestions || [];
+  let suggestions: AISuggestion[] = suggestionsData?.suggestions || [];
+  if (Array.isArray(suggestions) && Array.isArray(suggestions[0])) {
+    suggestions = suggestions[0];
+  }
+
+  // Filter out accepted or rejected suggestions
   const visibleSuggestions = suggestions.filter(suggestion => {
     const suggestionId = `${suggestion.title}-${suggestion.category}`;
     return !acceptedSuggestions.has(suggestionId) && !rejectedSuggestions.has(suggestionId);
