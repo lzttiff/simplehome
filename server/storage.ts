@@ -33,64 +33,54 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
-  private templates: Map<string, PropertyTemplate>;
-  private tasks: Map<string, MaintenanceTask>;
-  private responses: Map<string, QuestionnaireResponse>;
-
-  constructor() {
-    this.templates = new Map();
-    this.tasks = new Map();
-    this.responses = new Map();
-    this.initializeDefaultTemplates();
-    this.initializeDefaultTasks();
-  }
-
-  private initializeDefaultTemplates() {
+  private _initializeDefaultTemplates() {
     const defaultTemplates = [
       {
         name: "Single-Family Home",
         type: "single_family",
         description: "Comprehensive maintenance for detached homes with yard, roof, HVAC systems, and exterior care.",
-        taskCount: 150,
+        taskCount: 150
       },
       {
         name: "Apartment/Condo",
         type: "apartment",
         description: "Essential maintenance for unit-specific systems, appliances, and shared responsibility areas.",
-        taskCount: 80,
+        taskCount: 80
       },
       {
         name: "Townhouse",
         type: "townhouse",
         description: "Balanced maintenance for attached homes with shared walls and individual system responsibilities.",
-        taskCount: 120,
+        taskCount: 120
       },
       {
         name: "Commercial Building",
         type: "commercial",
         description: "Professional maintenance schedules for office spaces, retail, and commercial properties.",
-        taskCount: 200,
+        taskCount: 200
       },
       {
         name: "Rental Property",
         type: "rental",
         description: "Landlord-focused maintenance with tenant safety priorities and investment protection.",
-        taskCount: 110,
+        taskCount: 110
       }
     ];
-
     defaultTemplates.forEach(template => {
       const id = randomUUID();
       const fullTemplate: PropertyTemplate = {
         id,
-        ...template,
+        name: template.name,
+        description: template.description,
+        type: template.type,
         createdAt: new Date(),
+        taskCount: template.taskCount ?? 0,
       };
       this.templates.set(id, fullTemplate);
     });
   }
 
-  private initializeDefaultTasks() {
+  private _initializeDefaultTasks() {
     const defaultTasks = [
       {
         title: "Replace HVAC Filter",
@@ -100,8 +90,14 @@ export class MemStorage implements IStorage {
         status: "pending",
         dueDate: new Date("2024-10-15"),
         lastCompleted: new Date("2024-07-15"),
+        completedAt: null,
+        nextDue: null,
         isTemplate: true,
         isAiGenerated: false,
+        templateId: null,
+        notes: null,
+        createdAt: null,
+        updatedAt: null
       },
       {
         title: "Test Water Pressure",
@@ -111,8 +107,14 @@ export class MemStorage implements IStorage {
         status: "pending",
         dueDate: new Date("2024-10-20"),
         lastCompleted: new Date("2024-04-20"),
+        completedAt: null,
+        nextDue: null,
         isTemplate: true,
         isAiGenerated: false,
+        templateId: null,
+        notes: null,
+        createdAt: null,
+        updatedAt: null
       },
       {
         title: "Clean Gutters",
@@ -120,10 +122,16 @@ export class MemStorage implements IStorage {
         category: "Exterior",
         priority: "Medium",
         status: "completed",
+        dueDate: null,
+        lastCompleted: null,
         completedAt: new Date("2024-10-10"),
         nextDue: new Date("2025-04-10"),
         isTemplate: true,
         isAiGenerated: false,
+        templateId: null,
+        notes: null,
+        createdAt: null,
+        updatedAt: null
       },
       {
         title: "Test GFCI Outlets",
@@ -132,25 +140,39 @@ export class MemStorage implements IStorage {
         priority: "Low",
         status: "pending",
         dueDate: new Date("2024-11-01"),
+        lastCompleted: null,
+        completedAt: null,
+        nextDue: null,
         isTemplate: false,
         isAiGenerated: true,
+        templateId: null,
+        notes: null,
+        createdAt: null,
+        updatedAt: null
       }
     ];
-
     defaultTasks.forEach(task => {
       const id = randomUUID();
       const fullTask: MaintenanceTask = {
-        id,
         ...task,
-        templateId: null,
-        notes: null,
+        id,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
       this.tasks.set(id, fullTask);
     });
   }
+  private templates: Map<string, PropertyTemplate>;
+  private tasks: Map<string, MaintenanceTask>;
+  private responses: Map<string, QuestionnaireResponse>;
 
+  constructor() {
+    this.templates = new Map();
+    this.tasks = new Map();
+    this.responses = new Map();
+    this._initializeDefaultTemplates();
+    this._initializeDefaultTasks();
+  }
   async getPropertyTemplates(): Promise<PropertyTemplate[]> {
     return Array.from(this.templates.values());
   }
@@ -159,15 +181,16 @@ export class MemStorage implements IStorage {
     return this.templates.get(id);
   }
 
-  async createPropertyTemplate(insertTemplate: InsertPropertyTemplate): Promise<PropertyTemplate> {
+  async createPropertyTemplate(template: InsertPropertyTemplate): Promise<PropertyTemplate> {
     const id = randomUUID();
-    const template: PropertyTemplate = {
-      ...insertTemplate,
+    const newTemplate: PropertyTemplate = {
+      ...template,
       id,
       createdAt: new Date(),
+      taskCount: template.taskCount ?? 0,
     };
-    this.templates.set(id, template);
-    return template;
+    this.templates.set(id, newTemplate);
+    return newTemplate;
   }
 
   async getMaintenanceTasks(filters?: {
@@ -178,7 +201,6 @@ export class MemStorage implements IStorage {
     templateId?: string;
   }): Promise<MaintenanceTask[]> {
     let tasks = Array.from(this.tasks.values());
-
     if (filters) {
       if (filters.category) {
         tasks = tasks.filter(task => task.category === filters.category);
@@ -191,7 +213,7 @@ export class MemStorage implements IStorage {
       }
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        tasks = tasks.filter(task => 
+        tasks = tasks.filter(task =>
           task.title.toLowerCase().includes(searchLower) ||
           task.description.toLowerCase().includes(searchLower)
         );
@@ -200,13 +222,10 @@ export class MemStorage implements IStorage {
         tasks = tasks.filter(task => task.templateId === filters.templateId);
       }
     }
-
     return tasks.sort((a, b) => {
       if (a.status === 'overdue' && b.status !== 'overdue') return -1;
-      if (b.status === 'overdue' && a.status !== 'overdue') return 1;
-      if (a.priority === 'Urgent' && b.priority !== 'Urgent') return -1;
-      if (b.priority === 'Urgent' && a.priority !== 'Urgent') return 1;
-      return new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime();
+      if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+      return 0;
     });
   }
 
@@ -214,27 +233,31 @@ export class MemStorage implements IStorage {
     return this.tasks.get(id);
   }
 
-  async createMaintenanceTask(insertTask: InsertMaintenanceTask): Promise<MaintenanceTask> {
+  async createMaintenanceTask(task: InsertMaintenanceTask): Promise<MaintenanceTask> {
     const id = randomUUID();
-    const task: MaintenanceTask = {
-      ...insertTask,
+    const newTask: MaintenanceTask = {
+      ...task,
       id,
+      status: task.status ?? "pending",
+      dueDate: task.dueDate ?? null,
+      completedAt: task.completedAt ?? null,
+      lastCompleted: task.lastCompleted ?? null,
+      nextDue: task.nextDue ?? null,
+      isTemplate: task.isTemplate ?? false,
+      isAiGenerated: task.isAiGenerated ?? false,
+      templateId: task.templateId ?? null,
+      notes: task.notes ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    this.tasks.set(id, task);
-    return task;
+    this.tasks.set(id, newTask);
+    return newTask;
   }
 
   async updateMaintenanceTask(id: string, updates: Partial<MaintenanceTask>): Promise<MaintenanceTask | undefined> {
     const task = this.tasks.get(id);
     if (!task) return undefined;
-
-    const updatedTask: MaintenanceTask = {
-      ...task,
-      ...updates,
-      updatedAt: new Date(),
-    };
+    const updatedTask = { ...task, ...updates, updatedAt: new Date() };
     this.tasks.set(id, updatedTask);
     return updatedTask;
   }
@@ -243,15 +266,15 @@ export class MemStorage implements IStorage {
     return this.tasks.delete(id);
   }
 
-  async saveQuestionnaireResponse(insertResponse: InsertQuestionnaireResponse): Promise<QuestionnaireResponse> {
+  async saveQuestionnaireResponse(response: InsertQuestionnaireResponse): Promise<QuestionnaireResponse> {
     const id = randomUUID();
-    const response: QuestionnaireResponse = {
-      ...insertResponse,
+    const newResponse: QuestionnaireResponse = {
+      ...response,
       id,
       createdAt: new Date(),
     };
-    this.responses.set(insertResponse.sessionId, response);
-    return response;
+    this.responses.set(response.sessionId, newResponse);
+    return newResponse;
   }
 
   async getQuestionnaireResponse(sessionId: string): Promise<QuestionnaireResponse | undefined> {

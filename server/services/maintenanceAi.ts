@@ -34,11 +34,11 @@ export async function generateMaintenanceSchedule(item: CatalogItem): Promise<Ma
   // For Foundation, treat model as Type
   const typeOrModel = item.name === "Foundation" ? item.model : item.model;
 
-  const prompt = `You are a home maintenance expert. Given the following household items, and provided attributes, generate Maintenance schedule, together with the next minor and major service dates.\n\nItem details:\n- Name: ${item.name}\n- Model: ${item.model || "N/A"}\n- Brand: ${item.brand || "N/A"}\n- Installation Date: ${item.installationDate}\n- Location: ${item.location}\n- Last Minor Service Date: ${minorDate}\n- Last Major Service Date: ${majorDate}\n\nPlease return your answer as a JSON object with:\n- nextMinorServiceDate (ISO format)\n- nextMajorServiceDate (ISO format)\n- Maintenance Schedule:\n\t-- Minor\n\t-- Major\n- reasoning\nRespond only in valid JSON format.`;
+  const prompt = `You are a home maintenance expert. Given the following household items, and provided attributes, generate Maintenance schedule, together with the next minor and major service dates.\n\nItem details:\n- Name: ${item.name}\n- Model: ${item.model || "N/A"}\n- Brand: ${item.brand || "N/A"}\n- Installation Date: ${item.installationDate}\n- Location: ${item.location}\n- Last Minor Service Date: ${minorDate}\n- Last Major Service Date: ${majorDate}\n\nPlease return your answer as a JSON object with:\n- Name \n- nextMinorServiceDate (ISO format)\n- nextMajorServiceDate (ISO format)\n- Maintenance Schedule:\n\t-- Minor\n\t-- Major\n- reasoning\nRespond only in valid JSON format.`;
 
   // Support provider selection: "openai" (default) or "gemini"
   const provider = (item as any).provider || "openai";
-  console.log(`[AI] Using provider: ${provider}`);
+  console.log(`[AI] Using provider: ${provider} on item: ${item.name}`);
   if (provider === "gemini") {
     const { generateGeminiContent } = await import("./gemini");
     const geminiResult = await generateGeminiContent(prompt);

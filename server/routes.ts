@@ -1,4 +1,21 @@
 import type { Express } from "express";
+// Catalog item interface for type safety
+export interface CatalogItem {
+  id: string;
+  name: string;
+  brand?: string;
+  model?: string;
+  installationDate: string;
+  lastMinorServiceDate?: string;
+  lastMajorServiceDate?: string;
+  location: string;
+  notes?: string;
+  maintenanceSchedule: {
+    minor: string;
+    major: string;
+  };
+  provider?: string;
+}
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMaintenanceTaskSchema, insertQuestionnaireResponseSchema } from "@shared/schema";
@@ -9,35 +26,55 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 // ...existing imports...
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+//const __filename = fileURLToPath(import.meta.url);
+//const __dirname = path.dirname(__filename);
 export async function registerRoutes(app: Express): Promise<Server> {
-  // AI Maintenance Schedule for Structural & Exterior
-  app.post("/api/ai/structural-exterior-schedule", async (req, res) => {
+  // AI Maintenance Schedule for a single item
+  app.post("/api/item-schedule", async (req, res) => {
     try {
-      // Load catalog from JSON file
-      //const fs = require("fs");
-      //const path = require("path");
-      const catalogPath = path.join(__dirname, "../maintenance-template-new.json");
-      const catalogData = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
-      const provider = catalogData.provider;
-      const category = catalogData.householdCatalog.find((c: any) => c.category === "Structural & Exterior");
-      if (!category) {
-        return res.status(404).json({ message: "Category not found" });
+      const item: CatalogItem = req.body.item;
+      let provider = req.body.provider || item.provider;
+      if (!item) {
+        return res.status(400).json({ message: "No item provided" });
       }
-
-      console.log(`In structure-exterior-schedule: [AI] Using provider: ${provider}`);
-
-      // Optionally, allow user to provide field overrides via req.body
-      const userItems = req.body.items || [];
-      // Merge user-provided fields into catalog items
-      const items = category.items.map((item: any) => {
-        const userItem = userItems.find((u: any) => u.id === item.id) || {};
-        // If provider is set at top level in JSON, apply to each item
-        return provider ? { ...item, ...userItem, provider } : { ...item, ...userItem };
-      });
-
+      // Attach provider if present
+      const itemWithProvider = provider ? { ...item, provider } : { ...item };
+      // Import AI service
+      const { generateMaintenanceSchedule } = require("./services/maintenanceAi");
+      const result = await generateMaintenanceSchedule(itemWithProvider);
+      res.json({ result });
+    } catch (error) {
+      console.error("AI item schedule error:", error);
+      res.status(500).json({ message: "Failed to generate maintenance schedule" });
+    }
+  });
+  // AI Maintenance Schedule for Structural & Exterior
+  app.post("/api/ai/category-schedule", async (req, res) => {
+    try {
+      // Try to get category from provided JSON
+      const provided = req.body;
+      let provider = provided.provider;
+      let category;
+      if (provided.householdCatalog && Array.isArray(provided.householdCatalog) && provided.householdCatalog.length > 0) {
+        // Use first category from provided JSON
+        category = provided.householdCatalog[0];
+        provider = provider || category.provider;
+      }
+      // If not found, fallback to default from maintenance-template-new.json
+      if (!category || !category.items) {
+        const catalogPath = path.join(__dirname, "../maintenance-template-new.json");
+        const catalogData = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
+        provider = provider || catalogData.provider;
+        category = catalogData.householdCatalog && Array.isArray(catalogData.householdCatalog) && catalogData.householdCatalog.length > 0
+          ? catalogData.householdCatalog[0]
+          : null;
+        if (!category || !category.items) {
+          return res.status(404).json({ message: "No valid category found in provided or default catalog" });
+        }
+      }
+      console.log(`Category checked: ${category.category}, provider: ${provider}`);
+ 
+  const items = category.items.map((item: CatalogItem) => provider ? { ...item, provider } : { ...item });
       // Import AI service
       const { generateCategoryMaintenanceSchedules } = require("./services/maintenanceAi");
       const results = await generateCategoryMaintenanceSchedules(items);
@@ -96,32 +133,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(task);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch task" });
-    }
-  });
-
-  app.post("/api/tasks", async (req, res) => {
-    try {
-      const validatedData = insertMaintenanceTaskSchema.parse(req.body);
-      const task = await storage.createMaintenanceTask(validatedData);
-      res.status(201).json(task);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid task data", errors: error.errors });
-      }
-      res.status(500).json({ message: "Failed to create task" });
-    }
-  });
-
-  app.patch("/api/tasks/:id", async (req, res) => {
-    try {
-      const updates = req.body;
-      const task = await storage.updateMaintenanceTask(req.params.id, updates);
-      if (!task) {
-        return res.status(404).json({ message: "Task not found" });
-      }
-      res.json(task);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update task" });
     }
   });
 

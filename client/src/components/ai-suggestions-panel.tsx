@@ -90,10 +90,10 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
     });
   };
 
-  const suggestions: AISuggestion[] = suggestionsData?.suggestions || [];
   let suggestions: AISuggestion[] = suggestionsData?.suggestions || [];
+  // If suggestions is a nested array, flatten it
   if (Array.isArray(suggestions) && Array.isArray(suggestions[0])) {
-    suggestions = suggestions[0];
+    suggestions = suggestions.flat();
   }
 
   // Filter out accepted or rejected suggestions
