@@ -1,0 +1,184 @@
+{
+  "results": [
+    [
+      {
+        "Name": "Foundation",
+        "nextMinorServiceDate": "2025-05-01",
+        "nextMajorServiceDate": "2025-05-01",
+        "Maintenance Schedule": {
+          "Minor": "Annual visual inspection. Check for new or expanding cracks in the slab and walls, signs of moisture, water pooling, or pest entry points. Ensure the soil around the foundation slopes away from the house.",
+          "Major": "Every 5 years. Professional structural inspection to assess settling, integrity, and drainage. This may include sealing significant cracks and verifying that the ground around the foundation is properly graded and managed.",
+          "reasoning": "Annual visual inspections are crucial for early detection of water and pest issues, preventing costly damage. A professional inspection every 5 years is recommended for a comprehensive assessment of the foundation's structural health, ensuring the long-term stability of the home."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Roof",
+        "nextMinorServiceDate": "2024-10-15",
+        "nextMajorServiceDate": "2025-05-01",
+        "Maintenance Schedule": {
+          "Minor": "Annually (preferably in the fall). Visually inspect for missing, damaged, or curling shingles. Check flashing integrity, clear debris from the surface, and clean gutters to prevent water damage.",
+          "Major": "Every 3-5 years. A professional inspection of the roof structure, decking, underlayment, and shingles. Given the roof's age, this service should be a consultation for a full roof replacement.",
+          "reasoning": "A composite shingle roof has a typical lifespan of 20-30 years. Installed in 1995, this roof is at the end of its expected service life, making regular inspections critical. The annual minor service is recommended to catch potential leaks early. The next major service date is based on a 5-year interval from the last service, but it should be treated as a deadline to plan for a full roof replacement to avoid potential catastrophic failure and interior water damage."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Gutter",
+        "nextMinorServiceDate": "2024-04-27",
+        "nextMajorServiceDate": "2024-10-27",
+        "Maintenance Schedule": {
+          "Minor": "Clean out leaves, twigs, and other debris from gutters and downspouts. Flush with water to ensure clear flow. Inspect for loose hangers, minor leaks, and signs of blockages. Perform bi-annually (e.g., late spring and late fall), or more frequently (quarterly) if surrounded by many trees.",
+          "Major": "Thorough inspection of the entire gutter system, including seams, seals, downspout connections, fascia attachment, and proper pitch. Repair any significant leaks, re-seal joints, re-attach loose sections, and ensure downspouts direct water effectively away from the foundation. Check for signs of rust or corrosion. Perform annually."
+        },
+        "reasoning": "Gutters are crucial for protecting a home's foundation and exterior from water damage. Regular cleaning (Minor Service) prevents clogs that can lead to overflow, fascia rot, and foundation issues. A more comprehensive annual inspection (Major Service) ensures the structural integrity and long-term effectiveness of the system. Since no previous service dates were provided, the 'next' service dates are set proactively based on current best practices, with today (October 27, 2023) as the reference point for calculation. The 'quad' model refers to the profile of the gutter, which doesn't alter the fundamental maintenance requirements of debris removal and structural integrity checks."
+      }
+    ],
+    [
+      {
+        "Name": "Garage Door",
+        "nextMinorServiceDate": "2024-01-26",
+        "nextMajorServiceDate": "2024-10-26",
+        "Maintenance Schedule": {
+          "Minor": "Quarterly (Every 3 months): Visually inspect cables, springs, rollers, and pulleys for signs of wear or damage. Lubricate all moving parts, including hinges, rollers, and springs, with a silicone or lithium-based spray. Test the safety features, including the auto-reverse mechanism (with a 2x4 wood block) and the photo-eye sensors. Check and tighten all bolts and screws.",
+          "Major": "Annually (Every 12 months): Includes all minor service tasks. It is highly recommended to have a professional technician perform this service. They will check and adjust the spring tension, test the door balance, inspect cables for fraying, check roller condition, and perform a comprehensive safety inspection and tune-up of the opener mechanism.",
+          "reasoning": "A garage door is a large, heavy, moving object under high tension, making regular maintenance critical for safety and longevity. Quarterly minor services by the homeowner ensure smooth operation and catch early signs of wear. An annual professional service is essential for safely adjusting high-tension springs and performing in-depth checks that prevent catastrophic failures and costly repairs. Since no previous service dates were provided, this schedule is based on industry best practices starting from today."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Windows",
+        "nextMinorServiceDate": "2024-11-24T00:00:00Z",
+        "nextMajorServiceDate": "2025-05-24T00:00:00Z",
+        "Maintenance Schedule": {
+          "Minor": "Semi-annually (every 6 months): Clean glass (interior and exterior), tracks, and sills. Inspect for any obvious cracks or damage. Check that windows open and close smoothly.",
+          "Major": "Annually (every 12 months): Perform all minor service tasks. In addition, inspect all caulking and weatherstripping for cracks or peeling. Check hardware (locks, handles) for proper function and tightness. Inspect frames for signs of rot, rust, or decay. Deep clean window screens.",
+          "reasoning": "Regular maintenance of windows is crucial for energy efficiency, longevity, and home security. Minor cleaning prevents buildup of dirt that can damage components over time. Major annual inspections help catch and address issues like failing seals, drafts, or water leaks before they become significant problems, saving money on energy bills and potential repairs."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Doors",
+        "nextMinorServiceDate": "2024-08-15",
+        "nextMajorServiceDate": "2025-05-15",
+        "Maintenance Schedule": {
+          "Minor": "Quarterly (every 3 months): Clean door surfaces (wipe down, remove dust/grime). Inspect for loose screws on hinges, handles, and latches; tighten if necessary. Lubricate hinges, latches, and locking mechanisms with a silicone-based lubricant or light oil. Check weather stripping/door sweeps for exterior doors, clean and ensure good seal. Inspect for any minor signs of wear or damage.",
+          "Major": "Annually (every 12 months): Perform all minor service tasks. Check door alignment and adjust if necessary (sagging, sticking). Inspect for wood rot, rust, or other material degradation, especially on exterior doors. Re-seal or repaint exterior doors as needed to protect against weather. Inspect frames for cracks or gaps, caulk if necessary. Check locking mechanisms thoroughly for security and smooth operation. Evaluate weather stripping/door sweeps for replacement if worn out."
+        },
+        "reasoning": "A quarterly minor service ensures that doors remain clean, operate smoothly, and any minor issues like loose hardware are addressed promptly, extending their lifespan. An annual major service allows for a deeper inspection, adjustment of alignment, re-sealing/repainting for weather protection (especially for exterior doors), and replacement of worn components like weather stripping, preventing more significant and costly repairs down the line. Since no previous service dates were provided, the next minor service is set for 3 months from now, and the next major service for 12 months from now, assuming a baseline starting point for maintenance."
+      }
+    ],
+    [
+      {
+        "Name": "Fence",
+        "nextMinorServiceDate": "2025-04-15",
+        "nextMajorServiceDate": "2024-09-15",
+        "Maintenance Schedule": {
+          "Minor": "Annually: Inspect the entire fence for signs of rot, insect damage, loose or broken boards, and protruding nails. Clean the fence with a pressure washer (on a low setting) or a stiff brush and a wood-safe cleaner to remove dirt, grime, and mildew.",
+          "Major": "Every 2-4 years: After a thorough cleaning, sand any rough or weathered spots. Apply a new coat of high-quality stain or sealant to protect the wood from UV rays and moisture. Replace any boards that are severely warped, cracked, or rotted.",
+          "reasoning": "Wooden fences are constantly exposed to the elements, which can cause decay, warping, and discoloration. Annual inspections (Minor Service) catch small problems before they become costly repairs. A full re-staining or sealing every 2-4 years (Major Service) is crucial to protect the wood from sun and water damage, preserving its structural integrity and appearance. Since no prior service history was provided, the next major service is scheduled for the upcoming season to establish a protective baseline, with the next annual inspection scheduled for the following spring."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Patio",
+        "nextMinorServiceDate": "2024-04-01",
+        "nextMajorServiceDate": "2027-04-01",
+        "Maintenance Schedule": {
+          "Minor": "Perform annually. Tasks include: Sweeping and clearing debris regularly. Washing the surface with a mild detergent and brush, then rinsing thoroughly. Inspecting for loose fasteners, splinters, small cracks, and signs of mildew or algae growth. Re-applying a penetrating sealer or stain annually or biennially, depending on the product's lifespan and exposure to the elements.",
+          "Major": "Perform every 3 to 5 years. Tasks include: Deep cleaning with a wood-specific cleaner or pressure washer (on a low setting, carefully) to remove embedded dirt and old finishes. Sanding any rough areas or completely stripping and re-finishing if the existing coat is failing. Thoroughly inspecting for rot, significant cracks, structural damage (like ledger board, joists, or posts), or pest infestations. Replacing any severely damaged or rotted boards. Applying a fresh coat of high-quality stain or sealant, ensuring full protection. Checking and tightening all fasteners, and ensuring proper drainage."
+        },
+        "reasoning": "Wood patios are exposed to the elements and require regular maintenance to prevent rot, mildew, UV damage, and to preserve their structural integrity and appearance. An annual 'Minor Service' in the spring allows for post-winter clean-up and reapplication of protective finishes before heavy summer use. A more comprehensive 'Major Service' every 3-5 years addresses deeper wear, significant environmental damage, and structural checks, ensuring the longevity and safety of the patio. The dates are calculated assuming a fresh start or unknown history, with the first minor service scheduled for Spring 2024 and major service three years thereafter."
+      }
+    ],
+    [
+      {
+        "Name": "Deck",
+        "nextMinorServiceDate": "2024-11-21",
+        "nextMajorServiceDate": "2026-05-21",
+        "Maintenance Schedule": {
+          "Minor": "Biannually (every 6 months): Sweep debris from the deck surface. Wash with a mild, deck-safe cleaner to remove dirt, algae, and mildew. Inspect for any popped nails/screws, loose boards, or splintering and make small repairs as needed.",
+          "Major": "Every 2-3 years: Perform a deep cleaning, potentially with a pressure washer on a low setting. Sand any rough or weathered spots. Apply a fresh coat of high-quality stain or sealant to protect the wood from UV rays and moisture. Conduct a thorough structural inspection of posts, joists, and railings.",
+          "reasoning": "Regular maintenance is critical to preserve the structural integrity, safety, and appearance of a deck. Biannual cleaning prevents the buildup of organic matter that can lead to rot and decay. The major service of resealing or restaining the wood every 2-3 years is the most important step to protect it from water damage and sun exposure, which cause cracking, warping, and splintering. This schedule helps maximize the lifespan of your deck and ensures it remains a safe outdoor space. Frequency may need to be increased in harsh climates."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Driveway",
+        "nextMinorServiceDate": "2025-04-15",
+        "nextMajorServiceDate": "2024-09-30",
+        "Maintenance Schedule": {
+          "Minor": "Seasonally (Spring and Fall): Sweep away leaves and debris. Power wash the surface to remove dirt, mildew, and stains from oil or tires. Inspect for new hairline cracks or weeds in joints.",
+          "Major": "Every 3-5 years: Perform a thorough power wash and allow the surface to dry completely for 24 hours. Fill any cracks wider than a credit card with a concrete crack filler. Apply a high-quality penetrating concrete sealer to protect against water, salt, and chemical damage.",
+          "reasoning": "Since the installation and service history are unknown, this proactive schedule is recommended to ensure the longevity of the concrete. Regular cleaning (Minor Service) maintains appearance and allows for early problem detection. Sealing (Major Service) is critical as it protects the porous concrete from water penetration, which causes cracking and spalling during freeze-thaw cycles, thereby significantly extending the driveway's life."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Chimney",
+        "nextMinorServiceDate": "2024-09-01T00:00:00Z",
+        "nextMajorServiceDate": "2024-09-01T00:00:00Z",
+        "Maintenance Schedule": {
+          "Minor": "Annually (Homeowner Visual Inspection): Before each heating season, visually inspect the exterior masonry for cracks, loose bricks, or a damaged cap. Check the interior firebox for damaged bricks/mortar and ensure the damper operates correctly. Look up the flue for any visible obstructions like bird nests.",
+          "Major": "Annually (Professional Service): Hire a certified chimney sweep for a Level 1 inspection and cleaning. This removes flammable creosote buildup and checks for structural issues, flue blockages, and liner damage.",
+          "reasoning": "Annual professional inspection and cleaning are critical for preventing dangerous chimney fires caused by creosote buildup and ensuring the chimney is structurally sound to prevent carbon monoxide from leaking into the home. This frequency is recommended by safety organizations like the National Fire Protection Association (NFPA). Since no last service date was provided, the next service is scheduled before the typical high-use season."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Siding",
+        "nextMinorServiceDate": "2025-04-15T00:00:00.000Z",
+        "nextMajorServiceDate": "2027-05-01T00:00:00.000Z",
+        "Maintenance Schedule": {
+          "Minor": "Annually: Visually inspect for cracks, warping, pests, or mildew. Gently wash the siding with a soft brush and a mild detergent solution to remove dirt and grime, especially on sides that receive less sun. Check for any loose or damaged panels.",
+          "Major": "Every 3-5 Years: Perform a thorough inspection of all siding and trim. Check and replace any failing caulk around windows, doors, and corner trim to prevent water intrusion. Address any significant repairs, such as replacing damaged sections or repainting/re-staining if necessary.",
+          "reasoning": "Regular cleaning and inspection of siding prevents the buildup of mold, mildew, and dirt, which can cause long-term damage and discoloration. Proactive checks for cracks, gaps, and failing caulk are crucial for preventing water infiltration, which can lead to rot, structural damage, and costly repairs. This schedule preserves the siding's protective function and curb appeal."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Porch",
+        "nextMinorServiceDate": "2024-09-15",
+        "nextMajorServiceDate": "2025-05-15",
+        "Maintenance Schedule": {
+          "Minor": "Every 3-6 months: Sweep surfaces to remove leaves and debris. Perform a visual inspection for any signs of rot, mildew, or insect damage, especially where wood meets the ground or foundation. Check for and tighten any loose railings, boards, or stairs. Wash the surface with a mild soap and water solution.",
+          "Major": "Annually: Conduct a thorough structural inspection of posts, beams, joists, and ledger board attachment to the house. Perform a deep cleaning with a pressure washer (on a low setting for wood) or a deck-appropriate cleaner. For wood porches, check the condition of the stain or sealant. Sand any rough spots and reapply a protective coat every 1-3 years, depending on wear and climate, to prevent water damage and rot.",
+          "reasoning": "Regular maintenance is critical for the safety and longevity of your porch. Minor, seasonal checks prevent the accumulation of moisture-trapping debris that can cause rot and decay. The annual major service ensures the structural integrity of the porch, protecting against potential collapse, and maintains the protective finish, which is the first line of defense against weather, UV damage, and pests. This schedule preserves the porch's appearance and extends its functional life significantly."
+        }
+      }
+    ],
+    [
+      {
+        "Name": "Awning",
+        "nextMinorServiceDate": "2023-11-27",
+        "nextMajorServiceDate": "2024-10-27",
+        "Maintenance Schedule": {
+          "Minor": "Quarterly or seasonally (e.g., Spring, Fall, before Winter). Tasks include: Visually inspect fabric for dirt, mildew, tears, or fraying. Brush off loose dirt and debris. Check for proper operation of retractable mechanisms (if applicable), ensuring smooth movement. Clear any leaves or debris from the top. Inspect fasteners and mounts for looseness. Quick clean of superficial dirt.",
+          "Major": "Annually. Tasks include: Thorough cleaning of fabric using mild soap and water, rinsing thoroughly. Inspect frame for rust, bending, or damage. Lubricate moving parts of retractable awnings with silicone spray (if applicable). Check and tighten all bolts, screws, and mounting hardware. Inspect for proper slope and drainage. Check seams and stitching for wear and potential water ingress. Consider applying a fabric protector/water repellent (if applicable). If motorized, check electrical connections and remote functionality."
+        },
+        "reasoning": "Awnings are continuously exposed to outdoor elements, making regular maintenance crucial for longevity and functionality. Minor services, performed quarterly or seasonally, address superficial dirt and immediate operational checks, preventing minor issues from escalating. Major annual services involve deeper cleaning, structural inspection, and lubrication of moving parts to address wear and tear, prevent damage, and ensure safe and efficient operation. This proactive approach significantly extends the awning's lifespan, maintains its aesthetic appeal, and avoids costly repairs."
+      }
+    ],
+    [
+      {
+        "Name": "Mailbox",
+        "nextMinorServiceDate": "2024-09-10",
+        "nextMajorServiceDate": "2025-06-10",
+        "Maintenance Schedule": {
+          "Minor": "Quarterly: Clean interior and exterior. Check for loose hinges, wobbly post, and inspect for insect nests. Ensure the door latches securely.",
+          "Major": "Annually: Perform a deep clean. Tighten all hardware. Scrape any rust or peeling paint and repaint/reseal to protect from the elements. Check if the post is secure in the ground and re-set if necessary.",
+          "reasoning": "Mailboxes are constantly exposed to weather, which can cause rust, rot, and paint degradation. Regular minor checks prevent small issues like insect nests or loose doors from becoming major problems. An annual major service maintains its structural integrity, functionality, and curb appeal, protecting it from long-term weather damage."
+        }
+      }
+    ]
+  ]
+}

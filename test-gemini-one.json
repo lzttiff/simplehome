@@ -1,0 +1,24 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "categoryName": "Structural & Exterior",
+      "items": [
+        {
+          "id": "d20d9aa3-6a47-44ce-91d6-bf06a1e39d80",
+          "name": "Foundation",
+          "brand": "Generic",
+          "model": "Slab",  
+          "installationDate": "2020-05-01",
+          "lastMaintenanceDate": {
+            "minor": "2020-05-01",
+            "major": "2020-05-01"
+          },
+          "location": "Basement",
+          "notes": ""
+        }
+      ]
+    }
+  ]
+}
+ 

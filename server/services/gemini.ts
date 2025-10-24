@@ -1,3 +1,4 @@
+import { logWithLevel } from "./logWithLevel";
 import axios from "axios";
 
 // Store Gemini API key locally for backend use
@@ -9,11 +10,13 @@ export function setLocalGeminiApiKey(key: string) {
 }
 
 export async function generateGeminiContent(prompt: string, apiKey?: string): Promise<string> {
-  const models = ["gemini-1.5-pro", "gemini-1.5-flash"];
+  // gemini 1.5 is deprecated
+  const models = ["gemini-2.5-pro", "gemini-2.5-flash"];
   const keyToUse = apiKey || localGeminiApiKey;
   if (!keyToUse) throw new Error("Gemini API key is not set.");
+
   // Add explicit instructions for JSON output
-  const jsonInstructions = `\nRespond with valid JSON in this format:\n{\n  \"suggestions\": [\n    {\n      \"title\": \"string\",\n      \"description\": \"string\",\n      \"category\": \"string\",\n      \"priority\": \"string\",\n      \"frequency\": \"string\",\n      \"reasoning\": \"string\"\n    }\n  ]\n}`;
+  const jsonInstructions = `\nRespond with valid JSON in this format:\n{\n  \"suggestions\": [\n    {\n      \"Name\": \"string\",\n      \"nextMinorServiceDate\": \"string\",\n      \"nextMajorServiceDate\": \"string\",\n      \"Maintenance Schedule\": {\n        \"Minor": \"string\",\n      \"Major\": \"string\",\n      \"reasoning\": \"string\"\n    }\n  }\n  ]\n}`;
   const requestBody = {
     contents: [
       {
@@ -24,9 +27,37 @@ export async function generateGeminiContent(prompt: string, apiKey?: string): Pr
     ]
   };
   let lastError: any = null;
-  for (const model of models) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyToUse}`;
+  // Try first model
+  try {
+    logWithLevel("INFO", `[Gemini] Trying model: ${models[0]}`);
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${models[0]}:generateContent?key=${keyToUse}`;
+    const response = await axios.post(endpoint, requestBody);
+    const candidates = response.data?.candidates;
+    if (candidates && candidates.length > 0) {
+      let text = candidates[0]?.content?.parts?.[0]?.text || "";
+      let cleaned = text.trim();
+      if (cleaned.startsWith("```json")) {
+        cleaned = cleaned.replace(/^```json/, "").replace(/```$/, "").trim();
+      } else if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```/, "").replace(/```$/, "").trim();
+      }
+      try {
+        const parsed = JSON.parse(cleaned);
+        if (parsed.suggestions) return parsed.suggestions;
+        return parsed;
+      } catch {
+        // If not valid JSON, return raw text
+        return cleaned;
+      }
+    }
+    return JSON.stringify(response.data);
+  } catch (error: any) {
+    lastError = error;
+    logWithLevel("ERROR", `[Gemini] Model ${models[0]} failed:`, error?.message || error);
+    // Try second model if first fails
     try {
+      logWithLevel("INFO", `[Gemini] Trying model: ${models[1]}`);
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${models[1]}:generateContent?key=${keyToUse}`;
       const response = await axios.post(endpoint, requestBody);
       const candidates = response.data?.candidates;
       if (candidates && candidates.length > 0) {
@@ -47,9 +78,9 @@ export async function generateGeminiContent(prompt: string, apiKey?: string): Pr
         }
       }
       return JSON.stringify(response.data);
-    } catch (error: any) {
-      lastError = error;
-      // Try next model if available
+    } catch (error2: any) {
+      lastError = error2;
+      logWithLevel("ERROR", `[Gemini] Model ${models[1]} failed:`, error2?.message || error2);
     }
   }
   // If both models fail, throw last error

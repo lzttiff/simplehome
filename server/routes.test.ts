@@ -2,6 +2,8 @@ import request from 'supertest';
 import express, {Express} from 'express';
 import { registerRoutes } from './routes';
 
+const provider = (process.env.PROVIDER as 'gemini' | 'openai') || 'gemini';
+
 describe('/api/item-schedule', () => {
   let app: Express;
 
@@ -22,13 +24,14 @@ describe('/api/item-schedule', () => {
       lastMajorServiceDate: '2023-06-01',
       location: 'Basement',
       maintenanceSchedule: { minor: 'Annual', major: 'Biannual' },
-      provider: 'openai',
+      provider: provider as 'gemini' | 'openai',
     };
     const res = await request(app)
       .post('/api/item-schedule')
       .send({ item });
-    expect(res.statusCode).toBe(200);
-    expect(res.body.result).toHaveProperty('nextMinorServiceDate');
-    expect(res.body.result).toHaveProperty('nextMajorServiceDate');
-  });
+  expect(res.statusCode).toBe(200);
+  expect(res.body.result).toHaveProperty('nextMaintenanceDates');
+  expect(res.body.result.nextMaintenanceDates).toHaveProperty('minor');
+  expect(res.body.result.nextMaintenanceDates).toHaveProperty('major');
+  }, 50000); // Increase timeout for Gemini;
 });

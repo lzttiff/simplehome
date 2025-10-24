@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://localhost/works/projects/simplehome/maintenance-list-schema-1.0.0.json",
+  "version": "1.0.0",
+  "title": "Maintenance List Schema",
+  "description": "Schema for a maintenance list in a personal project.",
+  "type": "object",
+  "properties": {
+    "provider": { 
+      "type": "string",
+      "description": "Name of AI agent",
+      "enum": ["openai","gemini"]
+    },
+    "householdCatalog": {
+      "type": "array",
+      "description": "List of household categories requiring maintenance",
+      "items": {
+        "type": "object",
+        "properties": {
+          "categoryName": { "type": "string", "description": "Name of the household category" },
+          "items": {
+            "type": "array",
+            "properties": {
+              "id": { "type": "string", "description": "Unique identifier for the household item" },
+              "name": { "type": "string", "description": "Name of the household item" },
+              "brand": { "type": "string", "description": "Brand of the household item" },
+              "model": { "type": "string", "description": "Model of the household item" },
+              "serialNumber": { "type": "string", "description": "Serial number of the household item" },
+              "location": { "type": "string", "description": "Location of the household item" },
+              "installationDate": { "type": "string", "format": "date", "description": "Installation date of the household item" },
+              "warrantyPeriodMonths": { "type": "integer", "description": "Warranty period of the household item in months" },
+              "lastMaintenanceDate": { 
+                "type": "object", 
+                "description": "Date of last maintenance",
+                "properties": {
+                  "minor": { "type": "string", "format": "date", "description": "Date of last minor maintenance" },
+                  "major": { "type": "string", "format": "date", "description": "Date of last major maintenance" }
+                },
+                "required": ["minor", "major"]
+              },
+              "nextMaintenanceDate": { 
+                "type": "object", 
+                "description": "Date of next scheduled maintenance",
+                "properties": {
+                  "minor": { "type": "string", "format": "date", "description": "Date of next minor maintenance" },
+                  "major": { "type": "string", "format": "date", "description": "Date of next major maintenance" }
+                },
+                "required": ["minor", "major"]
+              },
+              "maintenanceSchedule": {
+                "type": "object",
+                "description": "Maintenance schedule for the household item",
+                "properties": {
+                  "minorTasks": { 
+                    "type": "array", 
+                    "description": "List of minor maintenance tasks", 
+                    "items": { 
+                      "type": "array",
+                      "properties": {
+                        "taskName": { "type": "string", "description": "Name of the maintenance task" },
+                        "description": { "type": "string", "description": "Description of the maintenance task" },
+                        "id": { "type": "string", "description": "UUID of the task"}
+                      }
+                    },
+                    "required": ["taskName", "description", "id"]
+                  },
+                  "minorIntervalMonths": { "type": "integer", "description": "Interval for minor maintenance in months" },
+                  "majorTasks": { 
+                    "type": "array", 
+                    "description": "List of major maintenance tasks", 
+                    "items": { 
+                      "type": "object",
+                      "properties": {
+                        "taskName": { "type": "string", "description": "Name of the maintenance task" },
+                        "description": { "type": "string", "description": "Description of the maintenance task" },
+                        "id": { "type": "string", "description": "UUID of the task" }
+                      },
+                      "required": ["taskName", "description", "id"]
+                    }
+                  },
+                  "majorIntervalMonths": { "type": "integer", "description": "Interval for major maintenance in months" }
+                },
+                "required": ["minorTasks", "majorTasks"]
+              },
+              "notes": { "type": "string", "description": "Additional notes about the item" },
+              "relatedItemIds": { 
+                "type": "array", 
+                "description": "List of related household item IDs", 
+                "items": { "type": "string" } 
+              }
+            },
+            "required": ["id", "name", "lastMaintenanceDate", "nextMaintenanceDate", "maintenanceSchedule"]
+          }
+        }
+      }
+    }
+  },
+  "required": ["provider", "householdCatalog"]
+}
