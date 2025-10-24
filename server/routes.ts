@@ -57,11 +57,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!item) {
         return res.status(400).json({ message: "No item provided" });
       }
-      // Attach provider if present
-      const itemWithProvider = provider ? { ...item, provider } : { ...item };
-  // Import AI service (use dynamic ESM import to work in ESM runtime)
-  const { generateMaintenanceSchedule } = await import("./services/maintenanceAi");
-  const result = await generateMaintenanceSchedule(itemWithProvider);
+      // Attach provider if present. Cast to CatalogItem to satisfy TypeScript in tests
+      // provider may come from request body (string) so we cast defensively to the expected union type
+      const itemWithProvider = provider
+        ? ({ ...item, provider: provider as 'openai' | 'gemini' } as unknown as CatalogItem)
+        : ({ ...item } as CatalogItem);
+      // Import AI service (use dynamic ESM import to work in ESM runtime)
+      const { generateMaintenanceSchedule } = await import("./services/maintenanceAi");
+      const result = await generateMaintenanceSchedule(itemWithProvider as any);
       // If the service returned an error-like object, return HTTP 500 with diagnostics
       if (result && typeof result === 'object' && (result.error || result.validationErrors)) {
         logWithLevel('ERROR', `AI service returned error for item ${itemWithProvider.name}: ${JSON.stringify(result)}`);
@@ -97,14 +100,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "No valid category found in provided or default catalog" });
         }
       }
-  // Use log level INFO for category check
-  const { logWithLevel } = await import("./services/logWithLevel");
-  logWithLevel("INFO", `Category checked: ${category.category}, provider: ${provider}`);
- 
-  const items = category.items.map((item: CatalogItem) => provider ? { ...item, provider } : { ...item });
-  // Import AI service (dynamic ESM import)
-  const { generateCategoryMaintenanceSchedules } = await import("./services/maintenanceAi");
-  const results = await generateCategoryMaintenanceSchedules(items);
+      // Use log level INFO for category check
+      const { logWithLevel } = await import("./services/logWithLevel");
+      logWithLevel("INFO", `Category checked: ${category.category}, provider: ${provider}`);
+    
+      const items = category.items.map((item: CatalogItem) => provider ? { ...item, provider } : { ...item });
+      // Import AI service (dynamic ESM import)
+      const { generateCategoryMaintenanceSchedules } = await import("./services/maintenanceAi");
+      const results = await generateCategoryMaintenanceSchedules(items as any);
       res.json({ results });
     } catch (error) {
       console.error("AI schedule error:", error);
@@ -306,8 +309,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!adminToken || token !== adminToken) {
         return res.status(401).json({ message: 'Unauthorized' });
       }
-  const { clearDiagnostics } = await import('./services/maintenanceAi');
-  clearDiagnostics();
+      const { clearDiagnostics } = await import('./services/maintenanceAi');
+      clearDiagnostics();
       res.json({ cleared: true });
     } catch (error) {
       res.status(500).json({ message: 'Failed to clear diagnostics' });
