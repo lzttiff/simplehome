@@ -11,7 +11,7 @@ export default {
       }
     ]
   },
-  testMatch: ['**/server/**/*.test.ts'],
+  testMatch: ['**/tests/**/*.test.ts'],
   moduleNameMapper: {
     '^@shared/schema$': '<rootDir>/shared/schema.ts',
   },
