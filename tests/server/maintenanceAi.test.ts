@@ -1,4 +1,4 @@
-import { generateMaintenanceSchedule, normalizeToMaintenanceAiResult } from './maintenanceAi';
+import { generateMaintenanceSchedule, normalizeToMaintenanceAiResult } from '../../server/services/maintenanceAi';
 
 const provider = (process.env.PROVIDER as 'gemini' | 'openai') || 'gemini';
 
