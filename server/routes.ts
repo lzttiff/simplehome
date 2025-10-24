@@ -25,6 +25,8 @@ import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { log } from "console";
+import { logWithLevel } from "./services/logWithLevel";
 // ...existing imports...
 //const __filename = fileURLToPath(import.meta.url);
 //const __dirname = path.dirname(__filename);
@@ -32,16 +34,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Maintenance Schedule for a single item
   app.post("/api/item-schedule", async (req, res) => {
     try {
-      const item: CatalogItem = req.body.item;
-      let provider = req.body.provider || item.provider;
+      const body = req.body || {};
+      // Accept multiple payload shapes:
+      // - { item: { ... } }
+      // - direct CatalogItem in the body
+      // - { householdCatalog: [ { items: [ { ... } ] } ] }
+      let item: CatalogItem | undefined = undefined;
+      if (body.item) {
+        item = body.item;
+      } else if (body.householdCatalog && Array.isArray(body.householdCatalog) && body.householdCatalog.length > 0) {
+        const cat = body.householdCatalog[0];
+        if (cat && Array.isArray(cat.items) && cat.items.length > 0) {
+          item = cat.items[0];
+        }
+      } else if (body.id && body.name) {
+        // heuristically treat the whole body as a CatalogItem
+        item = body as CatalogItem;
+      }
+
+      const provider = body.provider || item?.provider;
+      logWithLevel("INFO", `Item schedule request received for item: ${item?.name || 'undefined'}, provider: ${provider || 'undefined'}`);
       if (!item) {
         return res.status(400).json({ message: "No item provided" });
       }
       // Attach provider if present
       const itemWithProvider = provider ? { ...item, provider } : { ...item };
-      // Import AI service
-      const { generateMaintenanceSchedule } = require("./services/maintenanceAi");
-      const result = await generateMaintenanceSchedule(itemWithProvider);
+  // Import AI service (use dynamic ESM import to work in ESM runtime)
+  const { generateMaintenanceSchedule } = await import("./services/maintenanceAi");
+  const result = await generateMaintenanceSchedule(itemWithProvider);
+      // If the service returned an error-like object, return HTTP 500 with diagnostics
+      if (result && typeof result === 'object' && (result.error || result.validationErrors)) {
+        logWithLevel('ERROR', `AI service returned error for item ${itemWithProvider.name}: ${JSON.stringify(result)}`);
+        return res.status(500).json({ message: 'AI service validation failed', details: result });
+      }
       res.json({ result });
     } catch (error) {
       console.error("AI item schedule error:", error);
@@ -49,7 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   // AI Maintenance Schedule for Structural & Exterior
-  app.post("/api/ai/category-schedule", async (req, res) => {
+  app.post("/api/category-schedule", async (req, res) => {
     try {
       // Try to get category from provided JSON
       const provided = req.body;
@@ -72,12 +97,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "No valid category found in provided or default catalog" });
         }
       }
-      console.log(`Category checked: ${category.category}, provider: ${provider}`);
+  // Use log level INFO for category check
+  const { logWithLevel } = await import("./services/logWithLevel");
+  logWithLevel("INFO", `Category checked: ${category.category}, provider: ${provider}`);
  
   const items = category.items.map((item: CatalogItem) => provider ? { ...item, provider } : { ...item });
-      // Import AI service
-      const { generateCategoryMaintenanceSchedules } = require("./services/maintenanceAi");
-      const results = await generateCategoryMaintenanceSchedules(items);
+  // Import AI service (dynamic ESM import)
+  const { generateCategoryMaintenanceSchedules } = await import("./services/maintenanceAi");
+  const results = await generateCategoryMaintenanceSchedules(items);
       res.json({ results });
     } catch (error) {
       console.error("AI schedule error:", error);
@@ -251,6 +278,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch statistics" });
+    }
+  });
+
+  // Admin-only AI diagnostics endpoint
+  app.get('/api/admin/ai-diagnostics', async (req, res) => {
+    try {
+      const auth = req.headers.authorization || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+      const adminToken = process.env.ADMIN_TOKEN;
+      if (!adminToken || token !== adminToken) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+  const { getDiagnostics } = await import('./services/maintenanceAi');
+  const data = getDiagnostics();
+      res.json({ diagnostics: data });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch diagnostics' });
+    }
+  });
+
+  app.post('/api/admin/ai-diagnostics/clear', async (req, res) => {
+    try {
+      const auth = req.headers.authorization || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+      const adminToken = process.env.ADMIN_TOKEN;
+      if (!adminToken || token !== adminToken) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+  const { clearDiagnostics } = await import('./services/maintenanceAi');
+  clearDiagnostics();
+      res.json({ cleared: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to clear diagnostics' });
     }
   });
 
