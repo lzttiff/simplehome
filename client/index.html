@@ -10,25 +10,7 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <!-- Load Replit dev banner only when running inside Replit or when explicitly requested.
-         This keeps the client generic for other environments. The script is loaded dynamically
-         to avoid adding an overlay in non-Replit deployments. -->
-    <script>
-      (function () {
-        try {
-          const isReplitHostname = window.location.hostname.includes("replit");
-          const requested = window.location.search.includes("replit_dev") || !!window.__REPLIT__;
-          if (isReplitHostname || requested) {
-            const s = document.createElement('script');
-            s.type = 'text/javascript';
-            s.src = 'https://replit.com/public/js/replit-dev-banner.js';
-            s.async = true;
-            document.head.appendChild(s);
-          }
-        } catch (e) {
-          /* no-op if environment doesn't allow window access */
-        }
-      })();
-    </script>
+    <!-- No Replit-specific scripts by default. Add developer overlays via Vite plugins or
+         enable them explicitly in your environment if desired. -->
   </body>
 </html>
