@@ -36,7 +36,7 @@ Preferred communication style: Simple, everyday language.
 ## External Service Integrations
 - **AI Services**: OpenAI GPT-4o integration for intelligent task generation and maintenance recommendations
 - **Image Assets**: Unsplash integration for property template imagery
-- **Development Tools**: Replit-specific plugins for enhanced development experience
+- **Development Tools**: None — project does not assume Replit-specific plugins
 
 ## Key Design Patterns
 - **Shared Schema**: Common TypeScript types and Zod schemas shared between frontend and backend
@@ -72,4 +72,4 @@ Preferred communication style: Simple, everyday language.
 ## Development and Build Tools
 - **vite**: Fast build tool and development server
 - **tsx**: TypeScript execution environment for Node.js
-- **@replit/vite-plugin-***: Replit-specific development enhancements
+ 
