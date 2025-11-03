@@ -10,7 +10,25 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
-    <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
+    <!-- Load Replit dev banner only when running inside Replit or when explicitly requested.
+         This keeps the client generic for other environments. The script is loaded dynamically
+         to avoid adding an overlay in non-Replit deployments. -->
+    <script>
+      (function () {
+        try {
+          const isReplitHostname = window.location.hostname.includes("replit");
+          const requested = window.location.search.includes("replit_dev") || !!window.__REPLIT__;
+          if (isReplitHostname || requested) {
+            const s = document.createElement('script');
+            s.type = 'text/javascript';
+            s.src = 'https://replit.com/public/js/replit-dev-banner.js';
+            s.async = true;
+            document.head.appendChild(s);
+          }
+        } catch (e) {
+          /* no-op if environment doesn't allow window access */
+        }
+      })();
+    </script>
   </body>
 </html>
