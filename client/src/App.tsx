@@ -15,8 +15,9 @@ function Router() {
     <>
       <Route path="/" component={TemplateSelection} />
       <Route path="/dashboard" component={Dashboard} />
-      <Route path="/dashboard/:templateId" component={Dashboard} />
-      <Route component={NotFound} />
+  <Route path="/dashboard/:templateId" component={Dashboard} />
+  {/* Catch-all route: use path="*" so NotFound renders when no other route matches */}
+  <Route path="*" component={NotFound} />
     </>
   );
 }
