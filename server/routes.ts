@@ -181,17 +181,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Task Generation
   app.post("/api/ai/generate-tasks", async (req, res) => {
     try {
-  const { propertyType, assessment, provider = "gemini", geminiApiKey } = req.body;
+      const { propertyType, assessment, provider = "gemini", geminiApiKey } = req.body;
       if (!propertyType || !assessment) {
         return res.status(400).json({ message: "Property type and assessment are required" });
       }
       let suggestions;
       if (provider === "gemini") {
-        if (!geminiApiKey) {
-          return res.status(400).json({ message: "Gemini API key required" });
+        // Support passing the Gemini API key in the request body, via environment variable,
+        // or via a local file named `gemini.key` at the project root.
+        let keyToUse = geminiApiKey || process.env.GEMINI_API_KEY;
+        if (!keyToUse) {
+          try {
+            const candidate = path.resolve(process.cwd(), "gemini.key");
+            if (fs.existsSync(candidate)) {
+              keyToUse = fs.readFileSync(candidate, "utf-8").trim();
+            }
+          } catch (e) {
+            // ignore file read errors and fall through to validation
+          }
+        }
+        if (!keyToUse) {
+          return res.status(400).json({ message: "Gemini API key required (provide geminiApiKey in request body, set GEMINI_API_KEY, or place key in project root file 'gemini.key')" });
         }
         const prompt = `Generate maintenance tasks for property type: ${propertyType}, assessment: ${typeof assessment === 'string' ? assessment : JSON.stringify(assessment)}`;
-        const geminiResponse = await generateGeminiContent(prompt, geminiApiKey);
+        const geminiResponse = await generateGeminiContent(prompt, keyToUse);
         suggestions = [geminiResponse];
       } else {
         suggestions = await generateMaintenanceTasks(propertyType, assessment);
@@ -216,11 +229,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const prompt = `Suggest quick maintenance tasks for property info: ${JSON.stringify(propertyInfo)}, existing tasks: ${JSON.stringify(existingTasks)}`;
         const geminiResponse = await generateGeminiContent(prompt, keyToUse);
         suggestions = [geminiResponse];
+        logWithLevel("INFO", "Generated quick suggestions using Gemini");
+        logWithLevel("DEBUG", `Gemini response: ${JSON.stringify(geminiResponse)}`);
       } else {
         suggestions = await generateQuickSuggestions(existingTasks || [], propertyInfo);
       }
       if (Array.isArray(suggestions)) {
         suggestions = suggestions.flat(Infinity);
+        logWithLevel("INFO", "Generated quick suggestions using OpenAI");
+        logWithLevel("DEBUG", `Quick suggestions: ${JSON.stringify(suggestions)}`);
       }
       res.json({ suggestions });
     } catch (error) {
