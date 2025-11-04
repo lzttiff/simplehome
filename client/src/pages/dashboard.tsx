@@ -243,12 +243,12 @@ export default function Dashboard() {
                         className="pl-10 w-full sm:w-64"
                       />
                     </div>
-                    <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <Select value={priorityFilter} onValueChange={(val) => setPriorityFilter(val === 'all' ? '' : val)}>
                       <SelectTrigger className="w-full sm:w-32">
                         <SelectValue placeholder="All Priorities" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All Priorities</SelectItem>
+                        <SelectItem value="all">All Priorities</SelectItem>
                         <SelectItem value="Urgent">Urgent</SelectItem>
                         <SelectItem value="High">High</SelectItem>
                         <SelectItem value="Medium">Medium</SelectItem>
