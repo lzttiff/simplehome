@@ -22,5 +22,12 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // Enable polling for environments where file system events are not delivered
+    // reliably (WSL, network mounts, some container editors). Polling is slightly
+    // less efficient but makes Hot Module Replacement (HMR) more reliable.
+    watch: {
+      usePolling: true,
+      interval: 100,
+    },
   },
 });
