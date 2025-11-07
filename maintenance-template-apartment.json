@@ -1,0 +1,200 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "categoryName": "Building & Exterior",
+      "items": [
+        {
+          "id": "4f2fc7db-4be4-46b3-a0c2-fa694d5e30da",
+          "name": "Roof & Drainage",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": "2022-03-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": "2026-03-01"
+          },
+          "location": "Building Roof",
+          "notes": "Inspect membrane, flashings, scuppers and clear roof drains."
+        },
+        {
+          "id": "2db3a0db-1151-44f3-84e9-5e9485a36d4a",
+          "name": "Exterior Walls & Balconies",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-10-01",
+            "major": "2021-10-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-10-01"
+          },
+          "location": "Exterior",
+          "notes": "Inspect guardrails, sealants, and facade finish for water intrusion."
+        }
+      ]
+    },
+    {
+      "category": "Shared Systems",
+      "items": [
+        {
+          "id": "9c0839fe-c161-4ea1-9c97-ea04d2332047",
+          "name": "Elevator(s)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-02-01",
+            "major": "2023-02-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-08-01",
+            "major": "2026-02-01"
+          },
+          "location": "Shafts",
+          "notes": "Routine inspections, safety tests and door operation checks."
+        },
+        {
+          "id": "4965a836-a203-4455-a5b9-c33c0a4d3b2e",
+          "name": "Central HVAC / Boiler",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": "2023-03-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": "2026-03-01"
+          },
+          "location": "Mechanical Room",
+          "notes": "Filter changes, coil cleaning, controls and ventilation checks."
+        }
+      ]
+    },
+    {
+      "category": "Plumbing & Waste",
+      "items": [
+        {
+          "id": "dbf8adc7-52de-4ccd-a5f1-d3fff4611e5d",
+          "name": "Storm Drains & Roof Leaders",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2022-04-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-04-01"
+          },
+          "location": "Roof/Site",
+          "notes": "Clear debris and verify positive drainage to prevent leaks."
+        },
+        {
+          "id": "375fc75f-9b1a-46db-aae1-fe47e50fc821",
+          "name": "Sanitary Stack / Common Plumbing",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-11-01",
+            "major": "2021-11-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-11-01",
+            "major": "2026-11-01"
+          },
+          "location": "Vertical Stacks",
+          "notes": "Inspect for blockages, odors and venting issues."
+        }
+      ]
+    },
+    {
+      "category": "Safety & Fire",
+      "items": [
+        {
+          "id": "e6cfecee-74a4-4b06-bae3-2fa64a18e7e5",
+          "name": "Fire Alarm & Detectors (Common Areas)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-06-01",
+            "major": "2023-06-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2025-06-01",
+            "major": "2026-06-01"
+          },
+          "location": "Common Areas",
+          "notes": "Test alarms, strobes, and panel communication as required by code."
+        },
+        {
+          "id": "bfeb55ef-26b8-4fe6-bfcf-c7d257a5b497",
+          "name": "Emergency Lighting / Exit Signs",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-05-01",
+            "major": "2023-05-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2025-05-01",
+            "major": "2026-05-01"
+          },
+          "location": "Egress",
+          "notes": "Monthly functional tests and battery checks."
+        }
+      ]
+    },
+    {
+      "category": "Units & Interiors",
+      "items": [
+        {
+          "id": "e41e4e75-0b44-48db-be0a-06624583f3f2",
+          "name": "Kitchen Appliances (by Unit)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-09-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": ""
+          },
+          "location": "Units",
+          "notes": "Check range hood, oven and refrigerators per unit turnover schedule."
+        },
+        {
+          "id": "c9de2d66-1525-4111-bb15-dcbe754e7e55",
+          "name": "Windows & Balconies (by Unit)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-10-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": ""
+          },
+          "location": "Units",
+          "notes": "Inspect seals, glazing, and balcony finishes."
+        }
+      ]
+    }
+  ]
+}

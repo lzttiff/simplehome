@@ -1,0 +1,144 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "categoryName": "Turnover & Tenant-ready",
+      "items": [
+        {
+          "id": "53e79a69-4011-4849-9c3d-a295253c134a",
+          "name": "Unit Deep Clean",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-05-01",
+            "major": ""
+          },
+          "location": "Units",
+          "notes": "Cleaning, paint touch-ups, and basic repairs between tenants."
+        },
+        {
+          "id": "cc808813-abe1-4335-95cc-72861684c46f",
+          "name": "Change Locks / Rekey",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-05-01",
+            "major": ""
+          },
+          "location": "Unit Entrances",
+          "notes": "Security step after tenant move-out."
+        }
+      ]
+    },
+    {
+      "category": "Inspections & Safety",
+      "items": [
+        {
+          "id": "96d48605-3c27-474d-8c38-2a1292381a7c",
+          "name": "Move-in / Move-out Inspection",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-05-01",
+            "major": ""
+          },
+          "location": "Units",
+          "notes": "Document condition, photos and checklist for security deposit."
+        },
+        {
+          "id": "d291756c-a46d-472b-a7b5-296450ac11a0",
+          "name": "Smoke & Carbon Monoxide Checks",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-05-01",
+            "major": "2023-05-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2025-05-01",
+            "major": "2026-05-01"
+          },
+          "location": "Units/Common Areas",
+          "notes": "Safety-critical tests at turnover and periodically."
+        }
+      ]
+    },
+    {
+      "category": "Plumbing & HVAC",
+      "items": [
+        {
+          "id": "6491fc7b-3585-4100-9305-5c01e43328c8",
+          "name": "Preventive HVAC Check (Per Unit)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": ""
+          },
+          "location": "Units",
+          "notes": "Filter replacement and basic operation check between leases."
+        },
+        {
+          "id": "01f30d29-7e85-4466-b209-1ba290ee86cd",
+          "name": "Drains & Plumbing Check",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-01-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-07-01",
+            "major": ""
+          },
+          "location": "Units/Common Areas",
+          "notes": "Inspect for slow drains, leaks and supply shut-offs."
+        }
+      ]
+    },
+    {
+      "category": "Exterior & Grounds",
+      "items": [
+        {
+          "id": "be04b4be-3faf-460e-b2b8-be3180af79b1",
+          "name": "Exterior Lighting",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": "2022-03-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": "2026-03-01"
+          },
+          "location": "Site",
+          "notes": "Ensure pathways and parking are well-lit for tenant safety."
+        }
+      ]
+    }
+  ]
+}
