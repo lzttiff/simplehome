@@ -5,6 +5,25 @@ import { setupVite, serveStatic, log } from "./vite";
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+  
+// Optional detailed logging for client (non-API) requests to help debug routing
+// Enable by setting DEBUG_CLIENT_REQUESTS=true in the environment.
+app.use((req, _res, next) => {
+  try {
+    if (!process.env.DEBUG_CLIENT_REQUESTS) return next();
+    const p = req.path || '';
+    // Skip API and vite internal websocket/hmr routes
+    if (p.startsWith('/api') || p.startsWith('/__vite') || p.startsWith('/sockjs') || p.startsWith('/hmr')) return next();
+    const ua = String(req.headers['user-agent'] || '').replace(/\n/g, ' ');
+    const ref = String(req.headers['referer'] || req.headers['referrer'] || '').replace(/\n/g, ' ');
+    const accept = String(req.headers['accept'] || '');
+    const host = String(req.headers['host'] || '');
+    console.log(`[CLIENT-DBG] ${req.method} ${req.originalUrl} host=${host} ip=${req.ip} ua="${ua}" referer="${ref}" accept="${accept}"`);
+  } catch (e) {
+    // don't block the request flow if logging fails
+  }
+  return next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

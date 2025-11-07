@@ -43,7 +43,9 @@ export async function setupVite(app: Express, server: Server) {
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
-
+    if (process.env.DEBUG_CLIENT_REQUESTS) {
+      log(`VITE-SERVE: serving index for ${url} ua="${String(req.headers['user-agent']||'')}" referer="${String(req.headers['referer']||req.headers['referrer']||'')}"`, 'vite');
+    }
     try {
       const clientTemplate = path.resolve(
         import.meta.dirname,
@@ -79,7 +81,12 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  app.use("*", (req, res) => {
+    try {
+      if (process.env.DEBUG_CLIENT_REQUESTS) {
+        log(`STATIC-SERVE: serving index for ${req.originalUrl} ua="${String(req.headers['user-agent']||'')}" referer="${String(req.headers['referer']||req.headers['referrer']||'')}"`);
+      }
+    } catch (e) {}
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
