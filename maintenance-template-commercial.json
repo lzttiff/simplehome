@@ -1,0 +1,531 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "categoryName": "Structural & Exterior",
+      "items": [
+        {
+          "id": "c1d2e3f4-0001-4b6a-8a1b-111111111111",
+          "name": "Building Structure (Concrete/Steel Frame)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-10-01",
+            "major": "2023-10-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-10-01"
+          },
+          "location": "Full Building",
+          "notes": "Inspect for settlement, corrosion, cracking, and structural integrity."
+        },
+        {
+          "id": "c1d2e3f4-0002-4b6a-8a1b-222222222222",
+          "name": "Roof (Commercial Membrane/TPO/Metal)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-10-01",
+            "major": "2023-10-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2025-10-01"
+          },
+          "location": "Roof",
+          "notes": "Regular inspection, flashing, ponding water, and membrane seams."
+        },
+        {
+          "id": "c1d2e3f4-0003-4b6a-8a1b-333333333333",
+          "name": "Exterior Façade / Cladding",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-10-01",
+            "major": "2023-10-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-10-01"
+          },
+          "location": "Exterior",
+          "notes": "Inspect sealants, joints, rainscreen, and perform cleaning as needed."
+        },
+        {
+          "id": "c1d2e3f4-0004-4b6a-8a1b-444444444444",
+          "name": "Canopies & Awnings",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-10-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": ""
+          },
+          "location": "Entrances",
+          "notes": "Check fastenings, fabric/membrane condition and drainage."
+        },
+        {
+          "id": "c1d2e3f4-0005-4b6a-8a1b-555555555555",
+          "name": "Parking Structure / Pavement",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-09-01",
+            "major": "2022-09-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": "2025-09-01"
+          },
+          "location": "Site",
+          "notes": "Inspect expansion joints, potholes, striping, and drainage."
+        }
+      ]
+    },
+    {
+      "category": "HVAC & Mechanical",
+      "items": [
+        {
+          "id": "d1e2f3a4-1001-4b6a-8a1b-666666666666",
+          "name": "Chiller",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-01-15",
+            "major": "2023-01-15"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-07-15",
+            "major": "2026-01-15"
+          },
+          "location": "Mechanical Room / Rooftop",
+          "notes": "Inspect refrigerant levels, coils, compressors, and vibration."
+        },
+        {
+          "id": "d1e2f3a4-1002-4b6a-8a1b-777777777777",
+          "name": "Boiler / Hydronic System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": "2023-03-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": "2026-03-01"
+          },
+          "location": "Mechanical Room",
+          "notes": "Combustion inspection, controls, safety valves, and water treatment."
+        },
+        {
+          "id": "d1e2f3a4-1003-4b6a-8a1b-888888888888",
+          "name": "Rooftop Units (RTUs)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2023-04-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-04-01"
+          },
+          "location": "Rooftop",
+          "notes": "Filter changes, belt checks, dampers, and economizer function."
+        },
+        {
+          "id": "d1e2f3a4-1004-4b6a-8a1b-999999999999",
+          "name": "Air Handling Unit (AHU)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2023-04-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-04-01"
+          },
+          "location": "Mechanical Room",
+          "notes": "Inspect coils, fans, controls, and dampers; check filters."
+        }
+      ]
+    },
+    {
+      "category": "Fire & Life Safety",
+      "items": [
+        {
+          "id": "32b704d6-f640-450d-ad02-06c4b76a9ee2",
+          "name": "Fire Sprinkler System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-06-01",
+            "major": "2022-06-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2025-06-01",
+            "major": "2026-06-01"
+          },
+          "location": "Throughout Building",
+          "notes": "Inspect valves, tamper switches, and perform required NFPA testing."
+        },
+        {
+          "id": "cd4ae1f2-7c66-4e4a-bb5d-fd59deb1b756",
+          "name": "Fire Alarm & Detection",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-06-01",
+            "major": "2023-06-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2025-06-01",
+            "major": "2026-06-01"
+          },
+          "location": "Throughout Building",
+          "notes": "Test detectors, panels, strobes, and perform periodic certification."
+        },
+        {
+          "id": "c408658f-7d8a-4c3f-ad17-b30a78c40fdb",
+          "name": "Emergency Lighting / Exit Signs",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-05-01",
+            "major": "2023-05-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2025-05-01",
+            "major": "2026-05-01"
+          },
+          "location": "Egress Routes",
+          "notes": "Monthly functional checks and battery replacement as required."
+        }
+      ]
+    },
+    {
+      "category": "Vertical Transport",
+      "items": [
+        {
+          "id": "f1e2d3c4-3001-4b6a-8a1b-dddddddddddd",
+          "name": "Passenger Elevator",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-02-01",
+            "major": "2023-02-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-08-01",
+            "major": "2026-02-01"
+          },
+          "location": "Shafts",
+          "notes": "Routine inspections, hoistway, cables, and safety tests per code."
+        },
+        {
+          "id": "f1e2d3c4-3002-4b6a-8a1b-eeeeeeeeeeee",
+          "name": "Freight Elevator / Service Lift",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-02-01",
+            "major": "2023-02-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-08-01",
+            "major": "2026-02-01"
+          },
+          "location": "Service Areas",
+          "notes": "Ensure load limit checks and door interlocks are functional."
+        }
+      ]
+    },
+    {
+      "category": "Electrical & Power",
+      "items": [
+        {
+          "id": "392d9165-d832-436a-9a10-1991d014a2c7",
+          "name": "Main Electrical Switchgear",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": "2022-03-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": "2026-03-01"
+          },
+          "location": "Electrical Room",
+          "notes": "Thermal imaging, breaker testing, and protective relay checks."
+        },
+        {
+          "id": "40e0474c-3b63-4502-b982-dde61847a4c0",
+          "name": "Backup Generator",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-06-01",
+            "major": "2023-06-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-12-01",
+            "major": "2026-06-01"
+          },
+          "location": "Generator Pad / Room",
+          "notes": "Load bank testing, fuel system checks, and automatic transfer switch verification."
+        },
+        {
+          "id": "861971f3-89ac-45e3-8b88-71d72a86b8cb",
+          "name": "UPS / Battery Systems",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2023-04-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-04-01"
+          },
+          "location": "IT / Electrical Room",
+          "notes": "Battery health, replacement schedule, and runtime tests."
+        }
+      ]
+    },
+    {
+      "category": "Plumbing & Drainage",
+      "items": [
+        {
+          "id": "4ed44b68-4f37-404c-9678-b7b1e835c266",
+          "name": "Domestic Water System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": "2022-03-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": "2026-03-01"
+          },
+          "location": "Utility Areas",
+          "notes": "Water quality, backflow prevention, and valve maintenance."
+        },
+        {
+          "id": "e0ec71f1-3d0a-42f3-9d64-2068da6cf3ae",
+          "name": "Stormwater & Roof Drains",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2022-04-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-04-01"
+          },
+          "location": "Roof / Site",
+          "notes": "Clear debris, confirm downspout routing and site drainage."
+        },
+        {
+          "id": "b9cb3879-498b-480c-9290-d5021fc40a81",
+          "name": "Grease Interceptors / Commercial Kitchen Plumbing",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-01-15",
+            "major": "2023-01-15"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-07-15",
+            "major": "2026-01-15"
+          },
+          "location": "Kitchen / Service Areas",
+          "notes": "Regular pumping schedule and inspection to avoid sanitary sewer blockages."
+        }
+      ]
+    },
+    {
+      "category": "Security & Access Control",
+      "items": [
+        {
+          "id": "b6851a21-08f5-41eb-85b1-20b99e03c8e6",
+          "name": "CCTV / Video Surveillance",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2023-04-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-04-01"
+          },
+          "location": "Entrances / Parking / Building",
+          "notes": "Camera alignment, storage health, and firmware updates."
+        },
+        {
+          "id": "9b9168e5-f858-4e49-94b2-de0a5e74b290",
+          "name": "Access Control (Card Readers / Doors)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2023-04-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-04-01"
+          },
+          "location": "Entrances / Secure Areas",
+          "notes": "Test door strikes, reader connectivity, and access logs."
+        }
+      ]
+    },
+    {
+      "category": "IT & Communications",
+      "items": [
+        {
+          "id": "bed84aa1-bf7f-48f9-a666-a5753f69f7c7",
+          "name": "Server Rack / Network Equipment",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-05-01",
+            "major": "2023-05-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-11-01",
+            "major": "2026-05-01"
+          },
+          "location": "Server Room / IDF",
+          "notes": "Patch cable labeling, airflow, UPS integration, and firmware updates."
+        },
+        {
+          "id": "6340c7e5-c725-4705-855f-7c1c9c7511a3",
+          "name": "Structured Cabling / Fiber",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-11-01",
+            "major": "2022-11-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-11-01",
+            "major": "2026-11-01"
+          },
+          "location": "Throughout Building",
+          "notes": "Labeling, testing end-to-end continuity, and connector maintenance."
+        }
+      ]
+    },
+    {
+      "category": "Interior & Finishes",
+      "items": [
+        {
+          "id": "5794a531-6533-4076-9b89-ce33d817a84c",
+          "name": "Carpet & Commercial Flooring",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-02-01",
+            "major": "2022-02-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-08-01",
+            "major": "2026-02-01"
+          },
+          "location": "Tenant Spaces / Corridors",
+          "notes": "Deep cleaning schedule, seam inspection, and replacement planning."
+        },
+        {
+          "id": "cc0d3c63-b771-48fd-aa4d-c29563fe30db",
+          "name": "Partitions & Office Furniture",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-12-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-06-01",
+            "major": ""
+          },
+          "location": "Interior",
+          "notes": "Check finishes, door hardware, and workspace ergonomics."
+        }
+      ]
+    },
+    {
+      "category": "Grounds & Site",
+      "items": [
+        {
+          "id": "f42d86a5-13aa-4feb-ac9e-31c48025d1df",
+          "name": "Landscaping & Irrigation",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2023-04-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-10-01",
+            "major": "2026-04-01"
+          },
+          "location": "Site Grounds",
+          "notes": "Seasonal pruning, irrigation checks, and pest control."
+        },
+        {
+          "id": "41f2c051-2c7b-4e52-8c4c-1371cf2f8680",
+          "name": "Parking Lot Lighting",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": "2022-03-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-09-01",
+            "major": "2026-03-01"
+          },
+          "location": "Parking Areas",
+          "notes": "Lamp replacement, photocell checks, and pole condition."
+        }
+      ]
+    }
+  ]
+}

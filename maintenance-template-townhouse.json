@@ -1,0 +1,127 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "categoryName": "Building Envelope & Shared Walls",
+      "items": [
+        {
+          "id": "4ff1bf6d-3c23-4936-8c82-94d201cf2639",
+          "name": "Roof & Gutters",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-10-01",
+            "major": "2021-10-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-04-01",
+            "major": "2026-10-01"
+          },
+          "location": "Roof",
+          "notes": "Inspect for leaks and shared drainage performance."
+        },
+        {
+          "id": "345755f5-d985-414e-8fcd-7090fa90e9cb",
+          "name": "Party Walls / Shared Fire Separation",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-07-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-07-01",
+            "major": ""
+          },
+          "location": "Between Units",
+          "notes": "Check seals, penetrations and sound/ firestopping continuity."
+        }
+      ]
+    },
+    {
+      "category": "HVAC & Utilities",
+      "items": [
+        {
+          "id": "f17e31af-4557-476f-8ea6-e98f6f7afc82",
+          "name": "Individual HVAC Systems",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-01-01",
+            "major": "2022-01-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-07-01",
+            "major": "2026-01-01"
+          },
+          "location": "Per Unit",
+          "notes": "Filter changes and function checks per unit."
+        },
+        {
+          "id": "7925011e-8e8a-40bd-9ef0-de804a3c8bed",
+          "name": "Plumbing Supply & Waste",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-11-01",
+            "major": "2021-11-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-11-01",
+            "major": "2026-11-01"
+          },
+          "location": "Within Units/Shared Lines",
+          "notes": "Check for cross-unit leaks and shared shut-off access."
+        }
+      ]
+    },
+    {
+      "category": "Exterior & Grounds",
+      "items": [
+        {
+          "id": "4c2dca09-7aab-4385-9847-5b0fc89bbd2e",
+          "name": "Driveways & Walkways",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2023-09-01",
+            "major": ""
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-03-01",
+            "major": ""
+          },
+          "location": "Shared Site",
+          "notes": "Repair cracks, ensure drainage and maintain communal areas."
+        }
+      ]
+    },
+    {
+      "category": "Safety & Inspections",
+      "items": [
+        {
+          "id": "148dabf1-5493-4f59-b057-fe1fb7d5a7bc",
+          "name": "Smoke & CO Detectors (Per Unit)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-05-01",
+            "major": "2023-05-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2025-05-01",
+            "major": "2026-05-01"
+          },
+          "location": "Per Unit",
+          "notes": "Ensure detectors are functional and batteries replaced as needed."
+        }
+      ]
+    }
+  ]
+}
