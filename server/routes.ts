@@ -31,6 +31,10 @@ import { logWithLevel } from "./services/logWithLevel";
 //const __filename = fileURLToPath(import.meta.url);
 //const __dirname = path.dirname(__filename);
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Respond to favicon requests to avoid serving the SPA index for this path
+  // which causes the client router to render a 404 page for "/favicon.ico" in the browser.
+  app.get('/favicon.ico', (_req, res) => res.status(204).end());
+
   // AI Maintenance Schedule for a single item
   app.post("/api/item-schedule", async (req, res) => {
     try {
