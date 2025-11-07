@@ -202,7 +202,8 @@ Respond ONLY with valid JSON exactly matching the schema above. No explanations,
   // Support provider selection: "openai" (default) or "gemini"
   const oneWeekFromToday = new Date();
   oneWeekFromToday.setDate(oneWeekFromToday.getDate() + 7);
-  const provider = (item as any).provider || "openai";
+  // Choose provider from item, then environment default, then fallback to Gemini
+  const provider = (item as any).provider || process.env.DEFAULT_AI_PROVIDER || "gemini";
   logWithLevel("DEBUG", `[AI] Using provider: ${provider} for item: ${item.name} with prompt: ${prompt}`);
   if (provider === "gemini") {
     const { generateGeminiContent } = await import("./gemini");
