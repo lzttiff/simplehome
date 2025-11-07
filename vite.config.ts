@@ -16,6 +16,23 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // Increase the chunk warning threshold to reduce noisy warnings for
+    // moderately large bundles. Long-term you should split code via
+    // dynamic import() or tune `manualChunks` for your app's needs.
+    chunkSizeWarningLimit: 800,
+    // Provide some manual chunking to separate vendor code (React, UI libs)
+    // into their own chunks so they don't inflate the main application bundle.
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
+            if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('tailwindcss')) return 'vendor-ui';
+            return 'vendor';
+          }
+        },
+      },
+    },
   },
   server: {
     fs: {
