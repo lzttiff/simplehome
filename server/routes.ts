@@ -178,6 +178,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create a new maintenance task
+  app.post("/api/tasks", async (req, res) => {
+    try {
+      // Validate request body using the shared Zod schema
+      const validated = insertMaintenanceTaskSchema.parse(req.body);
+      const created = await storage.createMaintenanceTask(validated as any);
+      res.status(201).json(created);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid task payload", errors: error.errors });
+      }
+      console.error("Create task error:", error);
+      res.status(500).json({ message: "Failed to create task" });
+    }
+  });
+
   // AI Task Generation
   app.post("/api/ai/generate-tasks", async (req, res) => {
     try {
