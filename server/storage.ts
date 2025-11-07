@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { 
   type PropertyTemplate, 
   type InsertPropertyTemplate,
@@ -33,6 +35,8 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
+  private readonly dataDir = path.join(process.cwd(), "data");
+  private readonly dataFile = path.join(this.dataDir, "storage.json");
   private _initializeDefaultTemplates() {
     const defaultTemplates = [
       {
@@ -170,8 +174,213 @@ export class MemStorage implements IStorage {
     this.templates = new Map();
     this.tasks = new Map();
     this.responses = new Map();
-    this._initializeDefaultTemplates();
-    this._initializeDefaultTasks();
+    // Try to load persisted state first. If present, restore it and skip seeding.
+    if (!this._loadPersisted()) {
+      this._initializeDefaultTemplates();
+      this._initializeDefaultTasks();
+      // Seed template-specific tasks from bundled JSON templates (if available)
+    // This makes the full template item lists (single-family and commercial)
+    // visible in the UI when a template is selected.
+      try {
+        const sf = path.join(process.cwd(), "maintenance-template-singleFamilyHome.json");
+        this._normalizeTemplateFile(sf);
+        this._seedTemplateTasksFromFile("single_family", sf);
+      } catch (e) {
+        // ignore failures during seeding
+      }
+    try {
+        const cm = path.join(process.cwd(), "maintenance-template-commercial.json");
+        this._normalizeTemplateFile(cm);
+        this._seedTemplateTasksFromFile("commercial", cm);
+    } catch (e) {
+      // ignore failures during seeding
+    }
+      try {
+        const ap = path.join(process.cwd(), "maintenance-template-apartment.json");
+        this._normalizeTemplateFile(ap);
+        this._seedTemplateTasksFromFile("apartment", ap);
+      } catch (e) {
+        // ignore failures during seeding
+      }
+      try {
+        const th = path.join(process.cwd(), "maintenance-template-townhouse.json");
+        this._normalizeTemplateFile(th);
+        this._seedTemplateTasksFromFile("townhouse", th);
+      } catch (e) {
+        // ignore failures during seeding
+      }
+      try {
+        const rt = path.join(process.cwd(), "maintenance-template-rental.json");
+        this._normalizeTemplateFile(rt);
+        this._seedTemplateTasksFromFile("rental", rt);
+      } catch (e) {
+        // ignore failures during seeding
+      }
+
+      // After seeding, update task counts and persist initial state
+      this._recalculateTaskCounts();
+      this._persist();
+    }
+    try {
+      this._seedTemplateTasksFromFile("apartment", path.join(process.cwd(), "maintenance-template-apartment.json"));
+    } catch (e) {
+      // ignore failures during seeding
+    }
+    try {
+      this._seedTemplateTasksFromFile("townhouse", path.join(process.cwd(), "maintenance-template-townhouse.json"));
+    } catch (e) {
+      // ignore failures during seeding
+    }
+    try {
+      this._seedTemplateTasksFromFile("rental", path.join(process.cwd(), "maintenance-template-rental.json"));
+    } catch (e) {
+      // ignore failures during seeding
+    }
+  }
+
+  private _seedTemplateTasksFromFile(templateType: string, filePath: string) {
+    if (!fs.existsSync(filePath)) return;
+    let raw = fs.readFileSync(filePath, "utf-8");
+    let json: any;
+    try {
+      json = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    const householdCatalog = json.householdCatalog || [];
+    const template = Array.from(this.templates.values()).find(t => t.type === templateType);
+    if (!template) return;
+
+    householdCatalog.forEach((category: any) => {
+      const catName = category.categoryName || category.category || "General";
+      const items = Array.isArray(category.items) ? category.items : [];
+      items.forEach((item: any) => {
+        // Ensure the item id is a UUID. If the file provides a valid uuid, use it;
+        // otherwise generate a new one. This keeps template files tolerant.
+        const isUuid = (s: string) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+        const id = isUuid(item.id) ? item.id : randomUUID();
+        const newTask: MaintenanceTask = {
+          id,
+          title: item.name || "Untitled",
+          description: item.description || item.notes || "",
+          category: catName,
+          priority: item.priority || "Medium",
+          status: "pending",
+          dueDate: item.nextMaintenanceDate?.minor ?? item.nextMaintenanceDate ?? null,
+          lastCompleted: null,
+          completedAt: null,
+          nextDue: item.nextMaintenanceDate?.minor ?? item.nextMaintenanceDate ?? null,
+          isTemplate: true,
+          isAiGenerated: false,
+          templateId: template.id,
+          notes: item.notes ?? null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as MaintenanceTask;
+        this.tasks.set(id, newTask);
+      });
+    });
+    // update the template's taskCount to reflect seeded items
+    const seededCount = Array.from(this.tasks.values()).filter(t => t.templateId === template.id).length;
+    template.taskCount = seededCount;
+  }
+
+  private _normalizeTemplateFile(filePath: string) {
+    try {
+      if (!fs.existsSync(filePath)) return;
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const json = JSON.parse(raw);
+      const householdCatalog = json.householdCatalog || [];
+      let changed = false;
+      const isUuid = (s: string) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+      householdCatalog.forEach((category: any) => {
+        const items = Array.isArray(category.items) ? category.items : [];
+        items.forEach((item: any) => {
+          if (!isUuid(item.id)) {
+            item.id = randomUUID();
+            changed = true;
+          }
+        });
+      });
+      if (changed) {
+        fs.writeFileSync(filePath, JSON.stringify(json, null, 2), 'utf-8');
+      }
+    } catch (e) {
+      // ignore errors normalizing template files
+    }
+  }
+
+  private _recalculateTaskCounts() {
+    const counts: Record<string, number> = {};
+    Array.from(this.tasks.values()).forEach((t) => {
+      if (t.templateId) counts[t.templateId] = (counts[t.templateId] || 0) + 1;
+    });
+    Array.from(this.templates.values()).forEach((template) => {
+      template.taskCount = counts[template.id] || 0;
+    });
+  }
+
+  private _loadPersisted(): boolean {
+    try {
+      if (!fs.existsSync(this.dataFile)) return false;
+      const raw = fs.readFileSync(this.dataFile, 'utf-8');
+      const parsed = JSON.parse(raw);
+      // restore templates
+      if (Array.isArray(parsed.templates)) {
+        parsed.templates.forEach((t: any) => {
+          const tpl: PropertyTemplate = {
+            id: t.id,
+            name: t.name,
+            description: t.description,
+            type: t.type,
+            createdAt: new Date(t.createdAt),
+            taskCount: t.taskCount ?? 0,
+          };
+          this.templates.set(tpl.id, tpl);
+        });
+      }
+      // restore tasks
+      if (Array.isArray(parsed.tasks)) {
+        parsed.tasks.forEach((tk: any) => {
+          const task: MaintenanceTask = {
+            ...tk,
+            createdAt: tk.createdAt ? new Date(tk.createdAt) : new Date(),
+            updatedAt: tk.updatedAt ? new Date(tk.updatedAt) : new Date(),
+          } as MaintenanceTask;
+          this.tasks.set(task.id, task);
+        });
+      }
+      // restore responses
+      if (parsed.responses && typeof parsed.responses === 'object') {
+        Object.values(parsed.responses).forEach((r: any) => {
+          const resp: QuestionnaireResponse = {
+            ...r,
+            createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+          } as QuestionnaireResponse;
+          this.responses.set(resp.sessionId, resp);
+        });
+      }
+      // ensure task counts match
+      this._recalculateTaskCounts();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  private _persist() {
+    try {
+      if (!fs.existsSync(this.dataDir)) fs.mkdirSync(this.dataDir, { recursive: true });
+      const out = {
+        templates: Array.from(this.templates.values()),
+        tasks: Array.from(this.tasks.values()),
+        responses: Object.fromEntries(Array.from(this.responses.entries()).map(([k, v]) => [k, v])),
+      };
+      fs.writeFileSync(this.dataFile, JSON.stringify(out, null, 2), 'utf-8');
+    } catch (e) {
+      // ignore persistence failures to avoid crashing the server
+      console.error('Failed to persist storage:', e);
+    }
   }
   async getPropertyTemplates(): Promise<PropertyTemplate[]> {
     return Array.from(this.templates.values());
@@ -190,6 +399,7 @@ export class MemStorage implements IStorage {
       taskCount: template.taskCount ?? 0,
     };
     this.templates.set(id, newTemplate);
+    this._persist();
     return newTemplate;
   }
 
@@ -251,6 +461,12 @@ export class MemStorage implements IStorage {
       updatedAt: new Date(),
     };
     this.tasks.set(id, newTask);
+    // update task count for template if present
+    if (newTask.templateId) {
+      const tpl = this.templates.get(newTask.templateId);
+      if (tpl) tpl.taskCount = (tpl.taskCount || 0) + 1;
+    }
+    this._persist();
     return newTask;
   }
 
@@ -259,11 +475,14 @@ export class MemStorage implements IStorage {
     if (!task) return undefined;
     const updatedTask = { ...task, ...updates, updatedAt: new Date() };
     this.tasks.set(id, updatedTask);
+    this._persist();
     return updatedTask;
   }
 
   async deleteMaintenanceTask(id: string): Promise<boolean> {
-    return this.tasks.delete(id);
+    const existed = this.tasks.delete(id);
+    if (existed) this._persist();
+    return existed;
   }
 
   async saveQuestionnaireResponse(response: InsertQuestionnaireResponse): Promise<QuestionnaireResponse> {
@@ -274,6 +493,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
     };
     this.responses.set(response.sessionId, newResponse);
+    this._persist();
     return newResponse;
   }
 
