@@ -1,0 +1,1525 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "categoryName": "Structural & Exterior",
+      "items": [
+        {
+          "id": "d20d9aa3-6a47-44ce-91d6-bf06a1e39d80",
+          "name": "Foundation",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Basement / Slab",
+          "notes": ""
+        },
+        {
+          "id": "8fb34f6c-0e2f-4c43-ae91-f7b9c1e3a6b0",
+          "name": "Roof",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Exterior",
+          "notes": ""
+        },
+        {
+          "id": "40dcb320-5f25-4db7-9053-351184a1b8dd",
+          "name": "Gutter",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Roof Edge",
+          "notes": ""
+        },
+        {
+          "id": "c1be3510-8a7c-4b37-93f5-79d11b2ebf89",
+          "name": "Garage Door",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Garage",
+          "notes": "",
+          "relatedItemIds": [
+            "f223c1f0-3a20-4f19-b812-efc05894c6de"
+          ]
+        },
+        {
+          "id": "f23db302-236d-4458-b46f-642d9b8f7d4e",
+          "name": "Windows",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Exterior/Interior",
+          "notes": ""
+        },
+        {
+          "id": "8a7a5bb2-8c69-4b11-b7c6-349f8bb4eaba",
+          "name": "Doors",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Exterior/Interior",
+          "notes": ""
+        },
+        {
+          "id": "5c6f5f7c-82a2-4f5f-81d8-42964a6b4e16",
+          "name": "Fence",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard",
+          "notes": ""
+        },
+        {
+          "id": "af28ff45-c9f5-41c2-a3b9-d7274c2dbad9",
+          "name": "Patio",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Backyard/Outdoor",
+          "notes": ""
+        },
+        {
+          "id": "b5f4c8e2-3c1e-4f3a-9f4e-2d6e5f7c8a9b",
+          "name": "Deck",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Backyard/Outdoor",
+          "notes": ""
+        },
+        {
+          "id": "7e2f3d4c-5b6a-4c7d-8e9f-0a1b2c3d4e5f",
+          "name": "Driveway",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Front Yard",
+          "notes": ""
+        },
+        {
+          "id": "4cecc9e2-0061-4aed-ae38-46d550011948",
+          "name": "Chimney",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Roof/Exterior",
+          "notes": ""
+        },
+        {
+          "id": "334d501f-a819-4165-b41e-050fcbac7d3f",
+          "name": "Siding",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Exterior Walls",
+          "notes": ""
+        },
+        {
+          "id": "09893434-547a-416f-a249-905bc267a69a",
+          "name": "Porch",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Front/Back of House",
+          "notes": ""
+        },
+        {
+          "id": "7b5c354f-113c-4b85-9899-40b305d5efae",
+          "name": "Awning",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Windows/Doors",
+          "notes": ""
+        },
+        {
+          "id": "f69315a3-6768-4bcc-aabc-c663b75e9f37",
+          "name": "Mailbox",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Front Yard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Plumbing & Water",
+      "items": [
+        {
+          "id": "3f28a650-bafc-4a8d-b1b7-77133b29b0a0",
+          "name": "Faucet",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen/Bathroom",
+          "notes": ""
+        },
+        {
+          "id": "d63bce13-5969-4f72-b9e1-8e4a25e3df59",
+          "name": "Spigot",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Exterior",
+          "notes": ""
+        },
+        {
+          "id": "29e6dd91-81c3-4689-931d-93e6aef7e2f2",
+          "name": "Sinks",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen/Bathroom",
+          "notes": ""
+        },
+        {
+          "id": "bdf52792-d6fd-41e3-b20f-2ac32a061c39",
+          "name": "Showers",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bathroom",
+          "notes": ""
+        },
+        {
+          "id": "a8f2e3a2-cc9d-47a1-a2b8-9f17663e2f55",
+          "name": "Bath Tub",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bathroom",
+          "notes": ""
+        },
+        {
+          "id": "8db5e1c7-06bb-4de2-99c1-fddc42f18a13",
+          "name": "Toilet",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bathroom",
+          "notes": ""
+        },
+        {
+          "id": "ab4efef1-bd53-4d98-99e5-485eee36c950",
+          "name": "Water Softener",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Utility Room",
+          "notes": ""
+        },
+        {
+          "id": "1d5bf40e-58cd-42e4-a00c-20c081ca8837",
+          "name": "Water Filter",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Under Sink/Utility Room",
+          "notes": ""
+        },
+        {
+          "id": "f9545e4d-b8f1-4d0a-8c2c-c1d9380c0256",
+          "name": "Pipes",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Throughout House",
+          "notes": ""
+        },
+        {
+          "id": "3b717c22-a344-4492-8616-7e355ac3fa5a",
+          "name": "Sump Pump",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Basement/Crawl Space",
+          "notes": ""
+        },
+        {
+          "id": "fb34797e-1a8f-4ec0-aebf-18cc5778ccff",
+          "name": "Septic System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard",
+          "notes": ""
+        },
+        {
+          "id": "a6467aa9-46cf-404f-9cf3-c9fb513b5c0c",
+          "name": "Water Main",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard/Street",
+          "notes": ""
+        },
+        {
+          "id": "0f15cef0-1119-4404-9cfa-ece9ae3036d6",
+          "name": "Irrigation System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard",
+          "notes": ""
+        },
+        {
+          "id": "6db89d28-3000-4df9-a87e-3c3fde60387a",
+          "name": "Backflow Preventer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard/Utility Area",
+          "notes": ""
+        },
+        {
+          "id": "f8482bd3-83ea-40c1-93c5-d4de762c7137",
+          "name": "Water Meter",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard/Street",
+          "notes": ""
+        },
+        {
+          "id": "f201b059-e58c-4b57-9fef-1515ac3438e9",
+          "name": "Pressure Regulator",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard/Utility Area",
+          "notes": ""
+        },
+        {
+          "id": "d0de4d21-5e55-428c-89cc-fdc5c77f53a3",
+          "name": "Main Shutoff Valve",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Basement/Utility Room",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Electrical & Lighting",
+      "items": [
+        {
+          "id": "f223c1f0-3a20-4f19-b812-efc05894c6de",
+          "name": "Garage Door Opener",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Garage Ceiling",
+          "notes": "",
+          "relatedItemIds": [
+            "c1be3510-8a7c-4b37-93f5-79d11b2ebf89"
+          ]
+        },
+        {
+          "id": "1f01e8c9-ae9e-4d26-8729-993bc62a7278",
+          "name": "Indoor Lights",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Throughout Interior",
+          "notes": ""
+        },
+        {
+          "id": "b18a87da-9a50-4e77-97af-2e0a2fd338b3",
+          "name": "Outdoor Lights",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Exterior Walls / Yard",
+          "notes": ""
+        },
+        {
+          "id": "c556a89f-0443-42f4-85a2-1c8a56d8a508",
+          "name": "Exhaust Fans",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bathrooms/Kitchen",
+          "notes": ""
+        },
+        {
+          "id": "49268016-07b7-45bd-b324-b4c99f52d458",
+          "name": "Ceiling Fans",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Areas/Bedrooms",
+          "notes": ""
+        },
+        {
+          "id": "9310cab9-b54c-4e5a-907b-3f4cad63488a",
+          "name": "Electrical Panel",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Basement/Utility Room",
+          "notes": ""
+        },
+        {
+          "id": "bff62003-f51a-4204-87d3-2da8e1e12099",
+          "name": "Smoke Detectors",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Throughout House",
+          "notes": ""
+        },
+        {
+          "id": "73fb9630-c692-46ae-9aa0-448a552e57b7",
+          "name": "Carbon Mon,oxide Detectors",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bedrooms/Hallways",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Interior & Finishes",
+      "items": [
+        {
+          "id": "ecf7c82f-b4c6-4d9b-a23e-27e1a89e7a77",
+          "name": "Carpet",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Areas/Bedrooms",
+          "notes": ""
+        },
+        {
+          "id": "8cd67b90-88ff-4147-b907-84b9c65c0e88",
+          "name": "Hardwood Floor",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Areas/Bedrooms",
+          "notes": ""
+        },
+        {
+          "id": "6c72cf4f-0142-4b85-9579-445d2c635da8",
+          "name": "Counter Top",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen/Bathroom",
+          "notes": ""
+        },
+        {
+          "id": "8a6a9285-24d1-4688-8b5f-07d6ef291bdd",
+          "name": "Cabinets",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen/Bathroom",
+          "notes": ""
+        },
+        {
+          "id": "25d41f27-4120-485f-ab6b-aa4d6bc0b395",
+          "name": "Tile Floor",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen/Bathroom",
+          "notes": ""
+        },
+        {
+          "id": "c7460837-4d35-4fa2-a734-8ca47b529231",
+          "name": "Walls",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Throughout Interior",
+          "notes": ""
+        },
+        {
+          "id": "aa785419-7db2-4d1b-b944-f0bc2b2da8a6",
+          "name": "Ceilings",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Throughout Interior",
+          "notes": ""
+        },
+        {
+          "id": "9499f3d0-578e-458c-b725-13a0059bdb79",
+          "name": "Baseboards & Trim",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Throughout Interior",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Appliances",
+      "items": [
+        {
+          "id": "b52a0c68-54fb-46f0-9e6d-3c6c6b7ef16e",
+          "name": "Fridge",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen",
+          "notes": ""
+        },
+        {
+          "id": "eac9d94c-9f83-4bb9-a302-013f3c4c8f4f",
+          "name": "Washer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Laundry Room",
+          "notes": ""
+        },
+        {
+          "id": "d03de431-6c26-4b0e-90a0-1b7e3e6c7e14",
+          "name": "Dryer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Laundry Room",
+          "notes": ""
+        },
+        {
+          "id": "c2ef0349-94b0-4494-bb64-3ff5eb1f2f92",
+          "name": "Vacuum Cleaner",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Storage/Closet",
+          "notes": ""
+        },
+        {
+          "id": "0878e8ab-f3d5-4d40-8f67-b67a708ca601",
+          "name": "Air Purifier",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Areas",
+          "notes": ""
+        },
+        {
+          "id": "fc6e85f9-6a8b-4b83-b9d3-642f2f1f97b6",
+          "name": "Humidifier",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bedrooms/Living Rooms",
+          "notes": ""
+        },
+        {
+          "id": "c9c7f5b3-8437-40f2-a6b7-9e1a4a98a94f",
+          "name": "Water Heater",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Utility Room",
+          "notes": ""
+        },
+        {
+          "id": "4c88820b-4a51-4bdd-a180-ca757c5900f1",
+          "name": "Dishwasher",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen",
+          "notes": ""
+        },
+        {
+          "id": "4bf6aa63-f44d-4558-8a51-e26837c28c19",
+          "name": "Oven/Stove",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen",
+          "notes": ""
+        },
+        {
+          "id": "7cf50f07-c3df-439e-8f90-30bdf3b7754b",
+          "name": "Microwave",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen",
+          "notes": ""
+        },
+        {
+          "id": "dc108097-04df-4315-b2d0-15428f8de822",
+          "name": "Toaster",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Kitchen",
+          "notes": ""
+        },
+        {
+          "id": "875b047b-b4b1-4ead-b8c0-c95b67e859c5",
+          "name": "TV",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Room/Bedrooms",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Yard & Outdoor Equipment",
+      "items": [
+        {
+          "id": "482f3621-f22c-4789-8170-2a81adf8cfc0",
+          "name": "Sprinklers",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard",
+          "notes": ""
+        },
+        {
+          "id": "97d0b05b-09db-40b7-bac5-9a36ee2f899d",
+          "name": "Mower",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Garage/Shed",
+          "notes": ""
+        },
+        {
+          "id": "37224d39-1738-465f-90a2-3fa8a730bda9",
+          "name": "Trimmer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Garage/Shed",
+          "notes": ""
+        },
+        {
+          "id": "8727c24b-7f42-48cb-8bd0-3ee711c784a6",
+          "name": "Leaf Blower",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Garage/Shed",
+          "notes": ""
+        },
+        {
+          "id": "fe31fecb-4ff6-4107-98a3-375f77e766a6",
+          "name": "Grill",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Patio/Backyard",
+          "notes": ""
+        },
+        {
+          "id": "dff83406-a2ac-44bf-a20f-5f1a2b35e592",
+          "name": "Outdoor Furniture",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Patio/Backyard",
+          "notes": ""
+        },
+        {
+          "id": "9021c431-2db5-41b0-b95e-fbd8dca54cad",
+          "name": "Garden Tools",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Shed/Garage",
+          "notes": ""
+        },
+        {
+          "id": "f0b14fec-1048-4732-84e3-6a71d93a104a",
+          "name": "Compost Bin",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard",
+          "notes": ""
+        },
+        {
+          "id": "8e2359cb-0399-42ec-8865-7be76666c7db",
+          "name": "Outdoor Heater",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Patio/Backyard",
+          "notes": ""
+        },
+        {
+          "id": "38985c44-092e-41ca-931b-a41832e07fa8",
+          "name": "Fire Pit",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Patio/Backyard",
+          "notes": ""
+        },
+        {
+          "id": "cc3424be-9059-469d-883b-3d30d1d87de9",
+          "name": "Pool Equipment",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Pool Area",
+          "notes": ""
+        },
+        {
+          "id": "58301d99-716f-413c-b174-987983b6e920",
+          "name": "Hot Tub",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Patio/Backyard",
+          "notes": ""
+        },
+        {
+          "id": "079214e3-3f5c-4a02-8faa-e8959f30ed41",
+          "name": "Outdoor Storage Shed",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard",
+          "notes": ""
+        },
+        {
+          "id": "3afb0eb8-15c4-4e1b-9921-827de22073a4",
+          "name": "Outdoor Umbrella",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Patio/Backyard",
+          "notes": ""
+        },
+        {
+          "id": "0fbb4656-7536-48ac-af8d-d1954ed3664e",
+          "name": "Outdoor Speakers",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Patio/Backyard",
+          "notes": ""
+        },
+        {
+          "id": "a9cfb5a0-b76a-4cc8-8ccf-6e463c0f287c",
+          "name": "Outdoor Lighting System",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard/Pathways",
+          "notes": ""
+        },
+        {
+          "id": "f3a08ce6-3bb7-4035-9045-327b7dd48697",
+          "name": "Garden Fountain",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Yard/Patio",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Furniture & Fixtures",
+      "items": [
+        {
+          "id": "27a534b0-26db-4932-92b8-dee4a7e69228",
+          "name": "Sofa",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Room",
+          "notes": ""
+        },
+        {
+          "id": "a7bc6e97-30f2-4919-8593-9528295d96dd",
+          "name": "Dining Table",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Dining Room",
+          "notes": ""
+        },
+        {
+          "id": "1205675d-9c3e-48e6-89cd-0865ff93e7c4",
+          "name": "Bed",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bedroom",
+          "notes": ""
+        },
+        {
+          "id": "c97d57c5-0459-4b68-b931-605e207a5983",
+          "name": "Desk",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Office/Bedroom",
+          "notes": ""
+        },
+        {
+          "id": "3b54e7f6-d5f7-43dd-83e5-adb576ea57b6",
+          "name": "Bookshelf",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Room/Office",
+          "notes": ""
+        },
+        {
+          "id": "bdae4b9c-9f33-4a41-983c-588c74de7988",
+          "name": "Dresser",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bedroom",
+          "notes": ""
+        },
+        {
+          "id": "59c6675c-6c11-443c-9c61-4d05904e175f",
+          "name": "Coffee Table",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Room",
+          "notes": ""
+        },
+        {
+          "id": "e85b6c28-97b6-4d82-bb8e-4241f4972f41",
+          "name": "Rugs",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Living Areas/Bedrooms",
+          "notes": ""
+        },
+        {
+          "id": "2e8fe064-a57f-4f04-9baa-7fa111e9fd30",
+          "name": "Curtains/Blinds",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Throughout Interior",
+          "notes": ""
+        },
+        {
+          "id": "763229af-70bc-4811-b40e-5d6e91de428d",
+          "name": "build-in Closet Systems",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2022-10-17",
+            "major": "2022-10-17"
+          },
+          "location": "Bedrooms",
+          "notes": ""
+        }
+      ]
+    }
+  ]
+}
