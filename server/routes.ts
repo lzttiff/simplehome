@@ -52,7 +52,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         item = body as CatalogItem;
       }
 
-      const provider = body.provider || item?.provider;
+  // Resolve provider: request body -> item field -> env default -> fallback to gemini
+  let provider = body.provider || item?.provider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
       logWithLevel("INFO", `Item schedule request received for item: ${item?.name || 'undefined'}, provider: ${provider || 'undefined'}`);
       if (!item) {
         return res.status(400).json({ message: "No item provided" });
@@ -81,18 +82,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Try to get category from provided JSON
       const provided = req.body;
-      let provider = provided.provider;
+  // Resolve provider: request body/category -> catalog default -> env default -> gemini
+  let provider = provided.provider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
       let category;
       if (provided.householdCatalog && Array.isArray(provided.householdCatalog) && provided.householdCatalog.length > 0) {
         // Use first category from provided JSON
         category = provided.householdCatalog[0];
         provider = provider || category.provider;
       }
-      // If not found, fallback to default from maintenance-template-new.json
+      // If not found, fallback to default from maintenance-template-singleFamilyHome.json
       if (!category || !category.items) {
-        const catalogPath = path.join(__dirname, "../maintenance-template-new.json");
+        const catalogPath = path.join(__dirname, "../maintenance-template-singleFamilyHome.json");
         const catalogData = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
-        provider = provider || catalogData.provider;
+  provider = provider || catalogData.provider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
         category = catalogData.householdCatalog && Array.isArray(catalogData.householdCatalog) && catalogData.householdCatalog.length > 0
           ? catalogData.householdCatalog[0]
           : null;
@@ -104,7 +106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { logWithLevel } = await import("./services/logWithLevel");
       logWithLevel("INFO", `Category checked: ${category.category}, provider: ${provider}`);
     
-      const items = category.items.map((item: CatalogItem) => provider ? { ...item, provider } : { ...item });
+  const items = category.items.map((item: CatalogItem) => provider ? { ...item, provider } : { ...item });
       // Import AI service (dynamic ESM import)
       const { generateCategoryMaintenanceSchedules } = await import("./services/maintenanceAi");
       const results = await generateCategoryMaintenanceSchedules(items as any);
@@ -197,7 +199,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Task Generation
   app.post("/api/ai/generate-tasks", async (req, res) => {
     try {
-      const { propertyType, assessment, provider = "gemini", geminiApiKey } = req.body;
+  const { propertyType, assessment, provider: reqProvider, geminiApiKey } = req.body;
+  const provider = reqProvider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
       if (!propertyType || !assessment) {
         return res.status(400).json({ message: "Property type and assessment are required" });
       }
@@ -235,9 +238,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/ai/quick-suggestions", async (req, res) => {
     try {
-  const { existingTasks, propertyInfo, provider = "openai", geminiApiKey } = req.body;
-      let suggestions;
-      if (provider === "gemini") {
+  const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey } = req.body;
+    const provider = reqProvider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
+    let suggestions;
+    if (provider === "gemini") {
         const keyToUse = geminiApiKey || process.env.GEMINI_API_KEY;
         if (!keyToUse) {
           return res.status(400).json({ message: "Gemini API key required" });
@@ -245,15 +249,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const prompt = `Suggest quick maintenance tasks for property info: ${JSON.stringify(propertyInfo)}, existing tasks: ${JSON.stringify(existingTasks)}`;
         const geminiResponse = await generateGeminiContent(prompt, keyToUse);
         suggestions = [geminiResponse];
-        logWithLevel("INFO", "Generated quick suggestions using Gemini");
-        logWithLevel("DEBUG", `Gemini response: ${JSON.stringify(geminiResponse)}`);
+        logWithLevel("INFO", `Generated quick suggestions using ${provider}`);
+        logWithLevel("DEBUG", `Provider (${provider}) response: ${JSON.stringify(geminiResponse)}`);
       } else {
         suggestions = await generateQuickSuggestions(existingTasks || [], propertyInfo);
       }
       if (Array.isArray(suggestions)) {
         suggestions = suggestions.flat(Infinity);
-        logWithLevel("INFO", "Generated quick suggestions using OpenAI");
-        logWithLevel("DEBUG", `Quick suggestions: ${JSON.stringify(suggestions)}`);
+        logWithLevel("INFO", `Generated quick suggestions using ${provider}`);
+        logWithLevel("DEBUG", `Quick suggestions (${provider}): ${JSON.stringify(suggestions)}`);
       }
       res.json({ suggestions });
     } catch (error) {
