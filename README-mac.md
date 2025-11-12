@@ -145,11 +145,3 @@ DEFAULT_AI_PROVIDER=openai OPENAI_API_KEY="sk-..." npm test
   ```zsh
   xcode-select --install
   ```
-
----
-
-Optional follow-ups I can add to the repo:
-- A `README-mac.md` (this file) has been added.
-- A `scripts/bootstrap-mac.sh` to automate nvm install + dependency install (I can add this if you want).
-
-If you'd like the bootstrap script, say "please add bootstrap script" and I'll create and commit it.
