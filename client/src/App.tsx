@@ -1,4 +1,4 @@
-import { Route } from "wouter";
+import { Route, useRoute } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -8,18 +8,16 @@ import TemplateSelection from "@/pages/template-selection";
 import NotFound from "@/pages/not-found";
 
 function Router() {
-  // wouter no longer provides a top-level Switch in newer versions —
-  // rendering Route elements directly lets each Route decide whether
-  // it matches the current location.
-  return (
-    <>
-      <Route path="/" component={TemplateSelection} />
-      <Route path="/dashboard" component={Dashboard} />
-  <Route path="/dashboard/:templateId" component={Dashboard} />
-  {/* Catch-all route: use path="*" so NotFound renders when no other route matches */}
-  <Route path="*" component={NotFound} />
-    </>
-  );
+  // wouter's <Route> components can render concurrently if multiple
+  // patterns match (e.g. path="*" matches everything). Use `useRoute`
+  // to check routes in priority order and render only the first match.
+  const [isRoot] = useRoute("/");
+  const [isDashboardWithId] = useRoute("/dashboard/:templateId");
+  const [isDashboard] = useRoute("/dashboard");
+
+  if (isRoot) return <TemplateSelection />;
+  if (isDashboardWithId || isDashboard) return <Dashboard />;
+  return <NotFound />;
 }
 
 function App() {

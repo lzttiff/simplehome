@@ -60,7 +60,20 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
-      const page = await vite.transformIndexHtml(url, template);
+      let page = await vite.transformIndexHtml(url, template);
+
+      // Inject a tiny dev-only client reporter when DEBUG_CLIENT_REQUESTS is enabled.
+      // This posts location and any uncaught errors/console.error to the server
+      // so developers can see why the SPA route rendered NotFound.
+      if (process.env.DEBUG_CLIENT_REQUESTS) {
+        // Improved dev reporter:
+        // - uses fetch (JSON) for reliable parsing on the server
+        // - reports boot, errors, unhandledrejection, console.error
+        // - captures SPA navigations by patching history.pushState/replaceState and listening to popstate
+        const reporter = `\n<script>(function(){try{const send=(p)=>{try{fetch('/__debug/client-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(()=>{});}catch(e){} };const base=()=>({pathname:location.pathname,href:location.href,ua:navigator.userAgent,lang:navigator.language,ts:new Date().toISOString()});try{send(Object.assign({type:'boot'},base()));}catch(e){};window.addEventListener('error',function(e){try{send(Object.assign({type:'error',message:e.message,stack:e.error?e.error.stack:null},base()));}catch(e){} });window.addEventListener('unhandledrejection',function(e){try{send(Object.assign({type:'unhandledrejection',reason:String(e.reason)},base()));}catch(e){} });const origConsoleError=console.error;console.error=function(){try{const args=Array.from(arguments).map(a=>{try{return typeof a==='string'?a:JSON.stringify(a);}catch(e){return String(a);} });send(Object.assign({type:'console.error',args},base()));}catch(e){};origConsoleError.apply(console,arguments);};(function(){var _push=history.pushState;history.pushState=function(){try{_push.apply(this,arguments);}catch(e){};try{send(Object.assign({type:'navigate',method:'pushState',args:Array.from(arguments)},base()));}catch(e){} };var _replace=history.replaceState;history.replaceState=function(){try{_replace.apply(this,arguments);}catch(e){};try{send(Object.assign({type:'navigate',method:'replaceState',args:Array.from(arguments)},base()));}catch(e){} };window.addEventListener('popstate',function(e){try{send(Object.assign({type:'navigate',method:'popstate',state:e.state||null},base()));}catch(e){};});})();console.debug && console.debug('client-reporter-active');}catch(e){}})();</script>`;
+        page = page + reporter;
+      }
+
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);

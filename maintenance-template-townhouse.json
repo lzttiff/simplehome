@@ -11,12 +11,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2023-10-01",
-            "major": "2021-10-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-04-01",
-            "major": "2026-10-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Roof",
           "notes": "Inspect for leaks and shared drainage performance."
@@ -28,12 +28,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2023-07-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-07-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Between Units",
           "notes": "Check seals, penetrations and sound/ firestopping continuity."
@@ -50,12 +50,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2024-01-01",
-            "major": "2022-01-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-07-01",
-            "major": "2026-01-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Per Unit",
           "notes": "Filter changes and function checks per unit."
@@ -67,12 +67,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2023-11-01",
-            "major": "2021-11-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-11-01",
-            "major": "2026-11-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Within Units/Shared Lines",
           "notes": "Check for cross-unit leaks and shared shut-off access."
@@ -111,12 +111,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2024-05-01",
-            "major": "2023-05-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-05-01",
-            "major": "2026-05-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Per Unit",
           "notes": "Ensure detectors are functional and batteries replaced as needed."
