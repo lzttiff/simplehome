@@ -4,3 +4,10 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Local/generated files that should not be tracked
+gemini.key
+data/debug-client.log
+data/storage.json
+data/*.log
+data/*.json
