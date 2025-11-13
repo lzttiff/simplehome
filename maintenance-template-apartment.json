@@ -11,12 +11,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Building Roof",
           "notes": "Inspect membrane, flashings, scuppers and clear roof drains."
@@ -28,12 +28,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Exterior",
           "notes": "Inspect guardrails, sealants, and facade finish for water intrusion."
@@ -50,12 +50,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Shafts",
           "notes": "Routine inspections, safety tests and door operation checks."
@@ -67,12 +67,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Mechanical Room",
           "notes": "Filter changes, coil cleaning, controls and ventilation checks."
@@ -89,12 +89,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Roof/Site",
           "notes": "Clear debris and verify positive drainage to prevent leaks."
@@ -106,12 +106,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Vertical Stacks",
           "notes": "Inspect for blockages, odors and venting issues."
@@ -128,12 +128,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Common Areas",
           "notes": "Test alarms, strobes, and panel communication as required by code."
@@ -145,12 +145,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Egress",
           "notes": "Monthly functional tests and battery checks."
@@ -167,12 +167,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Units",
           "notes": "Check range hood, oven and refrigerators per unit turnover schedule."
@@ -184,12 +184,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Units",
           "notes": "Inspect seals, glazing, and balcony finishes."

@@ -1,7 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "http://localhost/works/projects/simplehome/maintenance-list-schema-1.0.0.json",
-  "version": "1.0.0",
   "title": "Maintenance List Schema",
   "description": "Schema for a maintenance list in a personal project.",
   "type": "object",
@@ -33,8 +32,8 @@
                 "type": "object", 
                 "description": "Date of last maintenance",
                 "properties": {
-                  "minor": { "type": "string", "format": "date", "description": "Date of last minor maintenance" },
-                  "major": { "type": "string", "format": "date", "description": "Date of last major maintenance" }
+                  "minor": { "type": ["string","null"], "format": "date", "description": "Date of last minor maintenance" },
+                  "major": { "type": ["string","null"], "format": "date", "description": "Date of last major maintenance" }
                 },
                 "required": ["minor", "major"]
               },
@@ -42,8 +41,8 @@
                 "type": "object", 
                 "description": "Date of next scheduled maintenance",
                 "properties": {
-                  "minor": { "type": "string", "format": "date", "description": "Date of next minor maintenance" },
-                  "major": { "type": "string", "format": "date", "description": "Date of next major maintenance" }
+                  "minor": { "type": ["string","null"], "format": "date", "description": "Date of next minor maintenance" },
+                  "major": { "type": ["string","null"], "format": "date", "description": "Date of next major maintenance" }
                 },
                 "required": ["minor", "major"]
               },

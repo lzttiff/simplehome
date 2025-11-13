@@ -11,12 +11,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2023-10-01",
-            "major": "2023-10-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-10-01",
-            "major": "2026-10-01"
+            "minor": "",
+            "major": ""
           },
           "location": "Full Building",
           "notes": "Inspect for settlement, corrosion, cracking, and structural integrity."
@@ -28,12 +28,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2023-10-01",
-            "major": "2023-10-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-04-01",
-            "major": "2025-10-01"
+            "minor": "",
+            "major": ""
           },
           "location": "Roof",
           "notes": "Regular inspection, flashing, ponding water, and membrane seams."
@@ -45,12 +45,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2023-10-01",
-            "major": "2023-10-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-10-01",
-            "major": "2026-10-01"
+            "minor": "",
+            "major": ""
           },
           "location": "Exterior",
           "notes": "Inspect sealants, joints, rainscreen, and perform cleaning as needed."
@@ -62,11 +62,11 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2023-10-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-04-01",
+            "minor": "",
             "major": ""
           },
           "location": "Entrances",
@@ -79,12 +79,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2023-09-01",
-            "major": "2022-09-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-03-01",
-            "major": "2025-09-01"
+            "minor": "",
+            "major": ""
           },
           "location": "Site",
           "notes": "Inspect expansion joints, potholes, striping, and drainage."

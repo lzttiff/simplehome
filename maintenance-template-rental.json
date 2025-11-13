@@ -15,8 +15,8 @@
             "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Units",
           "notes": "Cleaning, paint touch-ups, and basic repairs between tenants."
@@ -32,8 +32,8 @@
             "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Unit Entrances",
           "notes": "Security step after tenant move-out."
@@ -54,8 +54,8 @@
             "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Units",
           "notes": "Document condition, photos and checklist for security deposit."
@@ -71,8 +71,8 @@
             "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Units/Common Areas",
           "notes": "Safety-critical tests at turnover and periodically."
