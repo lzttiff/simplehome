@@ -15,8 +15,8 @@
             "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Roof",
           "notes": "Inspect for leaks and shared drainage performance."
@@ -32,8 +32,8 @@
             "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Between Units",
           "notes": "Check seals, penetrations and sound/ firestopping continuity."
@@ -54,8 +54,8 @@
             "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
+            "minor": null,
+            "major": null
           },
           "location": "Per Unit",
           "notes": "Filter changes and function checks per unit."
