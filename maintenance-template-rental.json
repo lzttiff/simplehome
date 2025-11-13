@@ -11,12 +11,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2024-04-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-05-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Units",
           "notes": "Cleaning, paint touch-ups, and basic repairs between tenants."
@@ -28,12 +28,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2024-04-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-05-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Unit Entrances",
           "notes": "Security step after tenant move-out."
@@ -50,12 +50,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2024-04-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2024-05-01",
-            "major": ""
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Units",
           "notes": "Document condition, photos and checklist for security deposit."
@@ -67,12 +67,12 @@
           "model": "",
           "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2024-05-01",
-            "major": "2023-05-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "nextMaintenanceDate": {
-            "minor": "2025-05-01",
-            "major": "2026-05-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
           "location": "Units/Common Areas",
           "notes": "Safety-critical tests at turnover and periodically."

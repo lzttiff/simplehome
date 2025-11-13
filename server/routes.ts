@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 // Catalog item interface for type safety
 export interface CatalogItem {
   id: string;
@@ -355,6 +355,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ cleared: true });
     } catch (error) {
       res.status(500).json({ message: 'Failed to clear diagnostics' });
+    }
+  });
+
+  // Dev-only: receive client-side debug reports (enabled when DEBUG_CLIENT_REQUESTS=true)
+  // Accept any content-type (sendBeacon often sends non-JSON content-type), parse if possible.
+  app.post('/__debug/client-log', express.text({ type: '*/*' }), async (req, res) => {
+    try {
+      let payload: any = {};
+      try {
+        if (req.body && typeof req.body === 'object') {
+          payload = req.body;
+        } else if (typeof req.body === 'string' && req.body.trim()) {
+          try {
+            payload = JSON.parse(req.body);
+          } catch (e) {
+            payload = { raw: req.body };
+          }
+        }
+
+        // write to server console and optionally to a file for later review
+        logWithLevel('INFO', `[CLIENT-REMOTE] ${JSON.stringify(payload)}`);
+        const dbgPath = path.resolve(process.cwd(), 'data', 'debug-client.log');
+        try {
+          fs.mkdirSync(path.dirname(dbgPath), { recursive: true });
+          fs.appendFileSync(dbgPath, `${new Date().toISOString()} ${JSON.stringify(payload)}\n`);
+        } catch (e) {
+          // ignore file write errors
+        }
+      } catch (e) {
+        // guard logging
+      }
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ ok: false });
     }
   });
 
