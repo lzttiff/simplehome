@@ -46,9 +46,9 @@ export class MemStorage implements IStorage {
         taskCount: 150
       },
       {
-        name: "Apartment/Condo",
+        name: "Condo",
         type: "apartment",
-        description: "Essential maintenance for unit-specific systems, appliances, and shared responsibility areas.",
+        description: "Essential maintenance for condo owners covering unit-specific systems, appliances, and shared building responsibilities.",
         taskCount: 80
       },
       {
@@ -89,7 +89,7 @@ export class MemStorage implements IStorage {
       {
         title: "Replace HVAC Filter",
         description: "Check and replace air filter in main HVAC unit. Recommended every 1-3 months.",
-        category: "HVAC",
+        category: "HVAC & Mechanical",
         priority: "Urgent",
         status: "pending",
         dueDate: new Date("2024-10-15"),
@@ -106,7 +106,7 @@ export class MemStorage implements IStorage {
       {
         title: "Test Water Pressure",
         description: "Check water pressure in all faucets and showers. Look for leaks or pressure issues.",
-        category: "Plumbing",
+        category: "Plumbing & Water",
         priority: "Medium",
         status: "pending",
         dueDate: new Date("2024-10-20"),
@@ -123,7 +123,7 @@ export class MemStorage implements IStorage {
       {
         title: "Clean Gutters",
         description: "Remove debris from gutters and check for proper drainage.",
-        category: "Exterior",
+        category: "Structural & Exterior",
         priority: "Medium",
         status: "completed",
         dueDate: null,
@@ -140,7 +140,7 @@ export class MemStorage implements IStorage {
       {
         title: "Test GFCI Outlets",
         description: "Test all GFCI outlets in bathrooms, kitchen, and outdoor areas for proper function.",
-        category: "Electrical",
+        category: "Electrical & Lighting",
         priority: "Low",
         status: "pending",
         dueDate: new Date("2024-11-01"),
@@ -413,12 +413,15 @@ export class MemStorage implements IStorage {
     let tasks = Array.from(this.tasks.values());
     if (filters) {
       if (filters.category) {
+        console.log('Filtering by category:', filters.category);
         tasks = tasks.filter(task => task.category === filters.category);
       }
       if (filters.priority) {
+        console.log('Filtering by priority:', filters.priority);
         tasks = tasks.filter(task => task.priority === filters.priority);
       }
       if (filters.status) {
+        console.log('Filtering by status:', filters.status);
         tasks = tasks.filter(task => task.status === filters.status);
       }
       if (filters.search) {
@@ -429,6 +432,7 @@ export class MemStorage implements IStorage {
         );
       }
       if (filters.templateId) {
+        console.log('Filtering by templateId:', filters.templateId);
         tasks = tasks.filter(task => task.templateId === filters.templateId);
       }
     }

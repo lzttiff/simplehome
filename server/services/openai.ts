@@ -43,7 +43,7 @@ Concerns: ${assessment.concerns.join(', ')}
 Generate 8-12 specific, actionable maintenance tasks. For each task, provide:
 - title: Clear, concise task name
 - description: Detailed instructions (2-3 sentences)
-- category: One of [HVAC, Plumbing, Electrical, Exterior, Interior, Safety, Landscaping]
+- category: One of [Appliances, HVAC & Mechanical, Plumbing & Water, Electrical & Lighting, Structural & Exterior, Interior & Finishes, Safety & Fire, Yard & Outdoor Equipment, IT & Communications, Furniture & Fixtures]
 - priority: One of [Low, Medium, High, Urgent]
 - frequency: How often this should be done
 - reasoning: Why this task is important for this specific property

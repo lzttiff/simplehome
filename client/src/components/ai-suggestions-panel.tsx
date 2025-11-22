@@ -29,16 +29,18 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: suggestionsData, isLoading } = useQuery({
+  const { data: suggestionsData, isLoading, error } = useQuery({
     queryKey: ["/api/ai/quick-suggestions", existingTasks.length],
     queryFn: async () => {
       const response = await apiRequest("POST", "/api/ai/quick-suggestions", {
         existingTasks: existingTasks.map(t => ({ title: t.title, category: t.category })),
         propertyInfo: { type: "single_family", age: "5-15 years", climate: "temperate" }
+        // Provider will be read from .env (DEFAULT_AI_PROVIDER)
       });
       return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: false, // Don't retry failed AI requests
   });
 
   const addTaskMutation = useMutation({
@@ -121,6 +123,12 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent"></div>
               <span className="ml-2 text-sm text-gray-600">Generating suggestions...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-4 text-gray-500">
+              <Sparkles className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">Unable to load AI suggestions</p>
+              <p className="text-xs text-gray-400 mt-1">Please check your API configuration.</p>
             </div>
           ) : visibleSuggestions.length > 0 ? (
             <div className="space-y-3">

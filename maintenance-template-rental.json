@@ -22,6 +22,23 @@
           "notes": "Cleaning, paint touch-ups, and basic repairs between tenants."
         },
         {
+          "id": "96d48605-3c27-474d-8c38-2a1292381a7c",
+          "name": "Move-in / Move-out Inspection",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Document condition, photos and checklist for security deposit."
+        },
+        {
           "id": "cc808813-abe1-4335-95cc-72861684c46f",
           "name": "Change Locks / Rekey",
           "brand": "",
@@ -41,28 +58,11 @@
       ]
     },
     {
-      "category": "Inspections & Safety",
+      "category": "Electrical & Lighting",
       "items": [
         {
-          "id": "96d48605-3c27-474d-8c38-2a1292381a7c",
-          "name": "Move-in / Move-out Inspection",
-          "brand": "",
-          "model": "",
-          "installationDate": "",
-          "lastMaintenanceDate": {
-            "minor": "2025-10-10",
-            "major": "2025-10-10"
-          },
-          "nextMaintenanceDate": {
-            "minor": null,
-            "major": null
-          },
-          "location": "Units",
-          "notes": "Document condition, photos and checklist for security deposit."
-        },
-        {
           "id": "d291756c-a46d-472b-a7b5-296450ac11a0",
-          "name": "Smoke & Carbon Monoxide Checks",
+          "name": "Smoke & Carbon Monoxide Detectors",
           "brand": "",
           "model": "",
           "installationDate": "",
@@ -76,11 +76,28 @@
           },
           "location": "Units/Common Areas",
           "notes": "Safety-critical tests at turnover and periodically."
+        },
+        {
+          "id": "be04b4be-3faf-460e-b2b8-be3180af79b1",
+          "name": "Common Area Lighting",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-03-01",
+            "major": "2025-03-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Site",
+          "notes": "Ensure pathways and parking are well-lit for tenant safety."
         }
       ]
     },
     {
-      "category": "Plumbing & HVAC",
+      "category": "HVAC & Mechanical",
       "items": [
         {
           "id": "6491fc7b-3585-4100-9305-5c01e43328c8",
@@ -91,14 +108,13 @@
           "lastMaintenanceDate": {
             "minor": "2024-03-01",
             "major": ""
-          },
-          "nextMaintenanceDate": {
-            "minor": "2024-09-01",
-            "major": ""
-          },
-          "location": "Units",
-          "notes": "Filter replacement and basic operation check between leases."
-        },
+          }
+        }
+      ]
+    },
+    {
+      "category": "Plumbing & Water",
+      "items": [
         {
           "id": "01f30d29-7e85-4466-b209-1ba290ee86cd",
           "name": "Drains & Plumbing Check",
@@ -115,28 +131,6 @@
           },
           "location": "Units/Common Areas",
           "notes": "Inspect for slow drains, leaks and supply shut-offs."
-        }
-      ]
-    },
-    {
-      "category": "Exterior & Grounds",
-      "items": [
-        {
-          "id": "be04b4be-3faf-460e-b2b8-be3180af79b1",
-          "name": "Exterior Lighting",
-          "brand": "",
-          "model": "",
-          "installationDate": "",
-          "lastMaintenanceDate": {
-            "minor": "2024-03-01",
-            "major": "2022-03-01"
-          },
-          "nextMaintenanceDate": {
-            "minor": "2024-09-01",
-            "major": "2026-03-01"
-          },
-          "location": "Site",
-          "notes": "Ensure pathways and parking are well-lit for tenant safety."
         }
       ]
     }

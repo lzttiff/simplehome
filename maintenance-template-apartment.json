@@ -41,46 +41,7 @@
       ]
     },
     {
-      "category": "Shared Systems",
-      "items": [
-        {
-          "id": "9c0839fe-c161-4ea1-9c97-ea04d2332047",
-          "name": "Elevator(s)",
-          "brand": "",
-          "model": "",
-          "installationDate": "",
-          "lastMaintenanceDate": {
-            "minor": "2025-11-10",
-            "major": "2025-11-10"
-          },
-          "nextMaintenanceDate": {
-            "minor": null,
-            "major": null
-          },
-          "location": "Shafts",
-          "notes": "Routine inspections, safety tests and door operation checks."
-        },
-        {
-          "id": "4965a836-a203-4455-a5b9-c33c0a4d3b2e",
-          "name": "Central HVAC / Boiler",
-          "brand": "",
-          "model": "",
-          "installationDate": "",
-          "lastMaintenanceDate": {
-            "minor": "2025-11-10",
-            "major": "2025-11-10"
-          },
-          "nextMaintenanceDate": {
-            "minor": null,
-            "major": null
-          },
-          "location": "Mechanical Room",
-          "notes": "Filter changes, coil cleaning, controls and ventilation checks."
-        }
-      ]
-    },
-    {
-      "category": "Plumbing & Waste",
+      "category": "Plumbing & Water",
       "items": [
         {
           "id": "dbf8adc7-52de-4ccd-a5f1-d3fff4611e5d",
@@ -158,7 +119,7 @@
       ]
     },
     {
-      "category": "Units & Interiors",
+      "category": "Interior & Finishes",
       "items": [
         {
           "id": "e41e4e75-0b44-48db-be0a-06624583f3f2",

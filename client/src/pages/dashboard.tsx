@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
 import { MaintenanceTask } from "@shared/schema";
@@ -16,13 +16,16 @@ import AddTaskModal from "@/components/add-task-modal";
 import QuestionnaireModal from "@/components/questionnaire-modal";
 
 const categoryColors = {
-  HVAC: "bg-red-500",
-  Plumbing: "bg-blue-500", 
-  Electrical: "bg-yellow-500",
-  Exterior: "bg-green-500",
-  Interior: "bg-purple-500",
-  Safety: "bg-orange-500",
-  Landscaping: "bg-emerald-500",
+  Appliances: "bg-cyan-500",
+  "HVAC & Mechanical": "bg-red-500",
+  "Plumbing & Water": "bg-blue-500", 
+  "Electrical & Lighting": "bg-yellow-500",
+  "Structural & Exterior": "bg-green-500",
+  "Interior & Finishes": "bg-purple-500",
+  "Safety & Fire": "bg-orange-500",
+  "Yard & Outdoor Equipment": "bg-emerald-500",
+  "IT & Communications": "bg-indigo-500",
+  "Furniture & Fixtures": "bg-pink-500",
 };
 
 export default function Dashboard() {
@@ -38,12 +41,18 @@ export default function Dashboard() {
     queryKey: ["/api/tasks", { search: searchTerm, priority: priorityFilter, templateId }],
   });
 
+  // Debug logging
+  console.log('Dashboard - templateId:', templateId);
+  console.log('Dashboard - tasks count:', tasks.length);
+  console.log('Dashboard - sample task templateIds:', tasks.slice(0, 3).map(t => ({ title: t.title, templateId: t.templateId })));
+
   const { data: stats } = useQuery<TaskStats>({
     queryKey: ["/api/stats"],
   });
 
-  // Calculate category filters with counts
-  const updateCategoryFilters = (tasks: MaintenanceTask[]) => {
+  // Update category filters when tasks change
+  // Note: tasks are already filtered by templateId from the backend API
+  useEffect(() => {
     const categoryCounts = tasks.reduce((acc, task) => {
       acc[task.category] = (acc[task.category] || 0) + 1;
       return acc;
@@ -57,12 +66,7 @@ export default function Dashboard() {
     }));
 
     setCategoryFilters(filters);
-  };
-
-  // Update category filters when tasks change
-  if (tasks.length > 0 && categoryFilters.length === 0) {
-    updateCategoryFilters(tasks);
-  }
+  }, [tasks]);
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilters(prev => 

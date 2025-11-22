@@ -88,6 +88,40 @@
           },
           "location": "Site",
           "notes": "Inspect expansion joints, potholes, striping, and drainage."
+        },
+        {
+          "id": "f1e2d3c4-3001-4b6a-8a1b-dddddddddddd",
+          "name": "Passenger Elevator",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-02-01",
+            "major": "2023-02-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-08-01",
+            "major": "2026-02-01"
+          },
+          "location": "Shafts",
+          "notes": "Routine inspections, hoistway, cables, and safety tests per code."
+        },
+        {
+          "id": "f1e2d3c4-3002-4b6a-8a1b-eeeeeeeeeeee",
+          "name": "Freight Elevator / Service Lift",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2024-02-01",
+            "major": "2023-02-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": "2024-08-01",
+            "major": "2026-02-01"
+          },
+          "location": "Service Areas",
+          "notes": "Ensure load limit checks and door interlocks are functional."
         }
       ]
     },
@@ -165,7 +199,7 @@
       ]
     },
     {
-      "category": "Fire & Life Safety",
+      "category": "Safety & Fire",
       "items": [
         {
           "id": "32b704d6-f640-450d-ad02-06c4b76a9ee2",
@@ -221,46 +255,7 @@
       ]
     },
     {
-      "category": "Vertical Transport",
-      "items": [
-        {
-          "id": "f1e2d3c4-3001-4b6a-8a1b-dddddddddddd",
-          "name": "Passenger Elevator",
-          "brand": "",
-          "model": "",
-          "installationDate": "",
-          "lastMaintenanceDate": {
-            "minor": "2024-02-01",
-            "major": "2023-02-01"
-          },
-          "nextMaintenanceDate": {
-            "minor": "2024-08-01",
-            "major": "2026-02-01"
-          },
-          "location": "Shafts",
-          "notes": "Routine inspections, hoistway, cables, and safety tests per code."
-        },
-        {
-          "id": "f1e2d3c4-3002-4b6a-8a1b-eeeeeeeeeeee",
-          "name": "Freight Elevator / Service Lift",
-          "brand": "",
-          "model": "",
-          "installationDate": "",
-          "lastMaintenanceDate": {
-            "minor": "2024-02-01",
-            "major": "2023-02-01"
-          },
-          "nextMaintenanceDate": {
-            "minor": "2024-08-01",
-            "major": "2026-02-01"
-          },
-          "location": "Service Areas",
-          "notes": "Ensure load limit checks and door interlocks are functional."
-        }
-      ]
-    },
-    {
-      "category": "Electrical & Power",
+      "category": "Electrical & Lighting",
       "items": [
         {
           "id": "392d9165-d832-436a-9a10-1991d014a2c7",
@@ -372,7 +367,7 @@
       ]
     },
     {
-      "category": "Security & Access Control",
+      "category": "Security & Fire",
       "items": [
         {
           "id": "b6851a21-08f5-41eb-85b1-20b99e03c8e6",
@@ -489,7 +484,7 @@
       ]
     },
     {
-      "category": "Grounds & Site",
+      "category": "Yard & Outdoor Equipment",
       "items": [
         {
           "id": "f42d86a5-13aa-4feb-ac9e-31c48025d1df",
