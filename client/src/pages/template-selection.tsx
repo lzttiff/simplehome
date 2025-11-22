@@ -7,7 +7,7 @@ import { Building, Home, Building2, Warehouse, Key, Plus } from "lucide-react";
 
 const propertyTypeIcons = {
   single_family: Home,
-  apartment: Building,
+  apartment: Building,  // Used for Condo template
   townhouse: Building2,
   commercial: Warehouse,
   rental: Key,

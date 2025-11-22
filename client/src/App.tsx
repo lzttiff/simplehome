@@ -8,16 +8,14 @@ import TemplateSelection from "@/pages/template-selection";
 import NotFound from "@/pages/not-found";
 
 function Router() {
-  // wouter's <Route> components can render concurrently if multiple
-  // patterns match (e.g. path="*" matches everything). Use `useRoute`
-  // to check routes in priority order and render only the first match.
-  const [isRoot] = useRoute("/");
-  const [isDashboardWithId] = useRoute("/dashboard/:templateId");
-  const [isDashboard] = useRoute("/dashboard");
-
-  if (isRoot) return <TemplateSelection />;
-  if (isDashboardWithId || isDashboard) return <Dashboard />;
-  return <NotFound />;
+  // Use Route components to properly extract URL parameters
+  return (
+    <>
+      <Route path="/" component={TemplateSelection} />
+      <Route path="/dashboard/:templateId?" component={Dashboard} />
+      <Route path="/:rest*" component={NotFound} />
+    </>
+  );
 }
 
 function App() {

@@ -48,13 +48,17 @@ const formSchema = insertMaintenanceTaskSchema.extend({
 type FormData = z.infer<typeof formSchema>;
 
 const categories = [
-  "HVAC",
-  "Plumbing", 
-  "Electrical",
-  "Exterior",
-  "Interior",
-  "Safety",
-  "Landscaping",
+  "Appliances",
+  "HVAC & Mechanical",
+  "Plumbing & Water",
+  "Electrical & Lighting",
+  "Structural & Exterior",
+  "Interior & Finishes",
+  "Safety & Fire",
+  "Yard & Outdoor Equipment",
+  "IT & Communications",
+  "Furniture & Fixtures",
+  "Turnover & Tenant-ready"
 ];
 
 const priorities = [
