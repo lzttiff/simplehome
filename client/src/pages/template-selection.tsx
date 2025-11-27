@@ -7,7 +7,7 @@ import { Building, Home, Building2, Warehouse, Key, Plus } from "lucide-react";
 
 const propertyTypeIcons = {
   single_family: Home,
-  apartment: Building,  // Used for Condo template
+  condo: Building,
   townhouse: Building2,
   commercial: Warehouse,
   rental: Key,
@@ -15,7 +15,7 @@ const propertyTypeIcons = {
 
 const propertyTypeImages = {
   single_family: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600",
-  apartment: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600",
+  condo: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600",
   townhouse: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600",
   commercial: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600",
   rental: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600",
@@ -86,7 +86,7 @@ export default function TemplateSelection() {
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">{template.name}</h3>
                     <p className="text-gray-600 text-sm mb-4">{template.description}</p>
                     <div className="flex items-center text-sm text-gray-500">
-                      <Badge variant="secondary">{template.taskCount}+ Tasks</Badge>
+                      <Badge variant="secondary">{template.taskCount}+ Items / Tasks</Badge>
                     </div>
                   </CardContent>
                 </Card>
