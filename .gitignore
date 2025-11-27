@@ -11,3 +11,4 @@ data/debug-client.log
 data/storage.json
 data/*.log
 data/*.json
+out.json
