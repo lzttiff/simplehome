@@ -65,7 +65,7 @@ describe('/api/ai/generate-tasks (Gemini key support)', () => {
     process.env.GEMINI_API_KEY = 'env-key';
     const res = await request(app)
       .post('/api/ai/generate-tasks')
-      .send({ propertyType: 'apartment', assessment: 'Some issues', provider: 'gemini' });
+      .send({ propertyType: 'condo', assessment: 'Some issues', provider: 'gemini' });
 
     expect(res.statusCode).toBe(200);
     expect((generateGeminiContent as jest.Mock).mock.calls.length).toBe(1);

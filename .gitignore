@@ -11,4 +11,5 @@ data/debug-client.log
 data/storage.json
 data/*.log
 data/*.json
-out.jsonmaintenance-template-apartment.obsolete.orig.json
+out.json
+maintenance-template-ap-obsolete.orig.json
