@@ -93,7 +93,18 @@ export default function Dashboard() {
     );
   };
 
-  const handleAIScheduleForCategory = async (categoryName: string) => {
+  const hasAITaskLists = (task: MaintenanceTask) => {
+    try {
+      const minorTasks = task.minorTasks ? JSON.parse(task.minorTasks) : [];
+      const majorTasks = task.majorTasks ? JSON.parse(task.majorTasks) : [];
+      return (Array.isArray(minorTasks) && minorTasks.length > 0) || 
+             (Array.isArray(majorTasks) && majorTasks.length > 0);
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAIScheduleForCategory = async (categoryName: string, includeAll: boolean = true) => {
     // If already loading, ask to cancel
     if (loadingCategories[categoryName]) {
       const confirmCancel = window.confirm(`AI generation is in progress for ${categoryName}. Do you want to cancel it?`);
@@ -118,7 +129,16 @@ export default function Dashboard() {
     
     try {
       // Get all tasks for this category
-      const categoryTasks = tasks.filter(task => task.category === categoryName);
+      let categoryTasks = tasks.filter(task => task.category === categoryName);
+      
+      // Filter to only tasks without AI suggestions if includeAll is false
+      if (!includeAll) {
+        categoryTasks = categoryTasks.filter(task => !hasAITaskLists(task));
+        if (categoryTasks.length === 0) {
+          alert(`All items in ${categoryName} already have AI suggestions.`);
+          return;
+        }
+      }
       
       // Build the householdCatalog structure for this category
       const householdCatalog = [{
@@ -167,6 +187,25 @@ export default function Dashboard() {
         const { [categoryName]: _, ...rest } = prev;
         return rest;
       });
+    }
+  };
+
+  const handleAIScheduleForAllCategories = async (includeAll: boolean) => {
+    const confirmMessage = includeAll 
+      ? "Generate AI suggestions for all items in all categories? This may take a while."
+      : "Generate AI suggestions for items without existing suggestions? This may take a while.";
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    // Process each category sequentially to avoid overwhelming the API
+    for (const filter of categoryFilters) {
+      if (filter.checked) {
+        await handleAIScheduleForCategory(filter.category, includeAll);
+        // Add a small delay between categories
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
   };
 
@@ -339,8 +378,8 @@ export default function Dashboard() {
                         variant="ghost"
                         size="sm"
                         className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleAIScheduleForCategory(filter.category)}
-                        title="Generate AI schedule for this category"
+                        onClick={() => handleAIScheduleForCategory(filter.category, false)}
+                        title="Generate AI schedule for items without suggestions"
                       >
                         <Sparkles className="h-3 w-3 text-purple-600" />
                       </Button>
@@ -350,6 +389,28 @@ export default function Dashboard() {
                     </Badge>
                   </div>
                 ))}
+                <div className="pt-3 border-t space-y-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => handleAIScheduleForAllCategories(false)}
+                    disabled={Object.values(loadingCategories).some(loading => loading)}
+                  >
+                    <Sparkles className="h-3 w-3 mr-2" />
+                    AI for Items Without Suggestions
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => handleAIScheduleForAllCategories(true)}
+                    disabled={Object.values(loadingCategories).some(loading => loading)}
+                  >
+                    <Sparkles className="h-3 w-3 mr-2" />
+                    AI for All Items
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
