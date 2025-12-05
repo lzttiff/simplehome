@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash2, Sparkles } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,7 @@ export default function TaskCard({ task }: TaskCardProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isMinorCalendarOpen, setIsMinorCalendarOpen] = useState(false);
   const [isMajorCalendarOpen, setIsMajorCalendarOpen] = useState(false);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -253,9 +254,99 @@ export default function TaskCard({ task }: TaskCardProps) {
     }
   };
 
+  const handleAISchedule = async () => {
+    setIsLoadingAI(true);
+    
+    try {
+      // Build the item structure for API call
+      const item = {
+        id: task.id,
+        name: task.title,
+        brand: task.brand || "",
+        model: task.model || "",
+        installationDate: task.installationDate || "",
+        lastMaintenanceDate: task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null },
+        nextMaintenanceDate: task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null },
+        location: task.location || "",
+        notes: task.notes || ""
+      };
+
+      const response = await fetch('/api/item-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item, provider: 'gemini' })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate AI schedule');
+      }
+
+      const data = await response.json();
+      const result = data.result;
+      
+      // Update the task with AI results
+      const updates: any = {};
+      
+      if (result.nextMaintenanceDates) {
+        updates.nextMaintenanceDate = JSON.stringify({
+          minor: result.nextMaintenanceDates.minor || null,
+          major: result.nextMaintenanceDates.major || null
+        });
+      }
+      
+      if (result.maintenanceSchedule) {
+        if (result.maintenanceSchedule.minorIntervalMonths) {
+          updates.minorIntervalMonths = parseInt(result.maintenanceSchedule.minorIntervalMonths) || null;
+        }
+        if (result.maintenanceSchedule.majorIntervalMonths) {
+          updates.majorIntervalMonths = parseInt(result.maintenanceSchedule.majorIntervalMonths) || null;
+        }
+        if (result.maintenanceSchedule.minorTasks && Array.isArray(result.maintenanceSchedule.minorTasks)) {
+          updates.minorTasks = JSON.stringify(result.maintenanceSchedule.minorTasks);
+        }
+        if (result.maintenanceSchedule.majorTasks && Array.isArray(result.maintenanceSchedule.majorTasks)) {
+          updates.majorTasks = JSON.stringify(result.maintenanceSchedule.majorTasks);
+        }
+      }
+      
+      if (result.reasoning) {
+        updates.notes = result.reasoning;
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        updateTaskMutation.mutate(updates);
+        toast({
+          title: "AI Schedule Generated",
+          description: "Task has been updated with AI suggestions.",
+        });
+      }
+    } catch (error) {
+      console.error('Error generating AI schedule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate AI schedule",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingAI(false);
+    }
+  };
+
   const formatDate = (date: Date | string | null) => {
     if (!date) return "Not set";
     return new Date(date).toLocaleDateString();
+  };
+
+  // Check if task has AI-generated task lists
+  const hasAITaskLists = () => {
+    try {
+      const minorTasks = task.minorTasks ? JSON.parse(task.minorTasks) : [];
+      const majorTasks = task.majorTasks ? JSON.parse(task.majorTasks) : [];
+      return (Array.isArray(minorTasks) && minorTasks.length > 0) || 
+             (Array.isArray(majorTasks) && majorTasks.length > 0);
+    } catch {
+      return false;
+    }
   };
 
   return (
@@ -483,6 +574,22 @@ export default function TaskCard({ task }: TaskCardProps) {
           </div>
         </div>
         <div className="flex items-center space-x-2 ml-4">
+          {!hasAITaskLists() && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleAISchedule}
+              disabled={isLoadingAI}
+              title="Generate AI maintenance schedule"
+              className="text-purple-600 hover:text-purple-700"
+            >
+              {isLoadingAI ? (
+                <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+            </Button>
+          )}
           <Button 
             variant="ghost" 
             size="sm"
