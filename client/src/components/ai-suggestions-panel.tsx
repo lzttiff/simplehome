@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MaintenanceTask } from "@shared/schema";
+import { AISuggestion, AISuggestionsResponse } from "@shared/aiSuggestion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,15 +13,6 @@ import { cn } from "@/lib/utils";
 interface AISuggestionsPanelProps {
   onClose: () => void;
   existingTasks: MaintenanceTask[];
-}
-
-interface AISuggestion {
-  title: string;
-  description: string;
-  category: string;
-  priority: string;
-  frequency: string;
-  reasoning: string;
 }
 
 export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggestionsPanelProps) {
@@ -64,14 +56,14 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
-        title: "Task added",
-        description: "AI suggestion has been added to your tasks.",
+        title: "Item / Task added",
+        description: "AI suggestion has been added to your Items / Tasks.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to add task",
+        description: error.message || "Failed to add item / task",
         variant: "destructive",
       });
     },

@@ -187,16 +187,33 @@ export async function generateMaintenanceSchedule(item: CatalogItem): Promise<an
     },
     "maintenanceSchedule": {
       "minorIntervalMonths": "string (e.g. 12)",
-      "minorTasks": ["string"],
+      "minorTasks": ["task 1", "task 2", "task 3"],
       "majorIntervalMonths": "string (e.g. 60)",
-      "majorTasks": ["string"]
+      "majorTasks": ["task 1", "task 2", "task 3"]
     },
     "reasoning": "string"
   }
 
-If a date would be in the past, set it to a date one week from today. Use ISO 8601 for dates (e.g. 2025-10-25T00:00:00.000Z). If you are unsure about task lists, provide reasonable placeholders (e.g. ["Inspect for cracks", "Check for moisture"]).
+CRITICAL REQUIREMENTS:
+1. minorTasks MUST be an array with at least 3-5 specific maintenance tasks
+2. majorTasks MUST be an array with at least 3-5 specific maintenance tasks
+3. Tasks must be specific to the item type (${item.name})
+4. DO NOT return empty arrays [] for minorTasks or majorTasks
+5. Use ISO 8601 for dates (e.g. 2025-12-12T00:00:00.000Z)
+6. If a date would be in the past, set it to a date one week from today
 
-Item details:\n- Name: ${item.name}\n- Model: ${item.model || "N/A"}\n- Brand: ${item.brand || "N/A"}\n- Installation Date: ${item.installationDate}\n- Location: ${item.location}\n- Last maintenance Dates: minor=${minorDate}, major=${majorDate}\n
+Item details:
+- Name: ${item.name}
+- Model: ${item.model || "N/A"}
+- Brand: ${item.brand || "N/A"}
+- Installation Date: ${item.installationDate || "N/A"}
+- Location: ${item.location}
+- Last maintenance Dates: minor=${minorDate}, major=${majorDate}
+
+Example for Indoor Lights:
+minorTasks: ["Replace burnt out bulbs", "Clean light fixtures and shades", "Check for flickering or dimming", "Dust ceiling fixtures", "Test light switches"]
+majorTasks: ["Inspect all wiring connections", "Replace aging light fixtures", "Upgrade to LED bulbs", "Check electrical panel connections", "Professional electrical inspection"]
+
 Respond ONLY with valid JSON exactly matching the schema above. No explanations, no markdown fences, no leading/trailing text.`;
 
   // Support provider selection: "openai" (default) or "gemini"

@@ -2,19 +2,23 @@
   "provider": "gemini",
   "householdCatalog": [
     {
-      "categoryName": "Structural & Exterior",
+      "categoryName": "Appliances",
       "items": [
-        {
-          "id": "d20d9aa3-6a47-44ce-91d6-bf06a1e39d80",
-          "name": "Foundation",
-          "brand": "Generic",
-          "model": "Slab",  
-          "installationDate": "2020-05-01",
+	    {
+          "id": "eac9d94c-9f83-4bb9-a302-013f3c4c8f4f",
+          "name": "Washer",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
           "lastMaintenanceDate": {
-            "minor": "2020-05-01",
-            "major": "2020-05-01"
+            "minor": "2025-10-10",
+            "major": "2025-10-10"
           },
-          "location": "Basement",
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Laundry Room",
           "notes": ""
         }
       ]

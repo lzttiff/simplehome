@@ -1,0 +1,150 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "categoryName": "HOA / Building Management",
+      "items": [
+        {
+          "id": "09b2efc9-629c-4d98-8fc7-b3897522aa4b",
+          "name": "HOA Managed Items",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Common Areas",
+          "notes": "Roof, building exterior, common plumbing risers, fire systems, and other shared elements are typically maintained by the HOA or building management and are not usually the responsibility of individual condo owners."
+        }
+      ]
+    },
+    {
+      "categoryName": "Plumbing & Water",
+      "items": [
+        {
+          "id": "c2d4e6f0-0000-4a2b-9cde-444444444444",
+          "name": "Unit Shutoff Valves (by Unit)",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-09-15",
+            "major": "2023-09-15"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Verify operation and accessibility of isolation valves during turnover and inspections."
+        },
+        {
+          "id": "c2d4e6f0-0000-4a2b-9cde-555555555555",
+          "name": "In-Unit Water Fixtures",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Check faucets, showerheads and visible piping in-unit for leaks and functionality."
+        }
+      ]
+    },
+    {
+      "categoryName": "Safety & Fire (In-Unit)",
+      "items": [
+        {
+          "id": "d3e5f7a0-0000-4a2b-9cde-777777777777",
+          "name": "In-Unit Smoke Detector",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-01",
+            "major": "2024-11-01"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Test and replace batteries as needed; owners are generally responsible for detectors inside their unit."
+        },
+        {
+          "id": "d3e5f7a0-0000-4a2b-9cde-888888888888",
+          "name": "Carbon Monoxide Detector (In-Unit)",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Owners should test and replace as needed; follow manufacturer guidance."
+        }
+      ]
+    },
+    {
+      "categoryName": "Interior & Finishes",
+      "items": [
+        {
+          "id": "e4f6a8b0-0000-4a2b-9cde-777777777777",
+          "name": "Unit Appliances (by Unit)",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-10-15",
+            "major": "2024-10-15"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Document appliance condition at turnover; schedule cleaning and service as appropriate."
+        },
+        {
+          "id": "e4f6a8b0-0000-4a2b-9cde-888888888888",
+          "name": "Unit Windows & Seals (by Unit)",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-09-30",
+            "major": "2023-09-30"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Inspect glazing, weather seals, and balcony drainage to prevent water ingress."
+        }
+      ]
+    },
+    {
+      "categoryName": "Interior & Finishes",
+      "items": [
+        {
+          "id": "f5a7c9d0-0000-4a2b-9cde-999999999999",
+          "name": "Unit Appliance Maintenance",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Maintain in-unit appliances (fridge, washer/dryer, dishwasher) per manufacturer guidance. Common laundry equipment is usually handled by the HOA."
+        }
+      ]
+    }
+  ]
+}

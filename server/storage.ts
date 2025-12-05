@@ -8,7 +8,17 @@ import {
   type QuestionnaireResponse,
   type InsertQuestionnaireResponse
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
+
+// Generate deterministic UUID v5-like ID from a namespace and name
+function deterministicUUID(namespace: string, name: string): string {
+  const hash = createHash('sha1').update(`${namespace}:${name}`).digest();
+  // Set version (5) and variant bits per UUID v5 spec
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.toString('hex');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
+}
 
 export interface IStorage {
   // Property Templates
@@ -47,7 +57,7 @@ export class MemStorage implements IStorage {
       },
       {
         name: "Condo",
-        type: "apartment",
+        type: "condo",
         description: "Essential maintenance for condo owners covering unit-specific systems, appliances, and shared building responsibilities.",
         taskCount: 80
       },
@@ -92,14 +102,23 @@ export class MemStorage implements IStorage {
         category: "HVAC & Mechanical",
         priority: "Urgent",
         status: "pending",
-        dueDate: new Date("2024-10-15"),
-        lastCompleted: new Date("2024-07-15"),
-        completedAt: null,
-        nextDue: null,
+        lastMaintenanceDate: JSON.stringify({ minor: "2024-07-15", major: null }),
+        nextMaintenanceDate: JSON.stringify({ minor: "2024-10-15", major: null }),
         isTemplate: true,
         isAiGenerated: false,
         templateId: null,
         notes: null,
+        brand: null,
+        model: null,
+        serialNumber: null,
+        location: null,
+        installationDate: null,
+        warrantyPeriodMonths: null,
+        minorIntervalMonths: 3,
+        majorIntervalMonths: 12,
+        minorTasks: null,
+        majorTasks: null,
+        relatedItemIds: null,
         createdAt: null,
         updatedAt: null
       },
@@ -109,14 +128,23 @@ export class MemStorage implements IStorage {
         category: "Plumbing & Water",
         priority: "Medium",
         status: "pending",
-        dueDate: new Date("2024-10-20"),
-        lastCompleted: new Date("2024-04-20"),
-        completedAt: null,
-        nextDue: null,
+        lastMaintenanceDate: JSON.stringify({ minor: "2024-04-20", major: null }),
+        nextMaintenanceDate: JSON.stringify({ minor: "2024-10-20", major: null }),
         isTemplate: true,
         isAiGenerated: false,
         templateId: null,
         notes: null,
+        brand: null,
+        model: null,
+        serialNumber: null,
+        location: null,
+        installationDate: null,
+        warrantyPeriodMonths: null,
+        minorIntervalMonths: 6,
+        majorIntervalMonths: null,
+        minorTasks: null,
+        majorTasks: null,
+        relatedItemIds: null,
         createdAt: null,
         updatedAt: null
       },
@@ -126,14 +154,23 @@ export class MemStorage implements IStorage {
         category: "Structural & Exterior",
         priority: "Medium",
         status: "completed",
-        dueDate: null,
-        lastCompleted: null,
-        completedAt: new Date("2024-10-10"),
-        nextDue: new Date("2025-04-10"),
+        lastMaintenanceDate: JSON.stringify({ minor: "2024-10-10", major: null }),
+        nextMaintenanceDate: JSON.stringify({ minor: "2025-04-10", major: null }),
         isTemplate: true,
         isAiGenerated: false,
         templateId: null,
         notes: null,
+        brand: null,
+        model: null,
+        serialNumber: null,
+        location: null,
+        installationDate: null,
+        warrantyPeriodMonths: null,
+        minorIntervalMonths: 6,
+        majorIntervalMonths: 12,
+        minorTasks: null,
+        majorTasks: null,
+        relatedItemIds: null,
         createdAt: null,
         updatedAt: null
       },
@@ -143,14 +180,23 @@ export class MemStorage implements IStorage {
         category: "Electrical & Lighting",
         priority: "Low",
         status: "pending",
-        dueDate: new Date("2024-11-01"),
-        lastCompleted: null,
-        completedAt: null,
-        nextDue: null,
+        lastMaintenanceDate: null,
+        nextMaintenanceDate: JSON.stringify({ minor: "2024-11-01", major: null }),
         isTemplate: false,
         isAiGenerated: true,
         templateId: null,
         notes: null,
+        brand: null,
+        model: null,
+        serialNumber: null,
+        location: null,
+        installationDate: null,
+        warrantyPeriodMonths: null,
+        minorIntervalMonths: 12,
+        majorIntervalMonths: null,
+        minorTasks: null,
+        majorTasks: null,
+        relatedItemIds: null,
         createdAt: null,
         updatedAt: null
       }
@@ -196,9 +242,9 @@ export class MemStorage implements IStorage {
       // ignore failures during seeding
     }
       try {
-        const ap = path.join(process.cwd(), "maintenance-template-apartment.json");
+        const ap = path.join(process.cwd(), "maintenance-template-condo.json");
         this._normalizeTemplateFile(ap);
-        this._seedTemplateTasksFromFile("apartment", ap);
+        this._seedTemplateTasksFromFile("condo", ap);
       } catch (e) {
         // ignore failures during seeding
       }
@@ -222,7 +268,7 @@ export class MemStorage implements IStorage {
       this._persist();
     }
     try {
-      this._seedTemplateTasksFromFile("apartment", path.join(process.cwd(), "maintenance-template-apartment.json"));
+      this._seedTemplateTasksFromFile("condo", path.join(process.cwd(), "maintenance-template-condo.json"));
     } catch (e) {
       // ignore failures during seeding
     }
@@ -259,6 +305,15 @@ export class MemStorage implements IStorage {
         // otherwise generate a new one. This keeps template files tolerant.
         const isUuid = (s: string) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
         const id = isUuid(item.id) ? item.id : randomUUID();
+        
+        // Parse dates
+        const parseDate = (dateStr: any) => {
+          if (!dateStr) return null;
+          if (dateStr instanceof Date) return dateStr;
+          if (typeof dateStr === 'string') return new Date(dateStr);
+          return null;
+        };
+        
         const newTask: MaintenanceTask = {
           id,
           title: item.name || "Untitled",
@@ -266,14 +321,24 @@ export class MemStorage implements IStorage {
           category: catName,
           priority: item.priority || "Medium",
           status: "pending",
-          dueDate: item.nextMaintenanceDate?.minor ?? item.nextMaintenanceDate ?? null,
-          lastCompleted: null,
-          completedAt: null,
-          nextDue: item.nextMaintenanceDate?.minor ?? item.nextMaintenanceDate ?? null,
+          lastMaintenanceDate: item.lastMaintenanceDate ? JSON.stringify(item.lastMaintenanceDate) : null,
+          nextMaintenanceDate: item.nextMaintenanceDate ? JSON.stringify(item.nextMaintenanceDate) : null,
           isTemplate: true,
           isAiGenerated: false,
           templateId: template.id,
           notes: item.notes ?? null,
+          // Additional schema fields
+          brand: item.brand ?? null,
+          model: item.model ?? null,
+          serialNumber: item.serialNumber ?? null,
+          location: item.location ?? null,
+          installationDate: parseDate(item.installationDate),
+          warrantyPeriodMonths: item.warrantyPeriodMonths ?? null,
+          minorIntervalMonths: item.maintenanceSchedule?.minorIntervalMonths ?? null,
+          majorIntervalMonths: item.maintenanceSchedule?.majorIntervalMonths ?? null,
+          minorTasks: item.maintenanceSchedule?.minorTasks ? JSON.stringify(item.maintenanceSchedule.minorTasks) : null,
+          majorTasks: item.maintenanceSchedule?.majorTasks ? JSON.stringify(item.maintenanceSchedule.majorTasks) : null,
+          relatedItemIds: item.relatedItemIds ? JSON.stringify(item.relatedItemIds) : null,
           createdAt: new Date(),
           updatedAt: new Date(),
         } as MaintenanceTask;
@@ -325,8 +390,8 @@ export class MemStorage implements IStorage {
       if (!fs.existsSync(this.dataFile)) return false;
       const raw = fs.readFileSync(this.dataFile, 'utf-8');
       const parsed = JSON.parse(raw);
-      // restore templates
-      if (Array.isArray(parsed.templates)) {
+      // restore templates (legacy persisted shape)
+      if (Array.isArray(parsed.templates) && parsed.templates.length > 0) {
         parsed.templates.forEach((t: any) => {
           const tpl: PropertyTemplate = {
             id: t.id,
@@ -338,9 +403,34 @@ export class MemStorage implements IStorage {
           };
           this.templates.set(tpl.id, tpl);
         });
+      } else if (Array.isArray(parsed.householdCatalog) && parsed.householdCatalog.length > 0) {
+        // new schema shape: build templates from householdCatalog entries
+        const nameToType: Record<string, string> = {
+          'single-family home': 'single_family',
+          'condo': 'condo',
+          'townhouse': 'townhouse',
+          'commercial building': 'commercial',
+          'rental property': 'rental',
+        };
+        parsed.householdCatalog.forEach((entry: any) => {
+          const name = entry.categoryName || entry.category || 'Property';
+          const key = String(name).toLowerCase();
+          const type = nameToType[key] ?? String(name).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+          // Use deterministic ID based on type for consistency
+          const id = deterministicUUID('simplehome-template', type);
+          const tpl: PropertyTemplate = {
+            id,
+            name,
+            description: entry.description ?? `Template generated from householdCatalog: ${name}`,
+            type,
+            createdAt: new Date(),
+            taskCount: Array.isArray(entry.items) ? entry.items.length : 0,
+          };
+          this.templates.set(id, tpl);
+        });
       }
-      // restore tasks
-      if (Array.isArray(parsed.tasks)) {
+      // restore tasks (legacy persisted shape)
+      if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
         parsed.tasks.forEach((tk: any) => {
           const task: MaintenanceTask = {
             ...tk,
@@ -348,6 +438,57 @@ export class MemStorage implements IStorage {
             updatedAt: tk.updatedAt ? new Date(tk.updatedAt) : new Date(),
           } as MaintenanceTask;
           this.tasks.set(task.id, task);
+        });
+      } else if (Array.isArray(parsed.householdCatalog) && parsed.householdCatalog.length > 0) {
+        // create template tasks from householdCatalog if tasks are not present
+        // try to match templates by name -> type mapping created above
+        const templatesByName = new Map<string, PropertyTemplate>();
+        Array.from(this.templates.values()).forEach(t => templatesByName.set(t.name, t));
+        parsed.householdCatalog.forEach((category: any) => {
+          const catName = category.categoryName || category.category || 'General';
+          const items = Array.isArray(category.items) ? category.items : [];
+          const template = templatesByName.get(catName);
+          const templateId = template ? template.id : undefined;
+          items.forEach((item: any) => {
+            const isUuid = (s: string) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+            const id = isUuid(item.id) ? item.id : randomUUID();
+            
+            // Parse dates from schema format
+            const parseDate = (dateStr: any) => {
+              if (!dateStr) return null;
+              if (dateStr instanceof Date) return dateStr;
+              if (typeof dateStr === 'string') return new Date(dateStr);
+              return null;
+            };
+            
+            const newTask: MaintenanceTask = {
+              id,
+              title: item.name || 'Untitled',
+              description: item.description || item.notes || '',
+              category: catName,
+              priority: item.priority || 'Medium',
+              status: 'pending',
+              lastMaintenanceDate: item.lastMaintenanceDate ? JSON.stringify(item.lastMaintenanceDate) : null,
+              nextMaintenanceDate: item.nextMaintenanceDate ? JSON.stringify(item.nextMaintenanceDate) : null,
+              isTemplate: true,
+              isAiGenerated: false,
+              templateId: templateId ?? null,
+              notes: item.notes ?? null,
+              // Additional schema fields
+              brand: item.brand ?? null,
+              model: item.model ?? null,
+              serialNumber: item.serialNumber ?? null,
+              location: item.location ?? null,
+              installationDate: parseDate(item.installationDate),
+              warrantyPeriodMonths: item.warrantyPeriodMonths ?? null,
+              minorIntervalMonths: item.maintenanceSchedule?.minorIntervalMonths ?? null,
+              majorIntervalMonths: item.maintenanceSchedule?.majorIntervalMonths ?? null,
+              relatedItemIds: item.relatedItemIds ? JSON.stringify(item.relatedItemIds) : null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            } as MaintenanceTask;
+            this.tasks.set(id, newTask);
+          });
         });
       }
       // restore responses
@@ -453,10 +594,8 @@ export class MemStorage implements IStorage {
       ...task,
       id,
       status: task.status ?? "pending",
-      dueDate: task.dueDate ?? null,
-      completedAt: task.completedAt ?? null,
-      lastCompleted: task.lastCompleted ?? null,
-      nextDue: task.nextDue ?? null,
+      lastMaintenanceDate: task.lastMaintenanceDate ?? null,
+      nextMaintenanceDate: task.nextMaintenanceDate ?? null,
       isTemplate: task.isTemplate ?? false,
       isAiGenerated: task.isAiGenerated ?? false,
       templateId: task.templateId ?? null,

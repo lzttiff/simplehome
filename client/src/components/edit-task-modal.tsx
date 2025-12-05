@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertMaintenanceTaskSchema } from "@shared/schema";
+import { MaintenanceTask } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -36,14 +36,25 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-interface AddTaskModalProps {
+interface EditTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
+  task: MaintenanceTask;
 }
 
-const formSchema = insertMaintenanceTaskSchema.extend({
-  lastMaintenanceDateMinor: z.date().optional(),
-  lastMaintenanceDateMajor: z.date().optional(),
+const formSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().min(1, "Description is required"),
+  category: z.string().min(1, "Category is required"),
+  priority: z.enum(["Low", "Medium", "High", "Urgent"]),
+  brand: z.string().optional(),
+  model: z.string().optional(),
+  location: z.string().optional(),
+  notes: z.string().optional(),
+  lastMaintenanceDateMinor: z.date().optional().nullable(),
+  lastMaintenanceDateMajor: z.date().optional().nullable(),
+  minorTasks: z.string().optional(),
+  majorTasks: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -62,44 +73,110 @@ const categories = [
   "Turnover & Tenant-ready"
 ];
 
-const priorities = [
-  "Low",
-  "Medium",
-  "High", 
-  "Urgent",
-];
+const priorities = ["Low", "Medium", "High", "Urgent"];
 
-export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
+export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalProps) {
   const [isMinorCalendarOpen, setIsMinorCalendarOpen] = useState(false);
   const [isMajorCalendarOpen, setIsMajorCalendarOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Parse lastMaintenanceDate from task
+  const getLastMaintenanceDates = () => {
+    try {
+      if (task.lastMaintenanceDate) {
+        const parsed = JSON.parse(task.lastMaintenanceDate);
+        return {
+          minor: parsed.minor ? new Date(parsed.minor) : null,
+          major: parsed.major ? new Date(parsed.major) : null,
+        };
+      }
+    } catch (e) {
+      console.error("Error parsing lastMaintenanceDate:", e);
+    }
+    return { minor: null, major: null };
+  };
+
+  // Parse task lists from JSON
+  const getTaskList = (taskListJson: string | null) => {
+    if (!taskListJson) return "";
+    try {
+      const parsed = JSON.parse(taskListJson);
+      if (Array.isArray(parsed)) {
+        return parsed.join("\n");
+      }
+    } catch (e) {
+      console.error("Error parsing task list:", e);
+    }
+    return "";
+  };
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      title: "",
-      description: "",
-      category: "",
-      priority: "Medium",
-      isTemplate: false,
-      isAiGenerated: false,
-      notes: "",
+      title: task.title,
+      description: task.description,
+      category: task.category,
+      priority: task.priority as "Low" | "Medium" | "High" | "Urgent",
+      brand: task.brand || "",
+      model: task.model || "",
+      location: task.location || "",
+      notes: task.notes || "",
+      lastMaintenanceDateMinor: getLastMaintenanceDates().minor,
+      lastMaintenanceDateMajor: getLastMaintenanceDates().major,
+      minorTasks: getTaskList(task.minorTasks),
+      majorTasks: getTaskList(task.majorTasks),
     },
   });
 
-  const addTaskMutation = useMutation({
+  // Reset form when task changes
+  useEffect(() => {
+    const dates = getLastMaintenanceDates();
+    form.reset({
+      title: task.title,
+      description: task.description,
+      category: task.category,
+      priority: task.priority as "Low" | "Medium" | "High" | "Urgent",
+      brand: task.brand || "",
+      model: task.model || "",
+      location: task.location || "",
+      notes: task.notes || "",
+      lastMaintenanceDateMinor: dates.minor,
+      lastMaintenanceDateMajor: dates.major,
+      minorTasks: getTaskList(task.minorTasks),
+      majorTasks: getTaskList(task.majorTasks),
+    });
+  }, [task, form]);
+
+  const updateTaskMutation = useMutation({
     mutationFn: async (data: FormData) => {
       const lastMaintenanceDate = JSON.stringify({
         minor: data.lastMaintenanceDateMinor?.toISOString() || null,
         major: data.lastMaintenanceDateMajor?.toISOString() || null,
       });
       
-      const response = await apiRequest("POST", "/api/tasks", {
-        ...data,
+      // Parse task lists from newline-separated strings to JSON arrays
+      const parseTaskList = (taskString: string | undefined) => {
+        if (!taskString || !taskString.trim()) return null;
+        const tasks = taskString.split("\n")
+          .map(t => t.trim())
+          .filter(t => t.length > 0);
+        return tasks.length > 0 ? JSON.stringify(tasks) : null;
+      };
+      
+      const response = await apiRequest("PATCH", `/api/tasks/${task.id}`, {
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        priority: data.priority,
+        status: data.status,
+        brand: data.brand || null,
+        model: data.model || null,
+        location: data.location || null,
+        notes: data.notes || null,
         lastMaintenanceDate,
-        lastMaintenanceDateMinor: undefined,
-        lastMaintenanceDateMajor: undefined,
+        minorTasks: parseTaskList(data.minorTasks),
+        majorTasks: parseTaskList(data.majorTasks),
       });
       return response.json();
     },
@@ -107,30 +184,29 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
-        title: "Item / Task created",
-        description: "New item / task has been added successfully.",
+        title: "Item / Task updated",
+        description: "Item / task has been updated successfully.",
       });
-      form.reset();
       onClose();
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to create item / task",
+        description: error.message || "Failed to update item / task",
         variant: "destructive",
       });
     },
   });
 
   const onSubmit = (data: FormData) => {
-    addTaskMutation.mutate(data);
+    updateTaskMutation.mutate(data);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Item / Task</DialogTitle>
+          <DialogTitle>Edit Item / Task</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -173,7 +249,7 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select category" />
@@ -198,7 +274,7 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
@@ -212,6 +288,50 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="brand"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Brand (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Brand" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="model"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Model (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Model" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Location" {...field} value={field.value ?? ""} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -247,7 +367,7 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value}
+                          selected={field.value || undefined}
                           onSelect={(date) => {
                             field.onChange(date);
                             setIsMinorCalendarOpen(false);
@@ -290,7 +410,7 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value}
+                          selected={field.value || undefined}
                           onSelect={(date) => {
                             field.onChange(date);
                             setIsMajorCalendarOpen(false);
@@ -325,12 +445,56 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
               )}
             />
 
+            <div className="space-y-4">
+              <FormField
+                control={form.control}
+                name="minorTasks"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-blue-600">Minor Maintenance Tasks (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Enter each task on a new line&#10;Example:&#10;Inspect for cracks&#10;Clean filters&#10;Check connections"
+                        rows={4}
+                        {...field}
+                        value={field.value ?? ""}
+                        className="font-mono text-sm"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <p className="text-xs text-muted-foreground">Enter one task per line</p>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="majorTasks"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-purple-600">Major Maintenance Tasks (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Enter each task on a new line&#10;Example:&#10;Full system inspection&#10;Replace worn parts&#10;Professional service"
+                        rows={4}
+                        {...field}
+                        value={field.value ?? ""}
+                        className="font-mono text-sm"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <p className="text-xs text-muted-foreground">Enter one task per line</p>
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <div className="flex justify-end space-x-3 pt-4">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={addTaskMutation.isPending}>
-                {addTaskMutation.isPending ? "Creating..." : "Create Task"}
+              <Button type="submit" disabled={updateTaskMutation.isPending}>
+                {updateTaskMutation.isPending ? "Updating..." : "Update Task"}
               </Button>
             </div>
           </form>

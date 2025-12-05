@@ -1,0 +1,161 @@
+{
+  "provider": "gemini",
+  "householdCatalog": [
+    {
+      "categoryName": "Building & Exterior",
+      "items": [
+        {
+          "id": "4f2fc7db-4be4-46b3-a0c2-fa694d5e30da",
+          "name": "Roof & Drainage",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Building Roof",
+          "notes": "Inspect membrane, flashings, scuppers and clear roof drains."
+        },
+        {
+          "id": "2db3a0db-1151-44f3-84e9-5e9485a36d4a",
+          "name": "Exterior Walls & Balconies",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Exterior",
+          "notes": "Inspect guardrails, sealants, and facade finish for water intrusion."
+        }
+      ]
+    },
+    {
+      "category": "Plumbing & Water",
+      "items": [
+        {
+          "id": "dbf8adc7-52de-4ccd-a5f1-d3fff4611e5d",
+          "name": "Storm Drains & Roof Leaders",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Roof/Site",
+          "notes": "Clear debris and verify positive drainage to prevent leaks."
+        },
+        {
+          "id": "375fc75f-9b1a-46db-aae1-fe47e50fc821",
+          "name": "Sanitary Stack / Common Plumbing",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Vertical Stacks",
+          "notes": "Inspect for blockages, odors and venting issues."
+        }
+      ]
+    },
+    {
+      "category": "Safety & Fire",
+      "items": [
+        {
+          "id": "e6cfecee-74a4-4b06-bae3-2fa64a18e7e5",
+          "name": "Fire Alarm & Detectors (Common Areas)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Common Areas",
+          "notes": "Test alarms, strobes, and panel communication as required by code."
+        },
+        {
+          "id": "bfeb55ef-26b8-4fe6-bfcf-c7d257a5b497",
+          "name": "Emergency Lighting / Exit Signs",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Egress",
+          "notes": "Monthly functional tests and battery checks."
+        }
+      ]
+    },
+    {
+      "category": "Interior & Finishes",
+      "items": [
+        {
+          "id": "e41e4e75-0b44-48db-be0a-06624583f3f2",
+          "name": "Kitchen Appliances (by Unit)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Check range hood, oven and refrigerators per unit turnover schedule."
+        },
+        {
+          "id": "c9de2d66-1525-4111-bb15-dcbe754e7e55",
+          "name": "Windows & Balconies (by Unit)",
+          "brand": "",
+          "model": "",
+          "installationDate": "",
+          "lastMaintenanceDate": {
+            "minor": "2025-11-10",
+            "major": "2025-11-10"
+          },
+          "nextMaintenanceDate": {
+            "minor": null,
+            "major": null
+          },
+          "location": "Units",
+          "notes": "Inspect seals, glazing, and balcony finishes."
+        }
+      ]
+    }
+  ]
+}

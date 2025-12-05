@@ -5,10 +5,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Edit2, Trash2, Check } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Edit2, Trash2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import EditTaskModal from "./edit-task-modal";
 
 interface TaskCardProps {
   task: MaintenanceTask;
@@ -31,14 +34,11 @@ const priorityColors = {
   Low: "bg-blue-100 text-blue-800",
 };
 
-const statusColors = {
-  pending: "bg-gray-100 text-gray-800",
-  completed: "bg-green-100 text-green-800",
-  overdue: "bg-red-100 text-red-800",
-};
-
 export default function TaskCard({ task }: TaskCardProps) {
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isMinorCalendarOpen, setIsMinorCalendarOpen] = useState(false);
+  const [isMajorCalendarOpen, setIsMajorCalendarOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -85,16 +85,166 @@ export default function TaskCard({ task }: TaskCardProps) {
     },
   });
 
-  const handleToggleComplete = async (checked: boolean) => {
-    setIsCompleting(true);
+  const handleMinorDateSelect = async (date: Date | undefined) => {
+    if (!date) {
+      // User canceled or closed calendar without selecting
+      setIsMinorCalendarOpen(false);
+      return;
+    }
     
-    const updates: Partial<MaintenanceTask> = {
-      status: checked ? "completed" : "pending",
-      completedAt: checked ? new Date() : null,
-    };
+    setIsCompleting(true);
+    setIsMinorCalendarOpen(false);
+    
+    try {
+      const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+      const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+      
+      // Store previous dates before updating
+      sessionStorage.setItem(`task-${task.id}-minor-prev`, JSON.stringify({
+        lastMaintenanceDate: lastMaintenance.minor,
+        nextMaintenanceDate: nextMaintenance.minor
+      }));
+      
+      lastMaintenance.minor = date.toISOString();
+      
+      // Calculate nextMaintenanceDate.minor based on formula: lastMaintenanceDate.minor + minorIntervalMonths
+      if (task.minorIntervalMonths) {
+        const nextDate = new Date(date);
+        nextDate.setMonth(nextDate.getMonth() + task.minorIntervalMonths);
+        nextMaintenance.minor = nextDate.toISOString();
+      }
+      
+      const updates: Partial<MaintenanceTask> = {
+        lastMaintenanceDate: JSON.stringify(lastMaintenance),
+        nextMaintenanceDate: JSON.stringify(nextMaintenance),
+      };
 
-    updateTaskMutation.mutate(updates);
-    setIsCompleting(false);
+      updateTaskMutation.mutate(updates);
+    } catch (error) {
+      console.error('Error updating minor maintenance:', error);
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const handleMajorDateSelect = async (date: Date | undefined) => {
+    if (!date) {
+      // User canceled or closed calendar without selecting
+      setIsMajorCalendarOpen(false);
+      return;
+    }
+    
+    setIsCompleting(true);
+    setIsMajorCalendarOpen(false);
+    
+    try {
+      const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+      const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+      
+      // Store previous dates before updating
+      sessionStorage.setItem(`task-${task.id}-major-prev`, JSON.stringify({
+        lastMaintenanceDate: lastMaintenance.major,
+        nextMaintenanceDate: nextMaintenance.major
+      }));
+      
+      lastMaintenance.major = date.toISOString();
+      
+      // Calculate nextMaintenanceDate.major based on formula: lastMaintenanceDate.major + majorIntervalMonths
+      if (task.majorIntervalMonths) {
+        const nextDate = new Date(date);
+        nextDate.setMonth(nextDate.getMonth() + task.majorIntervalMonths);
+        nextMaintenance.major = nextDate.toISOString();
+      }
+      
+      const updates: Partial<MaintenanceTask> = {
+        lastMaintenanceDate: JSON.stringify(lastMaintenance),
+        nextMaintenanceDate: JSON.stringify(nextMaintenance),
+      };
+
+      updateTaskMutation.mutate(updates);
+    } catch (error) {
+      console.error('Error updating major maintenance:', error);
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const handleToggleMinorComplete = async (checked: boolean) => {
+    if (checked) {
+      // Open calendar to select completion date
+      setIsMinorCalendarOpen(true);
+    } else {
+      // Unchecking - restore previous dates
+      if (window.confirm("Restore the previous minor maintenance dates?")) {
+        setIsCompleting(true);
+        try {
+          const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+          const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+          
+          // Restore previous dates from sessionStorage
+          const prevData = sessionStorage.getItem(`task-${task.id}-minor-prev`);
+          if (prevData) {
+            const prev = JSON.parse(prevData);
+            lastMaintenance.minor = prev.lastMaintenanceDate;
+            nextMaintenance.minor = prev.nextMaintenanceDate;
+            sessionStorage.removeItem(`task-${task.id}-minor-prev`);
+          } else {
+            // If no previous data, clear the dates
+            lastMaintenance.minor = null;
+          }
+          
+          const updates: Partial<MaintenanceTask> = {
+            lastMaintenanceDate: JSON.stringify(lastMaintenance),
+            nextMaintenanceDate: JSON.stringify(nextMaintenance),
+          };
+
+          updateTaskMutation.mutate(updates);
+        } catch (error) {
+          console.error('Error restoring minor maintenance:', error);
+        } finally {
+          setIsCompleting(false);
+        }
+      }
+    }
+  };
+
+  const handleToggleMajorComplete = async (checked: boolean) => {
+    if (checked) {
+      // Open calendar to select completion date
+      setIsMajorCalendarOpen(true);
+    } else {
+      // Unchecking - restore previous dates
+      if (window.confirm("Restore the previous major maintenance dates?")) {
+        setIsCompleting(true);
+        try {
+          const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+          const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+          
+          // Restore previous dates from sessionStorage
+          const prevData = sessionStorage.getItem(`task-${task.id}-major-prev`);
+          if (prevData) {
+            const prev = JSON.parse(prevData);
+            lastMaintenance.major = prev.lastMaintenanceDate;
+            nextMaintenance.major = prev.nextMaintenanceDate;
+            sessionStorage.removeItem(`task-${task.id}-major-prev`);
+          } else {
+            // If no previous data, clear the dates
+            lastMaintenance.major = null;
+          }
+          
+          const updates: Partial<MaintenanceTask> = {
+            lastMaintenanceDate: JSON.stringify(lastMaintenance),
+            nextMaintenanceDate: JSON.stringify(nextMaintenance),
+          };
+
+          updateTaskMutation.mutate(updates);
+        } catch (error) {
+          console.error('Error restoring major maintenance:', error);
+        } finally {
+          setIsCompleting(false);
+        }
+      }
+    }
   };
 
   const handleDelete = () => {
@@ -108,101 +258,255 @@ export default function TaskCard({ task }: TaskCardProps) {
     return new Date(date).toLocaleDateString();
   };
 
-  const isOverdue = task.dueDate && task.status !== "completed" && new Date(task.dueDate) < new Date();
-  const currentStatus = isOverdue ? "overdue" : task.status;
-
   return (
-    <Card className={cn(
-      "p-4 hover:shadow-md transition-shadow",
-      task.status === "completed" && "opacity-75"
-    )}>
+    <Card className="p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
-        <div className="flex items-start space-x-3 flex-1">
-          <Checkbox
-            checked={task.status === "completed"}
-            onCheckedChange={handleToggleComplete}
-            disabled={isCompleting || updateTaskMutation.isPending}
-            className="mt-1"
-          />
-          <div className="flex-1">
-            <div className="flex items-center space-x-2 mb-2">
-              <Badge 
-                variant="secondary" 
-                className={cn("text-xs", categoryColors[task.category as keyof typeof categoryColors] || "bg-gray-500 text-white")}
-              >
-                {task.category}
+        <div className="flex-1">
+          <div className="flex items-center space-x-2 mb-2">
+            <Badge 
+              variant="secondary" 
+              className={cn("text-xs", categoryColors[task.category as keyof typeof categoryColors] || "bg-gray-500 text-white")}
+            >
+              {task.category}
+            </Badge>
+            <Badge 
+              variant="secondary" 
+              className={cn("text-xs", priorityColors[task.priority as keyof typeof priorityColors])}
+            >
+              {task.priority}
+            </Badge>
+            {task.isAiGenerated && (
+              <Badge variant="secondary" className="text-xs bg-accent text-white">
+                🤖 AI
               </Badge>
-              <Badge 
-                variant="secondary" 
-                className={cn("text-xs", priorityColors[task.priority as keyof typeof priorityColors])}
-              >
-                {task.priority}
-              </Badge>
-              {task.isAiGenerated && (
-                <Badge variant="secondary" className="text-xs bg-accent text-white">
-                  🤖 AI
-                </Badge>
-              )}
-              <Badge 
-                variant="secondary" 
-                className={cn("text-xs", statusColors[currentStatus as keyof typeof statusColors])}
-              >
-                {currentStatus === "overdue" ? "Overdue" : task.status === "completed" ? "Completed" : "Pending"}
-              </Badge>
-            </div>
-            <h4 className={cn(
-              "font-medium text-gray-900",
-              task.status === "completed" && "line-through text-gray-500"
-            )}>
-              {task.title}
-            </h4>
-            <p className={cn(
-              "text-sm mt-1",
-              task.status === "completed" ? "text-gray-400" : "text-gray-600"
-            )}>
-              {task.description}
-            </p>
-            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-              {task.dueDate && (
-                <span className={cn(isOverdue && "text-red-600 font-medium")}>
-                  Due: {formatDate(task.dueDate)}
-                </span>
-              )}
-              {task.lastCompleted && (
-                <span>Last: {formatDate(task.lastCompleted)}</span>
-              )}
-              {task.completedAt && (
-                <span className="text-green-600">
-                  Completed: {formatDate(task.completedAt)}
-                </span>
-              )}
-            </div>
-            {task.notes && (
-              <p className="text-sm text-gray-500 mt-1 italic">{task.notes}</p>
             )}
+          </div>
+          <h4 className="font-medium text-gray-900">
+            {task.title}
+          </h4>
+          <p className="text-sm mt-1 text-gray-600">
+            {task.description}
+          </p>
+          {task.notes && (
+            <p className="text-sm text-gray-500 mt-2 italic">{task.notes}</p>
+          )}
+          
+          {/* Checkboxes below description */}
+          <div className="flex space-x-6 mt-3">
+            {/* Minor Maintenance Checkbox with Tasks */}
+            <div className="flex flex-col space-y-1">
+              <div className="flex items-center space-x-1">
+                <Popover open={isMinorCalendarOpen} onOpenChange={setIsMinorCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <div>
+                      <Checkbox
+                        checked={(() => {
+                          try {
+                            const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+                            return !!lastMaintenance.minor;
+                          } catch {
+                            return false;
+                          }
+                        })()}
+                        onCheckedChange={handleToggleMinorComplete}
+                        disabled={isCompleting || updateTaskMutation.isPending}
+                        title="Click to select completion date"
+                        className="h-4 w-4"
+                      />
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={(() => {
+                        try {
+                          const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+                          return lastMaintenance.minor ? new Date(lastMaintenance.minor) : undefined;
+                        } catch {
+                          return undefined;
+                        }
+                      })()}
+                      onSelect={handleMinorDateSelect}
+                      disabled={(date) => date > new Date()}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex flex-col">
+                  <span className="text-xs text-blue-600 font-semibold">Minor</span>
+                  {(() => {
+                    try {
+                      const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+                      const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+                      
+                      if (lastMaintenance.minor) {
+                        // Show lastMaintenanceDate when checked
+                        return (
+                          <span className="text-xs text-gray-500">
+                            Last: {formatDate(lastMaintenance.minor)}
+                          </span>
+                        );
+                      } else if (nextMaintenance.minor) {
+                        // Show nextMaintenanceDate when unchecked
+                        return (
+                          <span className="text-xs text-gray-500">
+                            Next: {formatDate(nextMaintenance.minor)}
+                          </span>
+                        );
+                      }
+                    } catch {
+                      return null;
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+              {task.minorTasks && (() => {
+                try {
+                  const minorTasksList = JSON.parse(task.minorTasks);
+                  const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+                  const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+                  const isChecked = !!lastMaintenance.minor;
+                  
+                  if (Array.isArray(minorTasksList) && minorTasksList.length > 0) {
+                    return (
+                      <ul className="ml-5 text-xs text-blue-700 space-y-0.5">
+                        {minorTasksList.map((taskItem: string, idx: number) => (
+                          <li key={idx} className="leading-tight">• {taskItem}</li>
+                        ))}
+                        {isChecked && nextMaintenance.minor && (
+                          <li className="leading-tight text-gray-600 italic">Next: {formatDate(nextMaintenance.minor)}</li>
+                        )}
+                      </ul>
+                    );
+                  }
+                } catch (e) {
+                  return null;
+                }
+                return null;
+              })()}
+            </div>
+            
+            {/* Major Maintenance Checkbox with Tasks */}
+            <div className="flex flex-col space-y-1">
+              <div className="flex items-center space-x-1">
+                <Popover open={isMajorCalendarOpen} onOpenChange={setIsMajorCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <div>
+                      <Checkbox
+                        checked={(() => {
+                          try {
+                            const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+                            return !!lastMaintenance.major;
+                          } catch {
+                            return false;
+                          }
+                        })()}
+                        onCheckedChange={handleToggleMajorComplete}
+                        disabled={isCompleting || updateTaskMutation.isPending}
+                        title="Click to select completion date"
+                        className="h-4 w-4"
+                      />
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={(() => {
+                        try {
+                          const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+                          return lastMaintenance.major ? new Date(lastMaintenance.major) : undefined;
+                        } catch {
+                          return undefined;
+                        }
+                      })()}
+                      onSelect={handleMajorDateSelect}
+                      disabled={(date) => date > new Date()}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex flex-col">
+                  <span className="text-xs text-purple-600 font-semibold">Major</span>
+                  {(() => {
+                    try {
+                      const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+                      const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+                      
+                      if (lastMaintenance.major) {
+                        // Show lastMaintenanceDate when checked
+                        return (
+                          <span className="text-xs text-gray-500">
+                            Last: {formatDate(lastMaintenance.major)}
+                          </span>
+                        );
+                      } else if (nextMaintenance.major) {
+                        // Show nextMaintenanceDate when unchecked
+                        return (
+                          <span className="text-xs text-gray-500">
+                            Next: {formatDate(nextMaintenance.major)}
+                          </span>
+                        );
+                      }
+                    } catch {
+                      return null;
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+              {task.majorTasks && (() => {
+                try {
+                  const majorTasksList = JSON.parse(task.majorTasks);
+                  const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
+                  const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+                  const isChecked = !!lastMaintenance.major;
+                  
+                  if (Array.isArray(majorTasksList) && majorTasksList.length > 0) {
+                    return (
+                      <ul className="ml-5 text-xs text-purple-700 space-y-0.5">
+                        {majorTasksList.map((taskItem: string, idx: number) => (
+                          <li key={idx} className="leading-tight">• {taskItem}</li>
+                        ))}
+                        {isChecked && nextMaintenance.major && (
+                          <li className="leading-tight text-gray-600 italic">Next: {formatDate(nextMaintenance.major)}</li>
+                        )}
+                      </ul>
+                    );
+                  }
+                } catch (e) {
+                  return null;
+                }
+                return null;
+              })()}
+            </div>
           </div>
         </div>
         <div className="flex items-center space-x-2 ml-4">
-          {task.status === "completed" ? (
-            <Check className="w-5 h-5 text-green-500" />
-          ) : (
-            <>
-              <Button variant="ghost" size="sm">
-                <Edit2 className="w-4 h-4" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleDelete}
-                disabled={deleteTaskMutation.isPending}
-                className="text-gray-400 hover:text-red-600"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </>
-          )}
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setIsEditModalOpen(true)}
+          >
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleDelete}
+            disabled={deleteTaskMutation.isPending}
+            className="text-gray-400 hover:text-red-600"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
         </div>
       </div>
+      
+      <EditTaskModal 
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        task={task}
+      />
     </Card>
   );
 }

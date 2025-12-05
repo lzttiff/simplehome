@@ -15,8 +15,8 @@ export async function generateGeminiContent(prompt: string, apiKey?: string): Pr
   const keyToUse = apiKey || localGeminiApiKey;
   if (!keyToUse) throw new Error("Gemini API key is not set.");
 
-  // Add explicit instructions for JSON output
-  const jsonInstructions = `\nRespond with valid JSON in this format:\n{\n  \"suggestions\": [\n    {\n      \"Name\": \"string\",\n      \"nextMinorServiceDate\": \"string\",\n      \"nextMajorServiceDate\": \"string\",\n      \"Maintenance Schedule\": {\n        \"Minor": \"string\",\n      \"Major\": \"string\",\n      \"reasoning\": \"string\"\n    }\n  }\n  ]\n}`;
+  // Add explicit instructions for JSON output matching the frontend schema
+  const jsonInstructions = `\nRespond with valid JSON in this exact format:\n{\n  \"suggestions\": [\n    {\n      \"title\": \"string (task name)\",\n      \"description\": \"string (detailed task instructions)\",\n      \"category\": \"string (one of: Appliances, HVAC & Mechanical, Plumbing & Water, Electrical & Lighting, Structural & Exterior, Interior & Finishes, Safety & Fire, Yard & Outdoor Equipment, IT & Communications, Furniture & Fixtures)\",\n      \"priority\": \"string (one of: Low, Medium, High, Urgent)\",\n      \"frequency\": \"string (how often to perform, e.g., Monthly, Quarterly, Semi-Annually, Annually)\",\n      \"reasoning\": \"string (why this task is important)\"\n    }\n  ]\n}`;
   const requestBody = {
     contents: [
       {
