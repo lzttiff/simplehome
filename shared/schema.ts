@@ -14,19 +14,30 @@ export const propertyTemplates = pgTable("property_templates", {
 
 export const maintenanceTasks = pgTable("maintenance_tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
+  title: text("title").notNull(), // Maps to "name" in schema
   description: text("description").notNull(),
-  category: text("category").notNull(), // HVAC, Plumbing, Electrical, Exterior, Interior
+  category: text("category").notNull(), // Maps to "categoryName" in schema
   priority: text("priority").notNull(), // Low, Medium, High, Urgent
   status: text("status").notNull().default("pending"), // pending, completed, overdue
-  dueDate: timestamp("due_date"),
-  completedAt: timestamp("completed_at"),
-  lastCompleted: timestamp("last_completed"),
-  nextDue: timestamp("next_due"),
+  // Schema-aligned date fields (JSON objects with minor/major)
+  lastMaintenanceDate: text("last_maintenance_date"), // JSON: {minor: date|null, major: date|null}
+  nextMaintenanceDate: text("next_maintenance_date"), // JSON: {minor: date|null, major: date|null}
   isTemplate: boolean("is_template").default(false),
   isAiGenerated: boolean("is_ai_generated").default(false),
   templateId: varchar("template_id"),
   notes: text("notes"),
+  // Additional fields from maintenance-list-schema-1.0.0.json
+  brand: text("brand"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  location: text("location"),
+  installationDate: timestamp("installation_date"),
+  warrantyPeriodMonths: integer("warranty_period_months"),
+  minorIntervalMonths: integer("minor_interval_months"),
+  majorIntervalMonths: integer("major_interval_months"),
+  minorTasks: text("minor_tasks"), // JSON array stored as text
+  majorTasks: text("major_tasks"), // JSON array stored as text
+  relatedItemIds: text("related_item_ids"), // JSON array stored as text
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

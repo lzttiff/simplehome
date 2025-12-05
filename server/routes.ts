@@ -19,6 +19,7 @@ export interface CatalogItem {
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertMaintenanceTaskSchema, insertQuestionnaireResponseSchema } from "@shared/schema";
+import { AISuggestion } from "@shared/aiSuggestion";
 import { generateMaintenanceTasks, generateQuickSuggestions } from "./services/openai";
 import { generateGeminiContent } from "./services/gemini";
 import { z } from "zod";
@@ -81,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to generate maintenance schedule" });
     }
   });
-  // AI Maintenance Schedule for Structural & Exterior
+  // AI suggested maintenance Schedule 
   app.post("/api/category-schedule", async (req, res) => {
     try {
       // Try to get category from provided JSON
@@ -108,13 +109,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       // Use log level INFO for category check
       const { logWithLevel } = await import("./services/logWithLevel");
-      logWithLevel("INFO", `Category checked: ${category.category}, provider: ${provider}`);
+      logWithLevel("INFO", `Category checked: ${category.categoryName}, provider: ${provider}`);
+      logWithLevel("DEBUG", `Category items: ${JSON.stringify(category.items, null, 2)}`);
     
   const items = category.items.map((item: CatalogItem) => provider ? { ...item, provider } : { ...item });
       // Import AI service (dynamic ESM import)
       const { generateCategoryMaintenanceSchedules } = await import("./services/maintenanceAi");
       const results = await generateCategoryMaintenanceSchedules(items as any);
-      res.json({ results });
+      
+      // Update stored tasks with AI results
+      let updatedCount = 0;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const result = results[i];
+        
+        if (result && !result.error && item.id) {
+          try {
+            // Build the update object with AI-generated data
+            const updates: any = {};
+            
+            // Update nextMaintenanceDate with AI results
+            if (result.nextMaintenanceDates) {
+              updates.nextMaintenanceDate = JSON.stringify({
+                minor: result.nextMaintenanceDates.minor || null,
+                major: result.nextMaintenanceDates.major || null
+              });
+            }
+            
+            // Update maintenance intervals and task lists
+            if (result.maintenanceSchedule) {
+              if (result.maintenanceSchedule.minorIntervalMonths) {
+                updates.minorIntervalMonths = parseInt(result.maintenanceSchedule.minorIntervalMonths) || null;
+              }
+              if (result.maintenanceSchedule.majorIntervalMonths) {
+                updates.majorIntervalMonths = parseInt(result.maintenanceSchedule.majorIntervalMonths) || null;
+              }
+              if (result.maintenanceSchedule.minorTasks && Array.isArray(result.maintenanceSchedule.minorTasks)) {
+                updates.minorTasks = JSON.stringify(result.maintenanceSchedule.minorTasks);
+              }
+              if (result.maintenanceSchedule.majorTasks && Array.isArray(result.maintenanceSchedule.majorTasks)) {
+                updates.majorTasks = JSON.stringify(result.maintenanceSchedule.majorTasks);
+              }
+            }
+            
+            // Update reasoning/notes
+            if (result.reasoning) {
+              updates.notes = result.reasoning;
+            }
+            
+            // Only update if we have something to update
+            if (Object.keys(updates).length > 0) {
+              logWithLevel("DEBUG", `Updating task ${item.id} with: ${JSON.stringify(updates)}`);
+              await storage.updateMaintenanceTask(item.id, updates);
+              updatedCount++;
+              logWithLevel("INFO", `Updated task ${item.id} (${item.name}) with AI schedule data`);
+            }
+          } catch (error) {
+            logWithLevel("ERROR", `Failed to update task ${item.id}: ${error}`);
+          }
+        }
+      }
+      
+      logWithLevel("INFO", `Updated ${updatedCount} tasks out of ${items.length} with AI schedule data`);
+      res.json({ results, updatedCount });
     } catch (error) {
       console.error("AI schedule error:", error);
       res.status(500).json({ message: "Failed to generate maintenance schedules" });
@@ -200,6 +257,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update an existing maintenance task
+  app.patch("/api/tasks/:id", async (req, res) => {
+    try {
+      const updated = await storage.updateMaintenanceTask(req.params.id, req.body);
+      if (!updated) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Update task error:", error);
+      res.status(500).json({ message: "Failed to update task" });
+    }
+  });
+
   // AI Task Generation
   app.post("/api/ai/generate-tasks", async (req, res) => {
     try {
@@ -226,7 +297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!keyToUse) {
           return res.status(400).json({ message: "Gemini API key required (provide geminiApiKey in request body, set GEMINI_API_KEY, or place key in project root file 'gemini.key')" });
         }
-        const prompt = `Generate maintenance tasks for property type: ${propertyType}, assessment: ${typeof assessment === 'string' ? assessment : JSON.stringify(assessment)}`;
+        const prompt = `Generate maintenance items / tasks for property type: ${propertyType}, assessment: ${typeof assessment === 'string' ? assessment : JSON.stringify(assessment)}`;
         const geminiResponse = await generateGeminiContent(prompt, keyToUse);
         suggestions = [geminiResponse];
       } else {
@@ -235,7 +306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ suggestions });
     } catch (error) {
       console.error("AI task generation error:", error);
-      const errMsg = (error instanceof Error) ? error.message : "Failed to generate AI maintenance tasks";
+      const errMsg = (error instanceof Error) ? error.message : "Failed to generate AI items / tasks";
       res.status(500).json({ message: errMsg });
     }
   });
@@ -244,7 +315,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
   const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey } = req.body;
     const provider = reqProvider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
-    let suggestions;
+    let suggestions: any;
     if (provider === "gemini") {
         const keyToUse = geminiApiKey || process.env.GEMINI_API_KEY;
         if (!keyToUse) {
@@ -263,7 +334,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logWithLevel("INFO", `Generated quick suggestions using ${provider}`);
         logWithLevel("DEBUG", `Quick suggestions (${provider}): ${JSON.stringify(suggestions)}`);
       }
-      res.json({ suggestions });
+      
+      // Validate and normalize to AISuggestion schema for both providers
+      // Ensures consistent structure: title, description, category, priority, frequency, reasoning
+      const normalizedSuggestions: AISuggestion[] = Array.isArray(suggestions) 
+        ? suggestions.map((s: any) => ({
+            title: s.title || s.Name || "Maintenance Task",
+            description: s.description || s["Maintenance Schedule"]?.Minor || "Regular maintenance",
+            category: s.category || "HVAC & Mechanical",
+            priority: s.priority || "Medium",
+            frequency: s.frequency || s["Maintenance Schedule"]?.Major || "Annual",
+            reasoning: s.reasoning || s["Maintenance Schedule"]?.reasoning || "Recommended maintenance"
+          } as AISuggestion))
+        : [];
+      
+      res.json({ suggestions: normalizedSuggestions });
     } catch (error) {
       console.error("AI quick suggestions error:", error);
       const errMsg = (error instanceof Error) ? error.message : "Failed to generate AI suggestions";

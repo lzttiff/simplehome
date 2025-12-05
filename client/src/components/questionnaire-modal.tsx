@@ -156,8 +156,8 @@ export default function QuestionnaireModal({ isOpen, onClose, templateId }: Ques
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       
       toast({
-        title: "AI Tasks Generated",
-        description: `${data.suggestions.length} personalized maintenance tasks have been added.`,
+        title: "AI Items / Tasks Generated",
+        description: `${data.suggestions.length} personalized items / tasks have been added.`,
       });
       
       onClose();
