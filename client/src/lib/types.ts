@@ -26,6 +26,7 @@ export interface TaskStats {
   pending: number;
   overdue: number;
   dueSoon: number;
+  pastDue: number;
 }
 
 export interface CategoryFilter {

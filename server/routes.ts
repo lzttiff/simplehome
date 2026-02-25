@@ -174,7 +174,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ results, updatedCount });
     } catch (error) {
       console.error("AI schedule error:", error);
-      res.status(500).json({ message: "Failed to generate maintenance schedules" });
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate maintenance schedules";
+      res.status(500).json({ 
+        message: "Failed to generate maintenance schedules",
+        error: errorMessage,
+        details: error instanceof Error ? error.stack : String(error)
+      });
     }
   });
   // Property Templates
@@ -385,22 +390,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Task Statistics
   app.get("/api/stats", async (req, res) => {
     try {
-      const allTasks = await storage.getMaintenanceTasks();
+      const filters = {
+        templateId: req.query.templateId as string,
+      };
+      const allTasks = await storage.getMaintenanceTasks(filters);
+      const now = new Date();
       
       const stats = {
         total: allTasks.length,
         completed: allTasks.filter(t => t.status === 'completed').length,
         pending: allTasks.filter(t => t.status === 'pending').length,
-        overdue: allTasks.filter(t => {
-          if (!t.dueDate || t.status === 'completed') return false;
-          return new Date(t.dueDate) < new Date();
-        }).length,
-        dueSoon: allTasks.filter(t => {
-          if (!t.dueDate || t.status === 'completed') return false;
-          const dueDate = new Date(t.dueDate);
-          const now = new Date();
-          const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-          return dueDate >= now && dueDate <= sevenDaysFromNow;
+        pastDue: allTasks.filter(t => {
+          if (t.status === 'completed') return false;
+          if (!t.nextMaintenanceDate) return false;
+          
+          try {
+            const nextMaintenance = typeof t.nextMaintenanceDate === 'string' 
+              ? JSON.parse(t.nextMaintenanceDate) 
+              : t.nextMaintenanceDate;
+            
+            const minorDate = nextMaintenance.minor ? new Date(nextMaintenance.minor) : null;
+            const majorDate = nextMaintenance.major ? new Date(nextMaintenance.major) : null;
+            
+            return (minorDate && minorDate < now) || (majorDate && majorDate < now);
+          } catch {
+            return false;
+          }
         }).length,
       };
 

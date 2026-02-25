@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
 import { MaintenanceTask } from "@shared/schema";
 import { TaskStats, CategoryFilter } from "@/lib/types";
@@ -11,6 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Search, ClipboardList, Sparkles } from "lucide-react";
 import TaskCard from "@/components/task-card";
 import AddTaskModal from "@/components/add-task-modal";
+import ExportScheduleModal from "@/components/export-schedule-modal";
+import { cn } from "@/lib/utils";
 
 const categoryColors = {
   Appliances: "bg-cyan-500",
@@ -27,13 +29,17 @@ const categoryColors = {
 
 export default function Dashboard() {
   const { templateId } = useParams();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<CategoryFilter[]>([]);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState<Record<string, boolean>>({});
   const [abortControllers, setAbortControllers] = useState<Record<string, AbortController>>({});
   const [sortBy, setSortBy] = useState<"default" | "nextDate">("default");
-  const [dateFilter, setDateFilter] = useState<"all" | "90days" | "180days" | "1year">("all");
+  const [dateFilter, setDateFilter] = useState<number | null>(null); // null = all, 0 = past due only, positive = past due + days
+  const [includeMinor, setIncludeMinor] = useState(true);
+  const [includeMajor, setIncludeMajor] = useState(true);
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<MaintenanceTask[]>({
     queryKey: ["/api/tasks", { search: searchTerm, templateId }],
@@ -45,7 +51,7 @@ export default function Dashboard() {
   console.log('Dashboard - sample task templateIds:', tasks.slice(0, 3).map(t => ({ title: t.title, templateId: t.templateId })));
 
   const { data: stats } = useQuery<TaskStats>({
-    queryKey: ["/api/stats"],
+    queryKey: ["/api/stats", { templateId }],
   });
 
   // Update category filters when tasks change
@@ -93,6 +99,13 @@ export default function Dashboard() {
     );
   };
 
+  const toggleAllCategories = () => {
+    const allChecked = categoryFilters.every(f => f.checked);
+    setCategoryFilters(prev => 
+      prev.map(filter => ({ ...filter, checked: !allChecked }))
+    );
+  };
+
   const hasAITaskLists = (task: MaintenanceTask) => {
     try {
       const minorTasks = task.minorTasks ? JSON.parse(task.minorTasks) : [];
@@ -104,7 +117,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleAIScheduleForCategory = async (categoryName: string, includeAll: boolean = true) => {
+  const handleAIScheduleForCategory = async (categoryName: string, includeAll: boolean = true, showNoItemsAlert: boolean = true) => {
     // If already loading, ask to cancel
     if (loadingCategories[categoryName]) {
       const confirmCancel = window.confirm(`AI generation is in progress for ${categoryName}. Do you want to cancel it?`);
@@ -135,7 +148,9 @@ export default function Dashboard() {
       if (!includeAll) {
         categoryTasks = categoryTasks.filter(task => !hasAITaskLists(task));
         if (categoryTasks.length === 0) {
-          alert(`All items in ${categoryName} already have AI suggestions.`);
+          if (showNoItemsAlert) {
+            alert(`All items in ${categoryName} already have AI suggestions.`);
+          }
           return;
         }
       }
@@ -159,7 +174,7 @@ export default function Dashboard() {
       const response = await fetch('/api/category-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ householdCatalog, provider: 'gemini' }),
+        body: JSON.stringify({ householdCatalog }),
         signal: controller.signal
       });
 
@@ -170,8 +185,12 @@ export default function Dashboard() {
       const result = await response.json();
       console.log('AI Schedule Results for', categoryName, ':', result);
       
+      // Invalidate queries to refresh the UI
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      
       // Show success message
-      alert(`AI schedule generated for ${categoryName}! Check console for results.`);
+      const updatedCount = result.updatedCount || categoryTasks.length;
+      alert(`AI schedule generated for ${categoryName}! ${updatedCount} items updated.`);
     } catch (error) {
       // Don't show error if request was aborted
       if (error instanceof Error && error.name === 'AbortError') {
@@ -191,67 +210,134 @@ export default function Dashboard() {
   };
 
   const handleAIScheduleForAllCategories = async (includeAll: boolean) => {
+    // Get all checked categories
+    const checkedCategories = categoryFilters.filter(f => f.checked);
+    
+    // If not includeAll, pre-filter to only categories with items without AI suggestions
+    let categoriesToProcess = checkedCategories;
+    if (!includeAll) {
+      categoriesToProcess = checkedCategories.filter(filter => {
+        const categoryTasks = tasks.filter(task => task.category === filter.category);
+        const tasksWithoutAI = categoryTasks.filter(task => !hasAITaskLists(task));
+        return tasksWithoutAI.length > 0;
+      });
+      
+      if (categoriesToProcess.length === 0) {
+        alert("All items in the selected categories already have AI suggestions.");
+        return;
+      }
+    }
+    
     const confirmMessage = includeAll 
       ? "Generate AI suggestions for all items in all categories? This may take a while."
-      : "Generate AI suggestions for items without existing suggestions? This may take a while.";
+      : `Generate AI suggestions for items without existing suggestions in ${categoriesToProcess.length} ${categoriesToProcess.length === 1 ? 'category' : 'categories'}? This may take a while.`;
     
     if (!window.confirm(confirmMessage)) {
       return;
     }
-
-    // Process each category sequentially to avoid overwhelming the API
-    for (const filter of categoryFilters) {
-      if (filter.checked) {
-        await handleAIScheduleForCategory(filter.category, includeAll);
-        // Add a small delay between categories
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+    
+    // Process all categories in parallel
+    const promises = categoriesToProcess.map(filter => 
+      handleAIScheduleForCategory(filter.category, includeAll, false)
+    );
+    
+    try {
+      await Promise.all(promises);
+      alert(`AI generation complete for ${categoriesToProcess.length} ${categoriesToProcess.length === 1 ? 'category' : 'categories'}!`);
+    } catch (error) {
+      console.error('Error in parallel AI generation:', error);
+      // Individual errors are already handled in handleAIScheduleForCategory
     }
   };
 
-  const filteredTasks = tasks.filter(task => {
-    const categoryChecked = categoryFilters.find(f => f.category === task.category)?.checked ?? true;
-    return categoryChecked;
-  });
-
-  // Apply date range filter
-  const dateFilteredTasks = filteredTasks.filter(task => {
-    if (dateFilter === "all") return true;
+  // Helper function to check if a maintenance date passes the date filter
+  const passesDateFilter = (maintenanceDate: string | null): boolean => {
+    if (!maintenanceDate) return false;
+    if (dateFilter === null) return true; // Show all
     
     try {
-      if (!task.nextMaintenanceDate) return false;
-      const nextDates = JSON.parse(task.nextMaintenanceDate);
-      const minorDate = nextDates.minor ? new Date(nextDates.minor) : null;
-      const majorDate = nextDates.major ? new Date(nextDates.major) : null;
-      
-      // Get the closer date
-      let closerDate: Date | null = null;
-      if (minorDate && majorDate) {
-        closerDate = minorDate < majorDate ? minorDate : majorDate;
-      } else if (minorDate) {
-        closerDate = minorDate;
-      } else if (majorDate) {
-        closerDate = majorDate;
-      }
-      
-      if (!closerDate) return false;
-      
+      const date = new Date(maintenanceDate);
       const today = new Date();
-      const daysDiff = Math.ceil((closerDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      today.setHours(0, 0, 0, 0);
+      const daysDiff = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       
-      if (dateFilter === "90days") {
-        return daysDiff >= 0 && daysDiff <= 90;
-      } else if (dateFilter === "180days") {
-        return daysDiff >= 0 && daysDiff <= 180;
-      } else if (dateFilter === "1year") {
-        return daysDiff >= 0 && daysDiff <= 365;
+      if (dateFilter === 0) {
+        return daysDiff < 0; // Past due only
+      } else if (dateFilter > 0) {
+        return daysDiff <= dateFilter; // Past due + within specified days
       }
     } catch {
       return false;
     }
-    
-    return true;
-  });
+    return false;
+  };
+
+  // Calculate which maintenance types to show for each task
+  interface TaskWithFilters extends MaintenanceTask {
+    showMinor: boolean;
+    showMajor: boolean;
+  }
+
+  const filteredTasks: TaskWithFilters[] = tasks
+    .filter(task => {
+      // First apply category filter
+      const categoryChecked = categoryFilters.find(f => f.category === task.category)?.checked ?? true;
+      return categoryChecked;
+    })
+    .map(task => {
+      // For each task, determine which maintenance types to show
+      let showMinor = false;
+      let showMajor = false;
+
+      try {
+        const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : null;
+        
+        // Check minor maintenance
+        if (includeMinor) {
+          if (dateFilter === null) {
+            // No date filter - show if it exists
+            showMinor = !!nextMaintenance?.minor;
+          } else {
+            // Date filter active - check if minor passes
+            showMinor = passesDateFilter(nextMaintenance?.minor);
+          }
+        }
+
+        // Check major maintenance
+        if (includeMajor) {
+          if (dateFilter === null) {
+            // No date filter - show if it exists
+            showMajor = !!nextMaintenance?.major;
+          } else {
+            // Date filter active - check if major passes
+            showMajor = passesDateFilter(nextMaintenance?.major);
+          }
+        }
+
+        // If task has no maintenance dates at all, show it with both flags true (but sections won't render if dates don't exist)
+        if (!nextMaintenance || (!nextMaintenance.minor && !nextMaintenance.major)) {
+          showMinor = includeMinor;
+          showMajor = includeMajor;
+        }
+      } catch {
+        // On error, default to showing based on type filters
+        showMinor = includeMinor;
+        showMajor = includeMajor;
+      }
+
+      return {
+        ...task,
+        showMinor,
+        showMajor,
+      };
+    })
+    .filter(task => {
+      // Only show tasks where at least one maintenance type passes the filters
+      return task.showMinor || task.showMajor;
+    });
+
+  // Remove old filtering logic
+  const dateFilteredTasks = filteredTasks;
 
   // Sort tasks based on selected option
   const sortedTasks = [...dateFilteredTasks].sort((a, b) => {
@@ -316,7 +402,7 @@ export default function Dashboard() {
               </div>
             </nav>
             <div className="flex items-center space-x-3">
-              <Button onClick={() => setShowAddTaskModal(true)} className="bg-primary text-white hover:bg-blue-700">
+              <Button onClick={() => setShowAddTaskModal(true)} className="bg-primary text-white hover:bg-blue-700" title="Add a new custom maintenance item or task">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Item / Task
               </Button>
@@ -337,13 +423,51 @@ export default function Dashboard() {
                 <Button 
                   onClick={() => setShowAddTaskModal(true)}
                   className="w-full bg-primary text-white hover:bg-blue-700"
+                  title="Create a new custom maintenance item or task"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Custom Item / Task
                 </Button>
-                <Button variant="outline" className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  title="Export your maintenance schedule to a file"
+                  onClick={() => setShowExportModal(true)}
+                >
                   📋 Export Schedule
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Maintenance Type Filter */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg">Maintenance Type</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex items-center space-x-2" title="Show tasks with minor maintenance scheduled">
+                  <Checkbox
+                    id="include-minor"
+                    checked={includeMinor}
+                    onCheckedChange={(checked) => setIncludeMinor(checked === true)}
+                  />
+                  <label htmlFor="include-minor" className="text-sm cursor-pointer">
+                    Include Minor Maintenance
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2" title="Show tasks with major maintenance scheduled">
+                  <Checkbox
+                    id="include-major"
+                    checked={includeMajor}
+                    onCheckedChange={(checked) => setIncludeMajor(checked === true)}
+                  />
+                  <label htmlFor="include-major" className="text-sm cursor-pointer">
+                    Include Major Maintenance
+                  </label>
+                </div>
+                {!includeMinor && !includeMajor && (
+                  <p className="text-xs text-red-600 mt-1">At least one type must be selected</p>
+                )}
               </CardContent>
             </Card>
 
@@ -353,8 +477,16 @@ export default function Dashboard() {
                 <CardTitle className="text-lg">Categories</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
+                {/* Select All Checkbox */}
+                <div className="flex items-center space-x-2 pb-2 border-b" title="Toggle selection of all categories at once">
+                  <Checkbox
+                    checked={categoryFilters.every(f => f.checked)}
+                    onCheckedChange={toggleAllCategories}
+                  />
+                  <span className="text-sm font-medium">Select/Deselect All</span>
+                </div>
                 {categoryFilters.map((filter) => (
-                  <div key={filter.category} className="flex items-center space-x-2 group">
+                  <div key={filter.category} className="flex items-center space-x-2 group" title={`Filter items by ${filter.category} category`}>
                     <Checkbox
                       checked={filter.checked}
                       onCheckedChange={() => toggleCategoryFilter(filter.category)}
@@ -396,6 +528,7 @@ export default function Dashboard() {
                     className="w-full text-xs"
                     onClick={() => handleAIScheduleForAllCategories(false)}
                     disabled={Object.values(loadingCategories).some(loading => loading)}
+                    title="Generate AI maintenance schedules for items that don't have suggestions yet"
                   >
                     <Sparkles className="h-3 w-3 mr-2" />
                     AI for Items Without Suggestions
@@ -406,6 +539,7 @@ export default function Dashboard() {
                     className="w-full text-xs"
                     onClick={() => handleAIScheduleForAllCategories(true)}
                     disabled={Object.values(loadingCategories).some(loading => loading)}
+                    title="Generate or regenerate AI maintenance schedules for all items in selected categories"
                   >
                     <Sparkles className="h-3 w-3 mr-2" />
                     AI for All Items
@@ -427,12 +561,35 @@ export default function Dashboard() {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Total Items / Tasks</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats?.total || 0}</p>
+                      <p className="text-2xl font-bold text-gray-900">{tasks.length}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              <Card 
+                className={cn(
+                  "cursor-pointer hover:shadow-lg transition-all",
+                  dateFilter === 0 && "ring-2 ring-red-500 shadow-lg"
+                )}
+                onClick={() => setDateFilter(dateFilter === 0 ? null : 0)}
+                title={dateFilter === 0 ? "Click to clear overdue filter" : "Click to filter and show only overdue tasks"}
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <div className="bg-red-100 rounded-lg p-3">
+                      <ClipboardList className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600 flex items-center gap-1">
+                        Over Due 
+                        {dateFilter === 0 && <span className="text-red-600">🔍</span>}
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.pastDue || 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
             </div>
 
@@ -442,16 +599,22 @@ export default function Dashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <CardTitle className="text-lg">Items / Tasks</CardTitle>
                   <div className="flex gap-2">
-                    <select
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value as "all" | "90days" | "180days" | "1year")}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="all">Filter: All</option>
-                      <option value="90days">Due within 90 days</option>
-                      <option value="180days">Due within 180 days</option>
-                      <option value="1year">Due within 1 year</option>
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="dateRange" className="text-sm text-gray-600 whitespace-nowrap">Due within:</label>
+                      <input
+                        id="dateRange"
+                        type="number"
+                        min="0"
+                        placeholder="All"
+                        value={dateFilter === null ? "" : dateFilter}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setDateFilter(value === "" ? null : parseInt(value, 10));
+                        }}
+                        className="w-20 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <span className="text-sm text-gray-600">days {dateFilter === 0 ? "(past due only)" : dateFilter !== null ? "(incl. past due)" : ""}</span>
+                    </div>
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as "default" | "nextDate")}
@@ -475,7 +638,12 @@ export default function Dashboard() {
               <CardContent>
                 <div className="space-y-4">
                   {sortedTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} />
+                    <TaskCard 
+                      key={task.id} 
+                      task={task} 
+                      showMinor={task.showMinor}
+                      showMajor={task.showMajor}
+                    />
                   ))}
                   {sortedTasks.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
@@ -495,6 +663,14 @@ export default function Dashboard() {
         <AddTaskModal
           isOpen={showAddTaskModal}
           onClose={() => setShowAddTaskModal(false)}
+        />
+      )}
+      
+      {showExportModal && (
+        <ExportScheduleModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          tasks={sortedTasks}
         />
       )}
     </div>

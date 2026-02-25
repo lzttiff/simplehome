@@ -38,6 +38,8 @@ export const maintenanceTasks = pgTable("maintenance_tasks", {
   minorTasks: text("minor_tasks"), // JSON array stored as text
   majorTasks: text("major_tasks"), // JSON array stored as text
   relatedItemIds: text("related_item_ids"), // JSON array stored as text
+  // Calendar integration fields
+  calendarExports: text("calendar_exports"), // JSON: [{provider: 'google'|'apple', eventIds: {minor: string, major: string}, lastSyncedAt: date}]
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
