@@ -51,6 +51,8 @@ const formSchema = z.object({
   model: z.string().optional(),
   location: z.string().optional(),
   notes: z.string().optional(),
+  minorIntervalMonths: z.number().optional().nullable(),
+  majorIntervalMonths: z.number().optional().nullable(),
   lastMaintenanceDateMinor: z.date().optional().nullable(),
   lastMaintenanceDateMajor: z.date().optional().nullable(),
   minorTasks: z.string().optional(),
@@ -122,6 +124,8 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
       model: task.model || "",
       location: task.location || "",
       notes: task.notes || "",
+      minorIntervalMonths: task.minorIntervalMonths || null,
+      majorIntervalMonths: task.majorIntervalMonths || null,
       lastMaintenanceDateMinor: getLastMaintenanceDates().minor,
       lastMaintenanceDateMajor: getLastMaintenanceDates().major,
       minorTasks: getTaskList(task.minorTasks),
@@ -141,6 +145,8 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
       model: task.model || "",
       location: task.location || "",
       notes: task.notes || "",
+      minorIntervalMonths: task.minorIntervalMonths || null,
+      majorIntervalMonths: task.majorIntervalMonths || null,
       lastMaintenanceDateMinor: dates.minor,
       lastMaintenanceDateMajor: dates.major,
       minorTasks: getTaskList(task.minorTasks),
@@ -174,6 +180,8 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
         model: data.model || null,
         location: data.location || null,
         notes: data.notes || null,
+        minorIntervalMonths: data.minorIntervalMonths || null,
+        majorIntervalMonths: data.majorIntervalMonths || null,
         lastMaintenanceDate,
         minorTasks: parseTaskList(data.minorTasks),
         majorTasks: parseTaskList(data.majorTasks),
@@ -331,6 +339,54 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
                     <FormLabel>Location (Optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="Location" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="minorIntervalMonths"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Minor Interval (Months)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        min="0"
+                        placeholder="e.g., 12" 
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          field.onChange(value === "" ? null : parseInt(value, 10));
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="majorIntervalMonths"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Major Interval (Months)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        min="0"
+                        placeholder="e.g., 60" 
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          field.onChange(value === "" ? null : parseInt(value, 10));
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

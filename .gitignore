@@ -13,3 +13,4 @@ data/*.log
 data/*.json
 out.json
 maintenance-template-ap-obsolete.orig.json
+.env

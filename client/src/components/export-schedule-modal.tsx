@@ -2,7 +2,6 @@ import { MaintenanceTask } from "@shared/schema";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,8 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar, Download, ExternalLink, RefreshCw } from "lucide-react";
+import { Calendar, Download, ExternalLink, RefreshCw, X } from "lucide-react";
 
 interface ExportScheduleModalProps {
   isOpen: boolean;
@@ -36,8 +34,6 @@ interface CalendarExport {
 export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportScheduleModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [includeMinor, setIncludeMinor] = useState(true);
-  const [includeMajor, setIncludeMajor] = useState(true);
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, calendarExports }: { taskId: string; calendarExports: string }) => {
@@ -77,30 +73,71 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       console.error('Error tracking calendar export:', error);
     }
   };
-  
-  const generateICSFile = async (provider: 'google' | 'apple' | 'generic' = 'generic') => {
-    // Validate at least one type is selected
-    if (!includeMinor && !includeMajor) {
-      alert("Please select at least one maintenance type (Minor or Major) to export.");
+
+  const clearCalendarExports = async (provider?: 'google' | 'apple') => {
+    const confirmMessage = provider
+      ? `Clear all ${provider.charAt(0).toUpperCase() + provider.slice(1)} calendar export records? This will not delete events from your calendar.`
+      : 'Clear all calendar export records for both Google and Apple? This will not delete events from your calendars.';
+    
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
-    // Filter tasks with next maintenance dates matching the selected types
+    try {
+      let clearedCount = 0;
+      const tasksToUpdate = provider 
+        ? tasksWithExports.filter(task => hasCalendarExport(task, provider))
+        : tasksWithExports;
+
+      for (const task of tasksToUpdate) {
+        const existingExports: CalendarExport[] = task.calendarExports ? JSON.parse(task.calendarExports) : [];
+        
+        let newExports: CalendarExport[];
+        if (provider) {
+          // Clear only specific provider
+          newExports = existingExports.filter(exp => exp.provider !== provider);
+        } else {
+          // Clear all exports
+          newExports = [];
+        }
+
+        // Only update if there's a change
+        if (newExports.length !== existingExports.length) {
+          await updateTaskMutation.mutateAsync({
+            taskId: task.id,
+            calendarExports: JSON.stringify(newExports),
+          });
+          clearedCount++;
+        }
+      }
+
+      toast({
+        title: "Export Records Cleared",
+        description: `Cleared calendar export records for ${clearedCount} task${clearedCount === 1 ? '' : 's'}.`,
+      });
+    } catch (error) {
+      console.error('Error clearing calendar exports:', error);
+      toast({
+        title: "Error",
+        description: "Failed to clear calendar export records.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const generateICSFile = async (provider: 'google' | 'apple' | 'generic' = 'generic') => {
+    // Filter tasks with next maintenance dates
     const tasksWithDates = tasks.filter(task => {
       try {
         const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : null;
-        if (!nextMaintenance) return false;
-        
-        const hasMinor = includeMinor && nextMaintenance.minor;
-        const hasMajor = includeMajor && nextMaintenance.major;
-        return hasMinor || hasMajor;
+        return nextMaintenance && (nextMaintenance.minor || nextMaintenance.major);
       } catch {
         return false;
       }
     });
 
     if (tasksWithDates.length === 0) {
-      alert("No tasks with scheduled dates found to export for the selected maintenance types.");
+      alert("No tasks with scheduled dates found to export.");
       return;
     }
 
@@ -118,13 +155,25 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     tasksWithDates.forEach(task => {
       try {
         const nextMaintenance = JSON.parse(task.nextMaintenanceDate || '{}');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Reset to start of day for comparison
         
         // Track event IDs for local reference
         const eventIds: { minor?: string; major?: string } = {};
         
-        // Add event for minor maintenance (only if filter is enabled)
-        if (includeMinor && nextMaintenance.minor) {
-          const minorDate = new Date(nextMaintenance.minor);
+        // Check if task has filter properties (from dashboard)
+        const taskWithFilters = task as any;
+        const shouldExportMinor = taskWithFilters.showMinor !== false; // default to true if property doesn't exist
+        const shouldExportMajor = taskWithFilters.showMajor !== false; // default to true if property doesn't exist
+        
+        // Add event for minor maintenance (only if it should be shown)
+        if (nextMaintenance.minor && shouldExportMinor) {
+          let minorDate = new Date(nextMaintenance.minor);
+          // If the date is in the past, use today instead
+          if (minorDate < today) {
+            minorDate = new Date(today);
+          }
+          
           const minorTasks = task.minorTasks ? JSON.parse(task.minorTasks) : [];
           const description = Array.isArray(minorTasks) && minorTasks.length > 0
             ? minorTasks.join('\\n')
@@ -146,9 +195,14 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
           );
         }
 
-        // Add event for major maintenance (only if filter is enabled)
-        if (includeMajor && nextMaintenance.major) {
-          const majorDate = new Date(nextMaintenance.major);
+        // Add event for major maintenance (only if it should be shown)
+        if (nextMaintenance.major && shouldExportMajor) {
+          let majorDate = new Date(nextMaintenance.major);
+          // If the date is in the past, use today instead
+          if (majorDate < today) {
+            majorDate = new Date(today);
+          }
+          
           const majorTasks = task.majorTasks ? JSON.parse(task.majorTasks) : [];
           const description = Array.isArray(majorTasks) && majorTasks.length > 0
             ? majorTasks.join('\\n')
@@ -170,7 +224,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
           );
         }
         
-        // Track the export locally (only for events that were actually exported)
+        // Track the export locally (only for events that were exported)
         if (provider !== 'generic' && (eventIds.minor || eventIds.major)) {
           trackCalendarExport(task.id, provider, eventIds);
         }
@@ -180,18 +234,6 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     });
 
     icsContent.push('END:VCALENDAR');
-
-    // Count how many events were exported
-    let eventCount = 0;
-    tasksWithDates.forEach(task => {
-      try {
-        const nextMaintenance = JSON.parse(task.nextMaintenanceDate || '{}');
-        if (includeMinor && nextMaintenance.minor) eventCount++;
-        if (includeMajor && nextMaintenance.major) eventCount++;
-      } catch {
-        // ignore
-      }
-    });
 
     // Create and download the ICS file
     const blob = new Blob([icsContent.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
@@ -204,21 +246,13 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
     
-    const typeText = includeMinor && includeMajor ? "minor and major" : 
-                     includeMinor ? "minor" : "major";
     toast({
       title: "Calendar Exported",
-      description: `Successfully exported ${eventCount} ${typeText} maintenance events from ${tasksWithDates.length} tasks.`,
+      description: `Successfully exported ${tasksWithDates.length} maintenance tasks.`,
     });
   };
 
   const exportToGoogleCalendar = () => {
-    // Validate at least one type is selected
-    if (!includeMinor && !includeMajor) {
-      alert("Please select at least one maintenance type (Minor or Major) to export.");
-      return;
-    }
-
     // For Google Calendar, we'll create multiple events using the Google Calendar URL scheme
     // Since we can't add multiple events at once via URL, we'll open the first event
     // and provide instructions for the ICS method
@@ -226,39 +260,25 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     const tasksWithDates = tasks.filter(task => {
       try {
         const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : null;
-        if (!nextMaintenance) return false;
-        
-        const hasMinor = includeMinor && nextMaintenance.minor;
-        const hasMajor = includeMajor && nextMaintenance.major;
-        return hasMinor || hasMajor;
+        return nextMaintenance && (nextMaintenance.minor || nextMaintenance.major);
       } catch {
         return false;
       }
     });
 
     if (tasksWithDates.length === 0) {
-      alert("No tasks with scheduled dates found to export for the selected maintenance types.");
+      alert("No tasks with scheduled dates found to export.");
       return;
     }
 
     // Download ICS file which can be imported to Google Calendar
-    const typeText = includeMinor && includeMajor ? "minor and major" : 
-                     includeMinor ? "minor" : "major";
-    alert(`An ICS file will be downloaded with ${typeText} maintenance events. To import to Google Calendar:\n\n1. Open Google Calendar (calendar.google.com)\n2. Click the '+' next to 'Other calendars'\n3. Select 'Import'\n4. Choose the downloaded .ics file\n5. Click 'Import'\n\nThe events will be tracked here and you can view them in your Google Calendar.`);
+    alert("An ICS file will be downloaded. To import to Google Calendar:\n\n1. Open Google Calendar (calendar.google.com)\n2. Click the '+' next to 'Other calendars'\n3. Select 'Import'\n4. Choose the downloaded .ics file\n5. Click 'Import'\n\nThe events will be tracked here and you can view them in your Google Calendar.");
     generateICSFile('google');
   };
 
   const exportToAppleCalendar = () => {
-    // Validate at least one type is selected
-    if (!includeMinor && !includeMajor) {
-      alert("Please select at least one maintenance type (Minor or Major) to export.");
-      return;
-    }
-
     // Download ICS file for Apple Calendar
-    const typeText = includeMinor && includeMajor ? "minor and major" : 
-                     includeMinor ? "minor" : "major";
-    alert(`An ICS file with ${typeText} maintenance events will be downloaded. Double-click the file to add events to Apple Calendar.\n\nThe events will be tracked here.`);
+    alert("An ICS file will be downloaded. Double-click the file to add events to Apple Calendar.\n\nThe events will be tracked here.");
     generateICSFile('apple');
   };
 
@@ -302,46 +322,9 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         <DialogHeader>
           <DialogTitle>Export Schedule</DialogTitle>
           <DialogDescription>
-            Choose maintenance types and export destination
+            Choose how you'd like to export your maintenance schedule
           </DialogDescription>
         </DialogHeader>
-        
-        {/* Maintenance Type Filters */}
-        <div className="space-y-3 py-4 border-b">
-          <div className="text-sm font-medium text-gray-700 mb-2">Export Settings:</div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="include-minor" 
-                checked={includeMinor}
-                onCheckedChange={(checked) => setIncludeMinor(checked === true)}
-              />
-              <label
-                htmlFor="include-minor"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-              >
-                Include Minor Maintenance
-              </label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="include-major" 
-                checked={includeMajor}
-                onCheckedChange={(checked) => setIncludeMajor(checked === true)}
-              />
-              <label
-                htmlFor="include-major"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-              >
-                Include Major Maintenance
-              </label>
-            </div>
-          </div>
-          {!includeMinor && !includeMajor && (
-            <p className="text-xs text-red-600 mt-1">At least one maintenance type must be selected</p>
-          )}
-        </div>
         
         <div className="space-y-3 py-4">
           <Button
@@ -378,7 +361,45 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         {tasksWithExports.length > 0 && (
           <>
             <div className="border-t pt-4 mt-4">
-              <h3 className="text-sm font-semibold mb-3">Exported Tasks ({tasksWithExports.length})</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Exported Tasks ({tasksWithExports.length})</h3>
+                <div className="flex gap-2">
+                  {tasksWithExports.some(task => hasCalendarExport(task, 'google')) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => clearCalendarExports('google')}
+                      className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                      title="Clear all Google Calendar export records"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Clear Google
+                    </Button>
+                  )}
+                  {tasksWithExports.some(task => hasCalendarExport(task, 'apple')) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => clearCalendarExports('apple')}
+                      className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                      title="Clear all Apple Calendar export records"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Clear Apple
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => clearCalendarExports()}
+                    className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                    title="Clear all calendar export records"
+                  >
+                    <X className="w-3 h-3 mr-1" />
+                    Clear All
+                  </Button>
+                </div>
+              </div>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {tasksWithExports.map(task => {
                   const exports = getCalendarExportsForTask(task);
@@ -411,12 +432,15 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
                 <ExternalLink className="w-3 h-3" />
                 To view or edit these events, open your calendar application and search for "HomeGuard" or the task name.
               </p>
+              <p className="mt-2 text-amber-600">
+                ⚠️ Clearing records here does NOT delete events from your calendar. You must manually delete them in your calendar app.
+              </p>
             </div>
           </>
         )}
         
         <div className="text-xs text-gray-500 mt-2">
-          <p>Only selected maintenance types (minor/major) will be exported.</p>
+          <p>The export includes all maintenance tasks with scheduled dates.</p>
           <p className="mt-1">ICS files are compatible with most calendar applications.</p>
           <p className="mt-1 font-medium">Exported events are tracked locally for reference.</p>
         </div>
