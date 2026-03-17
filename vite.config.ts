@@ -20,16 +20,35 @@ export default defineConfig({
     // moderately large bundles. Long-term you should split code via
     // dynamic import() or tune `manualChunks` for your app's needs.
     chunkSizeWarningLimit: 800,
-    // Provide some manual chunking to separate vendor code (React, UI libs)
-    // into their own chunks so they don't inflate the main application bundle.
+    // Safer vendor chunking: match exact packages to avoid chunk cycles.
+    // In particular, keep only core React runtime packages in `vendor-react`.
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
-            if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('tailwindcss')) return 'vendor-ui';
-            return 'vendor';
+          // Keep Rollup/CommonJS runtime helpers in the React chunk so
+          // vendor chunks depend on React, not the other way around.
+          if (id.includes("commonjsHelpers.js") || id.includes("\\0commonjsHelpers")) {
+            return "vendor-react";
           }
+
+          if (!id.includes("node_modules")) return;
+
+          const isPkg = (name: string) =>
+            id.includes(`/node_modules/${name}/`) || id.includes(`\\node_modules\\${name}\\`);
+
+          if (isPkg("react") || isPkg("react-dom") || isPkg("scheduler")) {
+            return "vendor-react";
+          }
+
+          if (isPkg("@radix-ui") || isPkg("vaul") || isPkg("cmdk")) {
+            return "vendor-ui";
+          }
+
+          if (isPkg("@tanstack") || isPkg("wouter") || isPkg("react-hook-form") || isPkg("@hookform")) {
+            return "vendor-app";
+          }
+
+          return "vendor";
         },
       },
     },
