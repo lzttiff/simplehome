@@ -18,7 +18,14 @@ export interface CatalogItem {
 }
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertMaintenanceTaskSchema, insertQuestionnaireResponseSchema } from "@shared/schema";
+import { 
+  insertMaintenanceTaskSchema, 
+  insertQuestionnaireResponseSchema,
+  validateInsertMaintenanceTask,
+  validateInsertQuestionnaireResponse,
+  type InsertMaintenanceTask,
+  type InsertQuestionnaireResponse
+} from "@shared/schema";
 import { AISuggestion } from "@shared/aiSuggestion";
 import { generateMaintenanceTasks, generateQuickSuggestions } from "./services/openai";
 import { generateGeminiContent } from "./services/gemini";

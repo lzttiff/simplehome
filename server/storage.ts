@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { MongoClient, Db, Collection, ObjectId } from "mongodb";
 import { 
   type PropertyTemplate, 
   type InsertPropertyTemplate,
@@ -42,12 +43,77 @@ export interface IStorage {
   // Questionnaire Responses
   saveQuestionnaireResponse(response: InsertQuestionnaireResponse): Promise<QuestionnaireResponse>;
   getQuestionnaireResponse(sessionId: string): Promise<QuestionnaireResponse | undefined>;
+  
+  // Initialization
+  initialize(): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private readonly dataDir = path.join(process.cwd(), "data");
-  private readonly dataFile = path.join(this.dataDir, "storage.json");
-  private _initializeDefaultTemplates() {
+// MongoDB document types (with _id for MongoDB internal use)
+interface MongoPropertyTemplate extends Omit<PropertyTemplate, 'id'> {
+  _id?: ObjectId;
+  id: string;
+}
+
+interface MongoMaintenanceTask extends Omit<MaintenanceTask, 'id'> {
+  _id?: ObjectId;
+  id: string;
+}
+
+interface MongoQuestionnaireResponse extends Omit<QuestionnaireResponse, 'id'> {
+  _id?: ObjectId;
+  id: string;
+}
+
+export class MongoDBStorage implements IStorage {
+  private client: MongoClient;
+  private db!: Db;
+  private templatesCollection!: Collection<MongoPropertyTemplate>;
+  private tasksCollection!: Collection<MongoMaintenanceTask>;
+  private responsesCollection!: Collection<MongoQuestionnaireResponse>;
+  private initialized = false;
+
+  constructor() {
+    const mongoUrl = process.env.MONGODB_URL || process.env.DATABASE_URL || "mongodb://localhost:27017";
+    const dbName = process.env.MONGODB_DB_NAME || "simplehome";
+    this.client = new MongoClient(mongoUrl);
+    // Note: actual connection happens in initialize()
+    this.db = this.client.db(dbName);
+    this.templatesCollection = this.db.collection<MongoPropertyTemplate>("property_templates");
+    this.tasksCollection = this.db.collection<MongoMaintenanceTask>("maintenance_tasks");
+    this.responsesCollection = this.db.collection<MongoQuestionnaireResponse>("questionnaire_responses");
+  }
+
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+    
+    try {
+      await this.client.connect();
+      console.log("Connected to MongoDB");
+      
+      // Create indexes for better query performance
+      await this.tasksCollection.createIndex({ templateId: 1 });
+      await this.tasksCollection.createIndex({ category: 1 });
+      await this.tasksCollection.createIndex({ status: 1 });
+      await this.tasksCollection.createIndex({ priority: 1 });
+      await this.responsesCollection.createIndex({ sessionId: 1 }, { unique: true });
+      
+      // Check if we need to seed data
+      const templateCount = await this.templatesCollection.countDocuments();
+      if (templateCount === 0) {
+        await this._seedDefaultData();
+      }
+      
+      this.initialized = true;
+    } catch (error) {
+      console.error("Failed to connect to MongoDB:", error);
+      throw error;
+    }
+  }
+
+  private async _seedDefaultData(): Promise<void> {
+    console.log("Seeding default data...");
+    
+    // Initialize default templates
     const defaultTemplates = [
       {
         name: "Single-Family Home",
@@ -80,21 +146,22 @@ export class MemStorage implements IStorage {
         taskCount: 110
       }
     ];
-    defaultTemplates.forEach(template => {
+    
+    const templateIdMap = new Map<string, string>();
+    for (const template of defaultTemplates) {
       const id = randomUUID();
-      const fullTemplate: PropertyTemplate = {
+      templateIdMap.set(template.type, id);
+      await this.templatesCollection.insertOne({
         id,
         name: template.name,
         description: template.description,
         type: template.type,
         createdAt: new Date(),
         taskCount: template.taskCount ?? 0,
-      };
-      this.templates.set(id, fullTemplate);
-    });
-  }
+      });
+    }
 
-  private _initializeDefaultTasks() {
+    // Initialize default tasks
     const defaultTasks = [
       {
         title: "Replace HVAC Filter",
@@ -119,8 +186,6 @@ export class MemStorage implements IStorage {
         minorTasks: null,
         majorTasks: null,
         relatedItemIds: null,
-        createdAt: null,
-        updatedAt: null
       },
       {
         title: "Test Water Pressure",
@@ -145,8 +210,6 @@ export class MemStorage implements IStorage {
         minorTasks: null,
         majorTasks: null,
         relatedItemIds: null,
-        createdAt: null,
-        updatedAt: null
       },
       {
         title: "Clean Gutters",
@@ -171,8 +234,6 @@ export class MemStorage implements IStorage {
         minorTasks: null,
         majorTasks: null,
         relatedItemIds: null,
-        createdAt: null,
-        updatedAt: null
       },
       {
         title: "Test GFCI Outlets",
@@ -197,116 +258,65 @@ export class MemStorage implements IStorage {
         minorTasks: null,
         majorTasks: null,
         relatedItemIds: null,
-        createdAt: null,
-        updatedAt: null
       }
     ];
-    defaultTasks.forEach(task => {
+
+    for (const task of defaultTasks) {
       const id = randomUUID();
-      const fullTask: MaintenanceTask = {
+      await this.tasksCollection.insertOne({
         ...task,
         id,
         createdAt: new Date(),
         updatedAt: new Date(),
-      };
-      this.tasks.set(id, fullTask);
-    });
-  }
-  private templates: Map<string, PropertyTemplate>;
-  private tasks: Map<string, MaintenanceTask>;
-  private responses: Map<string, QuestionnaireResponse>;
+      } as MongoMaintenanceTask);
+    }
 
-  constructor() {
-    this.templates = new Map();
-    this.tasks = new Map();
-    this.responses = new Map();
-    // Try to load persisted state first. If present, restore it and skip seeding.
-    if (!this._loadPersisted()) {
-      this._initializeDefaultTemplates();
-      this._initializeDefaultTasks();
-      // Seed template-specific tasks from bundled JSON templates (if available)
-    // This makes the full template item lists (single-family and commercial)
-    // visible in the UI when a template is selected.
-      try {
-        const sf = path.join(process.cwd(), "maintenance-template-singleFamilyHome.json");
-        this._normalizeTemplateFile(sf);
-        this._seedTemplateTasksFromFile("single_family", sf);
-      } catch (e) {
-        // ignore failures during seeding
-      }
-    try {
-        const cm = path.join(process.cwd(), "maintenance-template-commercial.json");
-        this._normalizeTemplateFile(cm);
-        this._seedTemplateTasksFromFile("commercial", cm);
-    } catch (e) {
-      // ignore failures during seeding
-    }
-      try {
-        const ap = path.join(process.cwd(), "maintenance-template-condo.json");
-        this._normalizeTemplateFile(ap);
-        this._seedTemplateTasksFromFile("condo", ap);
-      } catch (e) {
-        // ignore failures during seeding
-      }
-      try {
-        const th = path.join(process.cwd(), "maintenance-template-townhouse.json");
-        this._normalizeTemplateFile(th);
-        this._seedTemplateTasksFromFile("townhouse", th);
-      } catch (e) {
-        // ignore failures during seeding
-      }
-      try {
-        const rt = path.join(process.cwd(), "maintenance-template-rental.json");
-        this._normalizeTemplateFile(rt);
-        this._seedTemplateTasksFromFile("rental", rt);
-      } catch (e) {
-        // ignore failures during seeding
-      }
+    // Seed template-specific tasks from bundled JSON templates
+    const templateFiles = [
+      { type: "single_family", file: "maintenance-template-singleFamilyHome.json" },
+      { type: "commercial", file: "maintenance-template-commercial.json" },
+      { type: "condo", file: "maintenance-template-condo.json" },
+      { type: "townhouse", file: "maintenance-template-townhouse.json" },
+      { type: "rental", file: "maintenance-template-rental.json" },
+    ];
 
-      // After seeding, update task counts and persist initial state
-      this._recalculateTaskCounts();
-      this._persist();
+    for (const { type, file } of templateFiles) {
+      try {
+        const filePath = path.join(process.cwd(), file);
+        await this._seedTemplateTasksFromFile(type, filePath, templateIdMap);
+      } catch (e) {
+        // ignore failures during seeding
+      }
     }
-    try {
-      this._seedTemplateTasksFromFile("condo", path.join(process.cwd(), "maintenance-template-condo.json"));
-    } catch (e) {
-      // ignore failures during seeding
-    }
-    try {
-      this._seedTemplateTasksFromFile("townhouse", path.join(process.cwd(), "maintenance-template-townhouse.json"));
-    } catch (e) {
-      // ignore failures during seeding
-    }
-    try {
-      this._seedTemplateTasksFromFile("rental", path.join(process.cwd(), "maintenance-template-rental.json"));
-    } catch (e) {
-      // ignore failures during seeding
-    }
+
+    // Recalculate task counts
+    await this._recalculateTaskCounts();
+    console.log("Seeding complete.");
   }
 
-  private _seedTemplateTasksFromFile(templateType: string, filePath: string) {
+  private async _seedTemplateTasksFromFile(templateType: string, filePath: string, templateIdMap: Map<string, string>): Promise<void> {
     if (!fs.existsSync(filePath)) return;
-    let raw = fs.readFileSync(filePath, "utf-8");
+    
+    const raw = fs.readFileSync(filePath, "utf-8");
     let json: any;
     try {
       json = JSON.parse(raw);
     } catch (e) {
       return;
     }
+    
     const householdCatalog = json.householdCatalog || [];
-    const template = Array.from(this.templates.values()).find(t => t.type === templateType);
-    if (!template) return;
+    const templateId = templateIdMap.get(templateType);
+    if (!templateId) return;
 
-    householdCatalog.forEach((category: any) => {
+    for (const category of householdCatalog) {
       const catName = category.categoryName || category.category || "General";
       const items = Array.isArray(category.items) ? category.items : [];
-      items.forEach((item: any) => {
-        // Ensure the item id is a UUID. If the file provides a valid uuid, use it;
-        // otherwise generate a new one. This keeps template files tolerant.
+      
+      for (const item of items) {
         const isUuid = (s: string) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
         const id = isUuid(item.id) ? item.id : randomUUID();
         
-        // Parse dates
         const parseDate = (dateStr: any) => {
           if (!dateStr) return null;
           if (dateStr instanceof Date) return dateStr;
@@ -314,7 +324,7 @@ export class MemStorage implements IStorage {
           return null;
         };
         
-        const newTask: MaintenanceTask = {
+        const newTask: MongoMaintenanceTask = {
           id,
           title: item.name || "Untitled",
           description: item.description || item.notes || "",
@@ -325,9 +335,8 @@ export class MemStorage implements IStorage {
           nextMaintenanceDate: item.nextMaintenanceDate ? JSON.stringify(item.nextMaintenanceDate) : null,
           isTemplate: true,
           isAiGenerated: false,
-          templateId: template.id,
+          templateId: templateId,
           notes: item.notes ?? null,
-          // Additional schema fields
           brand: item.brand ?? null,
           model: item.model ?? null,
           serialNumber: item.serialNumber ?? null,
@@ -341,207 +350,68 @@ export class MemStorage implements IStorage {
           relatedItemIds: item.relatedItemIds ? JSON.stringify(item.relatedItemIds) : null,
           createdAt: new Date(),
           updatedAt: new Date(),
-        } as MaintenanceTask;
-        this.tasks.set(id, newTask);
-      });
-    });
-    // update the template's taskCount to reflect seeded items
-    const seededCount = Array.from(this.tasks.values()).filter(t => t.templateId === template.id).length;
-    template.taskCount = seededCount;
-  }
-
-  private _normalizeTemplateFile(filePath: string) {
-    try {
-      if (!fs.existsSync(filePath)) return;
-      const raw = fs.readFileSync(filePath, 'utf-8');
-      const json = JSON.parse(raw);
-      const householdCatalog = json.householdCatalog || [];
-      let changed = false;
-      const isUuid = (s: string) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
-      householdCatalog.forEach((category: any) => {
-        const items = Array.isArray(category.items) ? category.items : [];
-        items.forEach((item: any) => {
-          if (!isUuid(item.id)) {
-            item.id = randomUUID();
-            changed = true;
-          }
-        });
-      });
-      if (changed) {
-        fs.writeFileSync(filePath, JSON.stringify(json, null, 2), 'utf-8');
-      }
-    } catch (e) {
-      // ignore errors normalizing template files
-    }
-  }
-
-  private _recalculateTaskCounts() {
-    const counts: Record<string, number> = {};
-    Array.from(this.tasks.values()).forEach((t) => {
-      if (t.templateId) counts[t.templateId] = (counts[t.templateId] || 0) + 1;
-    });
-    Array.from(this.templates.values()).forEach((template) => {
-      template.taskCount = counts[template.id] || 0;
-    });
-  }
-
-  private _loadPersisted(): boolean {
-    try {
-      if (!fs.existsSync(this.dataFile)) return false;
-      const raw = fs.readFileSync(this.dataFile, 'utf-8');
-      const parsed = JSON.parse(raw);
-      // restore templates (legacy persisted shape)
-      if (Array.isArray(parsed.templates) && parsed.templates.length > 0) {
-        parsed.templates.forEach((t: any) => {
-          const tpl: PropertyTemplate = {
-            id: t.id,
-            name: t.name,
-            description: t.description,
-            type: t.type,
-            createdAt: new Date(t.createdAt),
-            taskCount: t.taskCount ?? 0,
-          };
-          this.templates.set(tpl.id, tpl);
-        });
-      } else if (Array.isArray(parsed.householdCatalog) && parsed.householdCatalog.length > 0) {
-        // new schema shape: build templates from householdCatalog entries
-        const nameToType: Record<string, string> = {
-          'single-family home': 'single_family',
-          'condo': 'condo',
-          'townhouse': 'townhouse',
-          'commercial building': 'commercial',
-          'rental property': 'rental',
         };
-        parsed.householdCatalog.forEach((entry: any) => {
-          const name = entry.categoryName || entry.category || 'Property';
-          const key = String(name).toLowerCase();
-          const type = nameToType[key] ?? String(name).toLowerCase().replace(/[^a-z0-9]+/g, '_');
-          // Use deterministic ID based on type for consistency
-          const id = deterministicUUID('simplehome-template', type);
-          const tpl: PropertyTemplate = {
-            id,
-            name,
-            description: entry.description ?? `Template generated from householdCatalog: ${name}`,
-            type,
-            createdAt: new Date(),
-            taskCount: Array.isArray(entry.items) ? entry.items.length : 0,
-          };
-          this.templates.set(id, tpl);
-        });
+        
+        // Use upsert to avoid duplicates
+        await this.tasksCollection.updateOne(
+          { id },
+          { $setOnInsert: newTask },
+          { upsert: true }
+        );
       }
-      // restore tasks (legacy persisted shape)
-      if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
-        parsed.tasks.forEach((tk: any) => {
-          const task: MaintenanceTask = {
-            ...tk,
-            createdAt: tk.createdAt ? new Date(tk.createdAt) : new Date(),
-            updatedAt: tk.updatedAt ? new Date(tk.updatedAt) : new Date(),
-          } as MaintenanceTask;
-          this.tasks.set(task.id, task);
-        });
-      } else if (Array.isArray(parsed.householdCatalog) && parsed.householdCatalog.length > 0) {
-        // create template tasks from householdCatalog if tasks are not present
-        // try to match templates by name -> type mapping created above
-        const templatesByName = new Map<string, PropertyTemplate>();
-        Array.from(this.templates.values()).forEach(t => templatesByName.set(t.name, t));
-        parsed.householdCatalog.forEach((category: any) => {
-          const catName = category.categoryName || category.category || 'General';
-          const items = Array.isArray(category.items) ? category.items : [];
-          const template = templatesByName.get(catName);
-          const templateId = template ? template.id : undefined;
-          items.forEach((item: any) => {
-            const isUuid = (s: string) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
-            const id = isUuid(item.id) ? item.id : randomUUID();
-            
-            // Parse dates from schema format
-            const parseDate = (dateStr: any) => {
-              if (!dateStr) return null;
-              if (dateStr instanceof Date) return dateStr;
-              if (typeof dateStr === 'string') return new Date(dateStr);
-              return null;
-            };
-            
-            const newTask: MaintenanceTask = {
-              id,
-              title: item.name || 'Untitled',
-              description: item.description || item.notes || '',
-              category: catName,
-              priority: item.priority || 'Medium',
-              status: 'pending',
-              lastMaintenanceDate: item.lastMaintenanceDate ? JSON.stringify(item.lastMaintenanceDate) : null,
-              nextMaintenanceDate: item.nextMaintenanceDate ? JSON.stringify(item.nextMaintenanceDate) : null,
-              isTemplate: true,
-              isAiGenerated: false,
-              templateId: templateId ?? null,
-              notes: item.notes ?? null,
-              // Additional schema fields
-              brand: item.brand ?? null,
-              model: item.model ?? null,
-              serialNumber: item.serialNumber ?? null,
-              location: item.location ?? null,
-              installationDate: parseDate(item.installationDate),
-              warrantyPeriodMonths: item.warrantyPeriodMonths ?? null,
-              minorIntervalMonths: item.maintenanceSchedule?.minorIntervalMonths ?? null,
-              majorIntervalMonths: item.maintenanceSchedule?.majorIntervalMonths ?? null,
-              relatedItemIds: item.relatedItemIds ? JSON.stringify(item.relatedItemIds) : null,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            } as MaintenanceTask;
-            this.tasks.set(id, newTask);
-          });
-        });
-      }
-      // restore responses
-      if (parsed.responses && typeof parsed.responses === 'object') {
-        Object.values(parsed.responses).forEach((r: any) => {
-          const resp: QuestionnaireResponse = {
-            ...r,
-            createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
-          } as QuestionnaireResponse;
-          this.responses.set(resp.sessionId, resp);
-        });
-      }
-      // ensure task counts match
-      this._recalculateTaskCounts();
-      return true;
-    } catch (e) {
-      return false;
     }
   }
 
-  private _persist() {
-    try {
-      if (!fs.existsSync(this.dataDir)) fs.mkdirSync(this.dataDir, { recursive: true });
-      const out = {
-        templates: Array.from(this.templates.values()),
-        tasks: Array.from(this.tasks.values()),
-        responses: Object.fromEntries(Array.from(this.responses.entries()).map(([k, v]) => [k, v])),
-      };
-      fs.writeFileSync(this.dataFile, JSON.stringify(out, null, 2), 'utf-8');
-    } catch (e) {
-      // ignore persistence failures to avoid crashing the server
-      console.error('Failed to persist storage:', e);
+  private async _recalculateTaskCounts(): Promise<void> {
+    const templates = await this.templatesCollection.find().toArray();
+    
+    for (const template of templates) {
+      const count = await this.tasksCollection.countDocuments({ templateId: template.id });
+      await this.templatesCollection.updateOne(
+        { id: template.id },
+        { $set: { taskCount: count } }
+      );
     }
   }
+
+  // Convert MongoDB document to PropertyTemplate
+  private toPropertyTemplate(doc: MongoPropertyTemplate): PropertyTemplate {
+    const { _id, ...rest } = doc;
+    return rest as PropertyTemplate;
+  }
+
+  // Convert MongoDB document to MaintenanceTask
+  private toMaintenanceTask(doc: MongoMaintenanceTask): MaintenanceTask {
+    const { _id, ...rest } = doc;
+    return rest as MaintenanceTask;
+  }
+
+  // Convert MongoDB document to QuestionnaireResponse
+  private toQuestionnaireResponse(doc: MongoQuestionnaireResponse): QuestionnaireResponse {
+    const { _id, ...rest } = doc;
+    return rest as QuestionnaireResponse;
+  }
+
   async getPropertyTemplates(): Promise<PropertyTemplate[]> {
-    return Array.from(this.templates.values());
+    const docs = await this.templatesCollection.find().toArray();
+    return docs.map((doc: MongoPropertyTemplate) => this.toPropertyTemplate(doc));
   }
 
   async getPropertyTemplate(id: string): Promise<PropertyTemplate | undefined> {
-    return this.templates.get(id);
+    const doc = await this.templatesCollection.findOne({ id });
+    return doc ? this.toPropertyTemplate(doc) : undefined;
   }
 
   async createPropertyTemplate(template: InsertPropertyTemplate): Promise<PropertyTemplate> {
     const id = randomUUID();
-    const newTemplate: PropertyTemplate = {
+    const newTemplate: MongoPropertyTemplate = {
       ...template,
       id,
       createdAt: new Date(),
       taskCount: template.taskCount ?? 0,
     };
-    this.templates.set(id, newTemplate);
-    this._persist();
-    return newTemplate;
+    await this.templatesCollection.insertOne(newTemplate);
+    return this.toPropertyTemplate(newTemplate);
   }
 
   async getMaintenanceTasks(filters?: {
@@ -551,33 +421,39 @@ export class MemStorage implements IStorage {
     search?: string;
     templateId?: string;
   }): Promise<MaintenanceTask[]> {
-    let tasks = Array.from(this.tasks.values());
+    const query: any = {};
+    
     if (filters) {
       if (filters.category) {
         console.log('Filtering by category:', filters.category);
-        tasks = tasks.filter(task => task.category === filters.category);
+        query.category = filters.category;
       }
       if (filters.priority) {
         console.log('Filtering by priority:', filters.priority);
-        tasks = tasks.filter(task => task.priority === filters.priority);
+        query.priority = filters.priority;
       }
       if (filters.status) {
         console.log('Filtering by status:', filters.status);
-        tasks = tasks.filter(task => task.status === filters.status);
+        query.status = filters.status;
       }
       if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
-        tasks = tasks.filter(task =>
-          task.title.toLowerCase().includes(searchLower) ||
-          task.description.toLowerCase().includes(searchLower)
-        );
+        const searchRegex = new RegExp(filters.search, 'i');
+        query.$or = [
+          { title: { $regex: searchRegex } },
+          { description: { $regex: searchRegex } }
+        ];
       }
       if (filters.templateId) {
         console.log('Filtering by templateId:', filters.templateId);
-        tasks = tasks.filter(task => task.templateId === filters.templateId);
+        query.templateId = filters.templateId;
       }
     }
-    return tasks.sort((a, b) => {
+    
+    const docs = await this.tasksCollection.find(query).toArray();
+    const tasks = docs.map((doc: MongoMaintenanceTask) => this.toMaintenanceTask(doc));
+    
+    // Sort: overdue tasks first
+    return tasks.sort((a: MaintenanceTask, b: MaintenanceTask) => {
       if (a.status === 'overdue' && b.status !== 'overdue') return -1;
       if (a.status !== 'overdue' && b.status === 'overdue') return 1;
       return 0;
@@ -585,12 +461,13 @@ export class MemStorage implements IStorage {
   }
 
   async getMaintenanceTask(id: string): Promise<MaintenanceTask | undefined> {
-    return this.tasks.get(id);
+    const doc = await this.tasksCollection.findOne({ id });
+    return doc ? this.toMaintenanceTask(doc) : undefined;
   }
 
   async createMaintenanceTask(task: InsertMaintenanceTask): Promise<MaintenanceTask> {
     const id = randomUUID();
-    const newTask: MaintenanceTask = {
+    const newTask: MongoMaintenanceTask = {
       ...task,
       id,
       status: task.status ?? "pending",
@@ -600,49 +477,105 @@ export class MemStorage implements IStorage {
       isAiGenerated: task.isAiGenerated ?? false,
       templateId: task.templateId ?? null,
       notes: task.notes ?? null,
+      brand: task.brand ?? null,
+      model: task.model ?? null,
+      serialNumber: task.serialNumber ?? null,
+      location: task.location ?? null,
+      installationDate: task.installationDate ?? null,
+      warrantyPeriodMonths: task.warrantyPeriodMonths ?? null,
+      minorIntervalMonths: task.minorIntervalMonths ?? null,
+      majorIntervalMonths: task.majorIntervalMonths ?? null,
+      minorTasks: task.minorTasks ?? null,
+      majorTasks: task.majorTasks ?? null,
+      relatedItemIds: task.relatedItemIds ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    this.tasks.set(id, newTask);
-    // update task count for template if present
+    
+    await this.tasksCollection.insertOne(newTask);
+    
+    // Update task count for template if present
     if (newTask.templateId) {
-      const tpl = this.templates.get(newTask.templateId);
-      if (tpl) tpl.taskCount = (tpl.taskCount || 0) + 1;
+      await this.templatesCollection.updateOne(
+        { id: newTask.templateId },
+        { $inc: { taskCount: 1 } }
+      );
     }
-    this._persist();
-    return newTask;
+    
+    return this.toMaintenanceTask(newTask);
   }
 
   async updateMaintenanceTask(id: string, updates: Partial<MaintenanceTask>): Promise<MaintenanceTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) return undefined;
-    const updatedTask = { ...task, ...updates, updatedAt: new Date() };
-    this.tasks.set(id, updatedTask);
-    this._persist();
-    return updatedTask;
+    const updateData = { ...updates, updatedAt: new Date() };
+    delete (updateData as any).id; // Don't update id field
+    delete (updateData as any)._id; // Don't update _id field
+    
+    const result = await this.tasksCollection.findOneAndUpdate(
+      { id },
+      { $set: updateData },
+      { returnDocument: 'after' }
+    );
+    
+    return result ? this.toMaintenanceTask(result) : undefined;
   }
 
   async deleteMaintenanceTask(id: string): Promise<boolean> {
-    const existed = this.tasks.delete(id);
-    if (existed) this._persist();
-    return existed;
+    // First get the task to check templateId
+    const task = await this.tasksCollection.findOne({ id });
+    
+    const result = await this.tasksCollection.deleteOne({ id });
+    
+    if (result.deletedCount > 0 && task?.templateId) {
+      // Decrement task count for template
+      await this.templatesCollection.updateOne(
+        { id: task.templateId },
+        { $inc: { taskCount: -1 } }
+      );
+    }
+    
+    return result.deletedCount > 0;
   }
 
   async saveQuestionnaireResponse(response: InsertQuestionnaireResponse): Promise<QuestionnaireResponse> {
     const id = randomUUID();
-    const newResponse: QuestionnaireResponse = {
+    const newResponse: MongoQuestionnaireResponse = {
       ...response,
       id,
       createdAt: new Date(),
     };
-    this.responses.set(response.sessionId, newResponse);
-    this._persist();
-    return newResponse;
+    
+    // Use upsert to replace existing response for this session
+    await this.responsesCollection.updateOne(
+      { sessionId: response.sessionId },
+      { $set: newResponse },
+      { upsert: true }
+    );
+    
+    return this.toQuestionnaireResponse(newResponse);
   }
 
   async getQuestionnaireResponse(sessionId: string): Promise<QuestionnaireResponse | undefined> {
-    return this.responses.get(sessionId);
+    const doc = await this.responsesCollection.findOne({ sessionId });
+    return doc ? this.toQuestionnaireResponse(doc) : undefined;
+  }
+
+  async close(): Promise<void> {
+    await this.client.close();
   }
 }
 
-export const storage = new MemStorage();
+// Create and export singleton storage instance
+let storage: IStorage;
+
+// Use MongoDB storage
+const mongoStorage = new MongoDBStorage();
+storage = mongoStorage;
+
+export { storage };
+
+// Initialize function to be called at app startup
+export async function initializeStorage(): Promise<void> {
+  if (storage instanceof MongoDBStorage) {
+    await storage.initialize();
+  }
+}

@@ -1,78 +1,148 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const propertyTemplates = pgTable("property_templates", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  type: text("type").notNull(),
-  description: text("description").notNull(),
-  taskCount: integer("task_count").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
+// Pure TypeScript types - MongoDB handles validation via JSON Schema
+// See shared/schemas/*.schema.json for MongoDB validation schemas
+
+// Property Template Types
+export interface PropertyTemplate {
+  id: string;
+  name: string;
+  type: string;
+  description: string;
+  taskCount: number | null;
+  createdAt: Date | null;
+}
+
+export interface InsertPropertyTemplate {
+  name: string;
+  type: string;
+  description: string;
+  taskCount?: number | null;
+}
+
+// Maintenance Task Types
+export interface MaintenanceTask {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  priority: string; // Low, Medium, High, Urgent
+  status: string; // pending, completed, overdue
+  lastMaintenanceDate: string | null; // JSON: {minor: date|null, major: date|null}
+  nextMaintenanceDate: string | null; // JSON: {minor: date|null, major: date|null}
+  isTemplate: boolean | null;
+  isAiGenerated: boolean | null;
+  templateId: string | null;
+  notes: string | null;
+  brand: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  location: string | null;
+  installationDate: Date | null;
+  warrantyPeriodMonths: number | null;
+  minorIntervalMonths: number | null;
+  majorIntervalMonths: number | null;
+  minorTasks: string | null; // JSON array stored as text
+  majorTasks: string | null; // JSON array stored as text
+  relatedItemIds: string | null; // JSON array stored as text
+  dueDate?: Date | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+export interface InsertMaintenanceTask {
+  title: string;
+  description: string;
+  category: string;
+  priority: string;
+  status?: string;
+  lastMaintenanceDate?: string | null;
+  nextMaintenanceDate?: string | null;
+  isTemplate?: boolean | null;
+  isAiGenerated?: boolean | null;
+  templateId?: string | null;
+  notes?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  serialNumber?: string | null;
+  location?: string | null;
+  installationDate?: Date | null;
+  warrantyPeriodMonths?: number | null;
+  minorIntervalMonths?: number | null;
+  majorIntervalMonths?: number | null;
+  minorTasks?: string | null;
+  majorTasks?: string | null;
+  relatedItemIds?: string | null;
+  dueDate?: Date | null;
+}
+
+// Questionnaire Response Types
+export interface QuestionnaireResponse {
+  id: string;
+  sessionId: string;
+  responses: string; // JSON string
+  propertyType: string;
+  createdAt: Date | null;
+}
+
+export interface InsertQuestionnaireResponse {
+  sessionId: string;
+  responses: string;
+  propertyType: string;
+}
+
+// Zod schemas for client-side form validation (kept for react-hook-form compatibility)
+export const insertMaintenanceTaskSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string(),
+  category: z.string().min(1, "Category is required"),
+  priority: z.string().min(1, "Priority is required"),
+  status: z.string().optional(),
+  lastMaintenanceDate: z.string().nullable().optional(),
+  nextMaintenanceDate: z.string().nullable().optional(),
+  isTemplate: z.boolean().nullable().optional(),
+  isAiGenerated: z.boolean().nullable().optional(),
+  templateId: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  brand: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  serialNumber: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
+  installationDate: z.date().nullable().optional(),
+  warrantyPeriodMonths: z.number().nullable().optional(),
+  minorIntervalMonths: z.number().nullable().optional(),
+  majorIntervalMonths: z.number().nullable().optional(),
+  minorTasks: z.string().nullable().optional(),
+  majorTasks: z.string().nullable().optional(),
+  relatedItemIds: z.string().nullable().optional(),
+  dueDate: z.date().nullable().optional(),
 });
 
-export const maintenanceTasks = pgTable("maintenance_tasks", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(), // Maps to "name" in schema
-  description: text("description").notNull(),
-  category: text("category").notNull(), // Maps to "categoryName" in schema
-  priority: text("priority").notNull(), // Low, Medium, High, Urgent
-  status: text("status").notNull().default("pending"), // pending, completed, overdue
-  // Schema-aligned date fields (JSON objects with minor/major)
-  lastMaintenanceDate: text("last_maintenance_date"), // JSON: {minor: date|null, major: date|null}
-  nextMaintenanceDate: text("next_maintenance_date"), // JSON: {minor: date|null, major: date|null}
-  isTemplate: boolean("is_template").default(false),
-  isAiGenerated: boolean("is_ai_generated").default(false),
-  templateId: varchar("template_id"),
-  notes: text("notes"),
-  // Additional fields from maintenance-list-schema-1.0.0.json
-  brand: text("brand"),
-  model: text("model"),
-  serialNumber: text("serial_number"),
-  location: text("location"),
-  installationDate: timestamp("installation_date"),
-  warrantyPeriodMonths: integer("warranty_period_months"),
-  minorIntervalMonths: integer("minor_interval_months"),
-  majorIntervalMonths: integer("major_interval_months"),
-  minorTasks: text("minor_tasks"), // JSON array stored as text
-  majorTasks: text("major_tasks"), // JSON array stored as text
-  relatedItemIds: text("related_item_ids"), // JSON array stored as text
-  // Calendar integration fields
-  calendarExports: text("calendar_exports"), // JSON: [{provider: 'google'|'apple', eventIds: {minor: string, major: string}, lastSyncedAt: date}]
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const insertQuestionnaireResponseSchema = z.object({
+  sessionId: z.string().min(1, "Session ID is required"),
+  responses: z.string().min(1, "Responses are required"),
+  propertyType: z.string().min(1, "Property type is required"),
 });
 
-export const questionnaireResponses = pgTable("questionnaire_responses", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: varchar("session_id").notNull(),
-  responses: text("responses").notNull(), // JSON string
-  propertyType: text("property_type").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// Validation helper for API routes
+export function validateInsertMaintenanceTask(data: unknown): { valid: boolean; errors?: string[] } {
+  const result = insertMaintenanceTaskSchema.safeParse(data);
+  if (result.success) {
+    return { valid: true };
+  }
+  return { 
+    valid: false, 
+    errors: result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+  };
+}
 
-export const insertPropertyTemplateSchema = createInsertSchema(propertyTemplates).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertMaintenanceTaskSchema = createInsertSchema(maintenanceTasks).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertQuestionnaireResponseSchema = createInsertSchema(questionnaireResponses).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertPropertyTemplate = z.infer<typeof insertPropertyTemplateSchema>;
-export type PropertyTemplate = typeof propertyTemplates.$inferSelect;
-
-export type InsertMaintenanceTask = z.infer<typeof insertMaintenanceTaskSchema>;
-export type MaintenanceTask = typeof maintenanceTasks.$inferSelect;
-
-export type InsertQuestionnaireResponse = z.infer<typeof insertQuestionnaireResponseSchema>;
-export type QuestionnaireResponse = typeof questionnaireResponses.$inferSelect;
+export function validateInsertQuestionnaireResponse(data: unknown): { valid: boolean; errors?: string[] } {
+  const result = insertQuestionnaireResponseSchema.safeParse(data);
+  if (result.success) {
+    return { valid: true };
+  }
+  return { 
+    valid: false, 
+    errors: result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+  };
+}
