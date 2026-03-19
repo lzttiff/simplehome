@@ -7,7 +7,9 @@ import {
   type MaintenanceTask,
   type InsertMaintenanceTask,
   type QuestionnaireResponse,
-  type InsertQuestionnaireResponse
+  type InsertQuestionnaireResponse,
+  type User,
+  type InsertUser
 } from "@shared/schema";
 import { randomUUID, createHash } from "crypto";
 
@@ -22,27 +24,32 @@ function deterministicUUID(namespace: string, name: string): string {
 }
 
 export interface IStorage {
+  // Users
+  createUser(user: InsertUser & { passwordHash: string }): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
+
   // Property Templates
   getPropertyTemplates(): Promise<PropertyTemplate[]>;
   getPropertyTemplate(id: string): Promise<PropertyTemplate | undefined>;
   createPropertyTemplate(template: InsertPropertyTemplate): Promise<PropertyTemplate>;
 
   // Maintenance Tasks
-  getMaintenanceTasks(filters?: {
+  getMaintenanceTasks(userId: string | null, filters?: {
     category?: string;
     priority?: string;
     status?: string;
     search?: string;
     templateId?: string;
   }): Promise<MaintenanceTask[]>;
-  getMaintenanceTask(id: string): Promise<MaintenanceTask | undefined>;
-  createMaintenanceTask(task: InsertMaintenanceTask): Promise<MaintenanceTask>;
-  updateMaintenanceTask(id: string, updates: Partial<MaintenanceTask>): Promise<MaintenanceTask | undefined>;
-  deleteMaintenanceTask(id: string): Promise<boolean>;
+  getMaintenanceTask(id: string, userId: string | null): Promise<MaintenanceTask | undefined>;
+  createMaintenanceTask(task: InsertMaintenanceTask, userId: string | null): Promise<MaintenanceTask>;
+  updateMaintenanceTask(id: string, updates: Partial<MaintenanceTask>, userId: string | null): Promise<MaintenanceTask | undefined>;
+  deleteMaintenanceTask(id: string, userId: string | null): Promise<boolean>;
 
   // Questionnaire Responses
-  saveQuestionnaireResponse(response: InsertQuestionnaireResponse): Promise<QuestionnaireResponse>;
-  getQuestionnaireResponse(sessionId: string): Promise<QuestionnaireResponse | undefined>;
+  saveQuestionnaireResponse(response: InsertQuestionnaireResponse, userId: string | null): Promise<QuestionnaireResponse>;
+  getQuestionnaireResponse(sessionId: string, userId: string | null): Promise<QuestionnaireResponse | undefined>;
   
   // Initialization
   initialize(): Promise<void>;
@@ -64,12 +71,18 @@ interface MongoQuestionnaireResponse extends Omit<QuestionnaireResponse, 'id'> {
   id: string;
 }
 
+interface MongoUser extends Omit<User, 'id'> {
+  _id?: ObjectId;
+  id: string;
+}
+
 export class MongoDBStorage implements IStorage {
   private client: MongoClient;
   private db!: Db;
   private templatesCollection!: Collection<MongoPropertyTemplate>;
   private tasksCollection!: Collection<MongoMaintenanceTask>;
   private responsesCollection!: Collection<MongoQuestionnaireResponse>;
+  private usersCollection!: Collection<MongoUser>;
   private initialized = false;
 
   constructor() {
@@ -81,6 +94,7 @@ export class MongoDBStorage implements IStorage {
     this.templatesCollection = this.db.collection<MongoPropertyTemplate>("property_templates");
     this.tasksCollection = this.db.collection<MongoMaintenanceTask>("maintenance_tasks");
     this.responsesCollection = this.db.collection<MongoQuestionnaireResponse>("questionnaire_responses");
+    this.usersCollection = this.db.collection<MongoUser>("users");
   }
 
   async initialize(): Promise<void> {
@@ -96,6 +110,7 @@ export class MongoDBStorage implements IStorage {
       await this.tasksCollection.createIndex({ status: 1 });
       await this.tasksCollection.createIndex({ priority: 1 });
       await this.responsesCollection.createIndex({ sessionId: 1 }, { unique: true });
+      await this.usersCollection.createIndex({ email: 1 }, { unique: true });
       
       // Check if we need to seed data
       const templateCount = await this.templatesCollection.countDocuments();
@@ -266,6 +281,7 @@ export class MongoDBStorage implements IStorage {
       await this.tasksCollection.insertOne({
         ...task,
         id,
+        userId: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       } as MongoMaintenanceTask);
@@ -326,6 +342,7 @@ export class MongoDBStorage implements IStorage {
         
         const newTask: MongoMaintenanceTask = {
           id,
+          userId: null,
           title: item.name || "Untitled",
           description: item.description || item.notes || "",
           category: catName,
@@ -392,6 +409,36 @@ export class MongoDBStorage implements IStorage {
     return rest as QuestionnaireResponse;
   }
 
+  // Convert MongoDB document to User
+  private toUser(doc: MongoUser): User {
+    const { _id, ...rest } = doc;
+    return rest as User;
+  }
+
+  // --- User methods ---
+  async createUser(user: InsertUser & { passwordHash: string }): Promise<User> {
+    const id = randomUUID();
+    const newUser: MongoUser = {
+      id,
+      email: user.email,
+      name: user.name,
+      passwordHash: user.passwordHash,
+      createdAt: new Date(),
+    };
+    await this.usersCollection.insertOne(newUser);
+    return this.toUser(newUser);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const doc = await this.usersCollection.findOne({ email });
+    return doc ? this.toUser(doc) : undefined;
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const doc = await this.usersCollection.findOne({ id });
+    return doc ? this.toUser(doc) : undefined;
+  }
+
   async getPropertyTemplates(): Promise<PropertyTemplate[]> {
     const docs = await this.templatesCollection.find().toArray();
     return docs.map((doc: MongoPropertyTemplate) => this.toPropertyTemplate(doc));
@@ -414,7 +461,7 @@ export class MongoDBStorage implements IStorage {
     return this.toPropertyTemplate(newTemplate);
   }
 
-  async getMaintenanceTasks(filters?: {
+  async getMaintenanceTasks(userId: string | null, filters?: {
     category?: string;
     priority?: string;
     status?: string;
@@ -423,6 +470,11 @@ export class MongoDBStorage implements IStorage {
   }): Promise<MaintenanceTask[]> {
     const query: any = {};
     
+    // Scope to user: show tasks belonging to this user OR system-seeded tasks (userId: null)
+    if (userId) {
+      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+    }
+
     if (filters) {
       if (filters.category) {
         console.log('Filtering by category:', filters.category);
@@ -460,16 +512,21 @@ export class MongoDBStorage implements IStorage {
     });
   }
 
-  async getMaintenanceTask(id: string): Promise<MaintenanceTask | undefined> {
-    const doc = await this.tasksCollection.findOne({ id });
+  async getMaintenanceTask(id: string, userId: string | null): Promise<MaintenanceTask | undefined> {
+    const query: any = { id };
+    if (userId) {
+      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+    }
+    const doc = await this.tasksCollection.findOne(query);
     return doc ? this.toMaintenanceTask(doc) : undefined;
   }
 
-  async createMaintenanceTask(task: InsertMaintenanceTask): Promise<MaintenanceTask> {
+  async createMaintenanceTask(task: InsertMaintenanceTask, userId: string | null): Promise<MaintenanceTask> {
     const id = randomUUID();
     const newTask: MongoMaintenanceTask = {
       ...task,
       id,
+      userId: userId ?? null,
       status: task.status ?? "pending",
       lastMaintenanceDate: task.lastMaintenanceDate ?? null,
       nextMaintenanceDate: task.nextMaintenanceDate ?? null,
@@ -505,13 +562,18 @@ export class MongoDBStorage implements IStorage {
     return this.toMaintenanceTask(newTask);
   }
 
-  async updateMaintenanceTask(id: string, updates: Partial<MaintenanceTask>): Promise<MaintenanceTask | undefined> {
+  async updateMaintenanceTask(id: string, updates: Partial<MaintenanceTask>, userId: string | null): Promise<MaintenanceTask | undefined> {
     const updateData = { ...updates, updatedAt: new Date() };
     delete (updateData as any).id; // Don't update id field
     delete (updateData as any)._id; // Don't update _id field
     
+    const query: any = { id };
+    if (userId) {
+      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+    }
+    
     const result = await this.tasksCollection.findOneAndUpdate(
-      { id },
+      query,
       { $set: updateData },
       { returnDocument: 'after' }
     );
@@ -519,11 +581,15 @@ export class MongoDBStorage implements IStorage {
     return result ? this.toMaintenanceTask(result) : undefined;
   }
 
-  async deleteMaintenanceTask(id: string): Promise<boolean> {
+  async deleteMaintenanceTask(id: string, userId: string | null): Promise<boolean> {
     // First get the task to check templateId
-    const task = await this.tasksCollection.findOne({ id });
+    const query: any = { id };
+    if (userId) {
+      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+    }
+    const task = await this.tasksCollection.findOne(query);
     
-    const result = await this.tasksCollection.deleteOne({ id });
+    const result = await this.tasksCollection.deleteOne(query);
     
     if (result.deletedCount > 0 && task?.templateId) {
       // Decrement task count for template
@@ -536,11 +602,12 @@ export class MongoDBStorage implements IStorage {
     return result.deletedCount > 0;
   }
 
-  async saveQuestionnaireResponse(response: InsertQuestionnaireResponse): Promise<QuestionnaireResponse> {
+  async saveQuestionnaireResponse(response: InsertQuestionnaireResponse, userId: string | null): Promise<QuestionnaireResponse> {
     const id = randomUUID();
     const newResponse: MongoQuestionnaireResponse = {
       ...response,
       id,
+      userId: userId ?? null,
       createdAt: new Date(),
     };
     
@@ -554,8 +621,12 @@ export class MongoDBStorage implements IStorage {
     return this.toQuestionnaireResponse(newResponse);
   }
 
-  async getQuestionnaireResponse(sessionId: string): Promise<QuestionnaireResponse | undefined> {
-    const doc = await this.responsesCollection.findOne({ sessionId });
+  async getQuestionnaireResponse(sessionId: string, userId: string | null): Promise<QuestionnaireResponse | undefined> {
+    const query: any = { sessionId };
+    if (userId) {
+      query.$or = [{ userId }, { userId: null }, { userId: { $exists: false } }];
+    }
+    const doc = await this.responsesCollection.findOne(query);
     return doc ? this.toQuestionnaireResponse(doc) : undefined;
   }
 

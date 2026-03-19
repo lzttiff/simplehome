@@ -23,8 +23,11 @@ import {
   insertQuestionnaireResponseSchema,
   validateInsertMaintenanceTask,
   validateInsertQuestionnaireResponse,
+  registerSchema,
+  loginSchema,
   type InsertMaintenanceTask,
-  type InsertQuestionnaireResponse
+  type InsertQuestionnaireResponse,
+  type User
 } from "@shared/schema";
 import { AISuggestion } from "@shared/aiSuggestion";
 import { generateMaintenanceTasks, generateQuickSuggestions } from "./services/openai";
@@ -35,6 +38,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
+import passport from "passport";
+import { requireAuth, hashPassword } from "./auth";
 // ...existing imports...
 //const __filename = fileURLToPath(import.meta.url);
 //const __dirname = path.dirname(__filename);
@@ -42,6 +47,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Respond to favicon requests to avoid serving the SPA index for this path
   // which causes the client router to render a 404 page for "/favicon.ico" in the browser.
   app.get('/favicon.ico', (_req, res) => res.status(204).end());
+
+  // --- Auth routes ---
+  app.post("/api/auth/register", async (req, res, next) => {
+    try {
+      const parsed = registerSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid input", errors: parsed.error.errors });
+      }
+      const { email, password, name } = parsed.data;
+
+      const existing = await storage.getUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ message: "Email already registered" });
+      }
+
+      const passwordHash = await hashPassword(password);
+      const user = await storage.createUser({ email, password, name, passwordHash });
+
+      // Log in immediately after registration
+      req.login(user, (err) => {
+        if (err) return next(err);
+        const { passwordHash: _pw, ...safeUser } = user;
+        return res.status(201).json(safeUser);
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Invalid email or password" });
+      }
+      req.login(user, (err) => {
+        if (err) return next(err);
+        const { passwordHash: _pw, ...safeUser } = user;
+        return res.json(safeUser);
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      res.json({ message: "Logged out" });
+    });
+  });
+
+  app.get("/api/auth/me", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    const user = req.user as User;
+    const { passwordHash: _pw, ...safeUser } = user;
+    res.json(safeUser);
+  });
+
+  // Helper: get userId from authenticated request (null if not logged in)
+  const getUserId = (req: express.Request): string | null => {
+    return req.isAuthenticated() ? (req.user as User).id : null;
+  };
 
   // AI Maintenance Schedule for a single item
   app.post("/api/item-schedule", async (req, res) => {
@@ -167,7 +238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Only update if we have something to update
             if (Object.keys(updates).length > 0) {
               logWithLevel("DEBUG", `Updating task ${item.id} with: ${JSON.stringify(updates)}`);
-              await storage.updateMaintenanceTask(item.id, updates);
+              await storage.updateMaintenanceTask(item.id, updates, null);
               updatedCount++;
               logWithLevel("INFO", `Updated task ${item.id} (${item.name}) with AI schedule data`);
             }
@@ -212,8 +283,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Maintenance Tasks
-  app.get("/api/tasks", async (req, res) => {
+  app.get("/api/tasks", requireAuth, async (req, res) => {
     try {
+      const userId = getUserId(req);
       const filters = {
         category: req.query.category as string,
         priority: req.query.priority as string,
@@ -222,16 +294,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         templateId: req.query.templateId as string,
       };
 
-      const tasks = await storage.getMaintenanceTasks(filters);
+      const tasks = await storage.getMaintenanceTasks(userId, filters);
       res.json(tasks);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tasks" });
     }
   });
 
-  app.get("/api/tasks/:id", async (req, res) => {
+  app.get("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
-      const task = await storage.getMaintenanceTask(req.params.id);
+      const userId = getUserId(req);
+      const task = await storage.getMaintenanceTask(req.params.id, userId);
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
@@ -241,9 +314,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/tasks/:id", async (req, res) => {
+  app.delete("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
-      const deleted = await storage.deleteMaintenanceTask(req.params.id);
+      const userId = getUserId(req);
+      const deleted = await storage.deleteMaintenanceTask(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ message: "Task not found" });
       }
@@ -254,11 +328,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new maintenance task
-  app.post("/api/tasks", async (req, res) => {
+  app.post("/api/tasks", requireAuth, async (req, res) => {
     try {
+      const userId = getUserId(req);
       // Validate request body using the shared Zod schema
       const validated = insertMaintenanceTaskSchema.parse(req.body);
-      const created = await storage.createMaintenanceTask(validated as any);
+      const created = await storage.createMaintenanceTask(validated as any, userId);
       res.status(201).json(created);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -270,9 +345,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update an existing maintenance task
-  app.patch("/api/tasks/:id", async (req, res) => {
+  app.patch("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
-      const updated = await storage.updateMaintenanceTask(req.params.id, req.body);
+      const userId = getUserId(req);
+      const updated = await storage.updateMaintenanceTask(req.params.id, req.body, userId);
       if (!updated) {
         return res.status(404).json({ message: "Task not found" });
       }
@@ -284,7 +360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Task Generation
-  app.post("/api/ai/generate-tasks", async (req, res) => {
+  app.post("/api/ai/generate-tasks", requireAuth, async (req, res) => {
     try {
   const { propertyType, assessment, provider: reqProvider, geminiApiKey } = req.body;
   const provider = reqProvider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
@@ -323,7 +399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/ai/quick-suggestions", async (req, res) => {
+  app.post("/api/ai/quick-suggestions", requireAuth, async (req, res) => {
     try {
   const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey } = req.body;
     const provider = reqProvider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
@@ -369,10 +445,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Questionnaire Responses
-  app.post("/api/questionnaire", async (req, res) => {
+  app.post("/api/questionnaire", requireAuth, async (req, res) => {
     try {
+      const userId = getUserId(req);
       const validatedData = insertQuestionnaireResponseSchema.parse(req.body);
-      const response = await storage.saveQuestionnaireResponse(validatedData);
+      const response = await storage.saveQuestionnaireResponse(validatedData, userId);
       res.status(201).json(response);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -382,9 +459,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/questionnaire/:sessionId", async (req, res) => {
+  app.get("/api/questionnaire/:sessionId", requireAuth, async (req, res) => {
     try {
-      const response = await storage.getQuestionnaireResponse(req.params.sessionId);
+      const userId = getUserId(req);
+      const response = await storage.getQuestionnaireResponse(req.params.sessionId, userId);
       if (!response) {
         return res.status(404).json({ message: "Questionnaire response not found" });
       }
@@ -395,12 +473,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Task Statistics
-  app.get("/api/stats", async (req, res) => {
+  app.get("/api/stats", requireAuth, async (req, res) => {
     try {
+      const userId = getUserId(req);
       const filters = {
         templateId: req.query.templateId as string,
       };
-      const allTasks = await storage.getMaintenanceTasks(filters);
+      const allTasks = await storage.getMaintenanceTasks(userId, filters);
       const now = new Date();
       
       const stats = {
