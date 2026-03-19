@@ -3,6 +3,21 @@ import { z } from "zod";
 // Pure TypeScript types - MongoDB handles validation via JSON Schema
 // See shared/schemas/*.schema.json for MongoDB validation schemas
 
+// User Types
+export interface User {
+  id: string;
+  email: string;
+  passwordHash: string;
+  name: string;
+  createdAt: Date;
+}
+
+export interface InsertUser {
+  email: string;
+  password: string;
+  name: string;
+}
+
 // Property Template Types
 export interface PropertyTemplate {
   id: string;
@@ -23,6 +38,7 @@ export interface InsertPropertyTemplate {
 // Maintenance Task Types
 export interface MaintenanceTask {
   id: string;
+  userId: string | null;
   title: string;
   description: string;
   category: string;
@@ -51,6 +67,7 @@ export interface MaintenanceTask {
 }
 
 export interface InsertMaintenanceTask {
+  userId?: string | null;
   title: string;
   description: string;
   category: string;
@@ -79,6 +96,7 @@ export interface InsertMaintenanceTask {
 // Questionnaire Response Types
 export interface QuestionnaireResponse {
   id: string;
+  userId: string | null;
   sessionId: string;
   responses: string; // JSON string
   propertyType: string;
@@ -86,6 +104,7 @@ export interface QuestionnaireResponse {
 }
 
 export interface InsertQuestionnaireResponse {
+  userId?: string | null;
   sessionId: string;
   responses: string;
   propertyType: string;
@@ -122,6 +141,18 @@ export const insertQuestionnaireResponseSchema = z.object({
   sessionId: z.string().min(1, "Session ID is required"),
   responses: z.string().min(1, "Responses are required"),
   propertyType: z.string().min(1, "Property type is required"),
+});
+
+// Auth Zod schemas for client-side form validation
+export const registerSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().min(1, "Name is required"),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 // Validation helper for API routes
