@@ -12,7 +12,9 @@ export function setLocalGeminiApiKey(key: string) {
 export async function generateGeminiContent(prompt: string, apiKey?: string): Promise<string> {
   // gemini 1.5 is deprecated
   const models = ["gemini-2.5-pro", "gemini-2.5-flash"];
-  const keyToUse = apiKey || localGeminiApiKey;
+  // Prefer request-provided key first, then current process env, then local override.
+  // This avoids stale-key issues when .env changes between restarts.
+  const keyToUse = (apiKey || process.env.GEMINI_API_KEY || localGeminiApiKey || "").trim();
   if (!keyToUse) throw new Error("Gemini API key is not set.");
 
   // Add explicit instructions for JSON output matching the frontend schema
