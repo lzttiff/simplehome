@@ -154,6 +154,24 @@ export default function Dashboard() {
     setLoadingCategories(prev => ({ ...prev, [categoryName]: true }));
     
     try {
+      const safeParseMaintenanceDate = (value: unknown) => {
+        if (!value) return { minor: null, major: null };
+        if (typeof value !== "string") return { minor: null, major: null };
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed && typeof parsed === "object") {
+            return {
+              minor: (parsed as any).minor ?? null,
+              major: (parsed as any).major ?? null,
+            };
+          }
+        } catch {
+          // Legacy values may be plain date strings. Use as minor date fallback.
+          return { minor: value, major: null };
+        }
+        return { minor: null, major: null };
+      };
+
       // Get all tasks for this category
       let categoryTasks = tasks.filter(task => task.category === categoryName);
       
@@ -177,8 +195,8 @@ export default function Dashboard() {
           brand: task.brand || "",
           model: task.model || "",
           installationDate: task.installationDate || "",
-          lastMaintenanceDate: task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null },
-          nextMaintenanceDate: task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null },
+          lastMaintenanceDate: safeParseMaintenanceDate(task.lastMaintenanceDate),
+          nextMaintenanceDate: safeParseMaintenanceDate(task.nextMaintenanceDate),
           location: task.location || "",
           notes: task.notes || ""
         }))
@@ -192,7 +210,18 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate AI schedule');
+        let message = 'Failed to generate AI schedule';
+        try {
+          const payload = await response.json();
+          if (payload?.error) {
+            message = `${message}: ${payload.error}`;
+          } else if (payload?.message) {
+            message = `${message}: ${payload.message}`;
+          }
+        } catch {
+          // Ignore non-JSON error bodies and keep default message.
+        }
+        throw new Error(message);
       }
 
       const result = await response.json();
@@ -211,7 +240,8 @@ export default function Dashboard() {
         alert(`AI generation cancelled for ${categoryName}`);
       } else {
         console.error('Error generating AI schedule:', error);
-        alert(`Failed to generate AI schedule for ${categoryName}`);
+        const detail = error instanceof Error ? `\n${error.message}` : "";
+        alert(`Failed to generate AI schedule for ${categoryName}${detail}`);
       }
     } finally {
       setLoadingCategories(prev => ({ ...prev, [categoryName]: false }));

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [, navigate] = useLocation();
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const loginForm = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
@@ -44,8 +45,9 @@ export default function AuthPage() {
       const res = await apiRequest("POST", "/api/auth/login", data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (user) => {
       setError(null);
+      queryClient.setQueryData(["/api/auth/me"], user);
       navigate("/");
     },
     onError: (err: Error) => {
@@ -58,8 +60,9 @@ export default function AuthPage() {
       const res = await apiRequest("POST", "/api/auth/register", data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (user) => {
       setError(null);
+      queryClient.setQueryData(["/api/auth/me"], user);
       navigate("/");
     },
     onError: (err: Error) => {
