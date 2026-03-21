@@ -40,10 +40,114 @@ import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
 import passport from "passport";
 import { requireAuth, hashPassword } from "./auth";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { deflateRawSync, inflateRawSync } from "zlib";
+
+type CalendarSelection = {
+  taskId: string;
+  includeMinor: boolean;
+  includeMajor: boolean;
+};
+
+type ParsedCalendarPayload = {
+  v: number;
+  exp: number;
+  items: Array<{ i: string; m: 0 | 1; M: 0 | 1 }>;
+};
+
+const shortCalendarFeedStore = new Map<string, ParsedCalendarPayload>();
+const shortCalendarFeedFile = path.join(process.cwd(), "data", "calendar-feeds.json");
+
+function persistShortFeedStore(): void {
+  try {
+    const out = Object.fromEntries(shortCalendarFeedStore.entries());
+    fs.mkdirSync(path.dirname(shortCalendarFeedFile), { recursive: true });
+    fs.writeFileSync(shortCalendarFeedFile, JSON.stringify(out, null, 2), "utf-8");
+  } catch {
+    // Best effort only; runtime map still works for current process.
+  }
+}
+
+function loadShortFeedStore(): void {
+  try {
+    if (!fs.existsSync(shortCalendarFeedFile)) return;
+    const raw = fs.readFileSync(shortCalendarFeedFile, "utf-8");
+    const parsed = JSON.parse(raw) as Record<string, ParsedCalendarPayload>;
+    const nowEpoch = Math.floor(Date.now() / 1000);
+
+    Object.entries(parsed).forEach(([key, value]) => {
+      if (value && value.exp && value.exp > nowEpoch) {
+        shortCalendarFeedStore.set(key, value);
+      }
+    });
+  } catch {
+    // Ignore load failures; new feeds will still be created.
+  }
+}
+
+function base64UrlEncode(input: string): string {
+  return Buffer.from(input, "utf8").toString("base64url");
+}
+
+function base64UrlDecode(input: string): string {
+  return Buffer.from(input, "base64url").toString("utf8");
+}
+
+function compressedBase64UrlEncode(input: string): string {
+  return deflateRawSync(Buffer.from(input, "utf8")).toString("base64url");
+}
+
+function compressedBase64UrlDecode(input: string): string {
+  return inflateRawSync(Buffer.from(input, "base64url")).toString("utf8");
+}
+
+function getCalendarFeedSecret(): string {
+  return process.env.CALENDAR_FEED_SECRET || process.env.ADMIN_TOKEN || "dev-calendar-feed-secret";
+}
+
+function signFeedPayload(payload: string): string {
+  return createHmac("sha256", getCalendarFeedSecret()).update(payload).digest("base64url");
+}
+
+function formatICSDate(date: Date, dateOnly: boolean = false): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+
+  if (dateOnly) {
+    return `${year}${month}${day}`;
+  }
+
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+  return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+}
+
+function isLikelyPrivateHost(host: string): boolean {
+  const normalized = host.toLowerCase();
+  if (normalized.includes("localhost") || normalized.includes("127.0.0.1")) return true;
+  if (normalized.includes(".local")) return true;
+  if (normalized.startsWith("10.")) return true;
+  if (normalized.startsWith("192.168.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)) return true;
+  return false;
+}
+
+function decodeCalendarPayload(encodedPayload: string): ParsedCalendarPayload {
+  // Prefer compressed decode for new tokens; fall back to legacy plain base64url tokens.
+  try {
+    return JSON.parse(compressedBase64UrlDecode(encodedPayload)) as ParsedCalendarPayload;
+  } catch {
+    return JSON.parse(base64UrlDecode(encodedPayload)) as ParsedCalendarPayload;
+  }
+}
 // ...existing imports...
 //const __filename = fileURLToPath(import.meta.url);
 //const __dirname = path.dirname(__filename);
 export async function registerRoutes(app: Express): Promise<Server> {
+  loadShortFeedStore();
+
   // Respond to favicon requests to avoid serving the SPA index for this path
   // which causes the client router to render a 404 page for "/favicon.ico" in the browser.
   app.get('/favicon.ico', (_req, res) => res.status(204).end());
@@ -357,6 +461,312 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Update task error:", error);
       res.status(500).json({ message: "Failed to update task" });
     }
+  });
+
+  // Google calendar subscription feed: issue signed token for selected tasks.
+  app.post("/api/calendar/google/feed-token", async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        selections: z
+          .array(
+            z.object({
+              taskId: z.string().min(1),
+              includeMinor: z.boolean().default(true),
+              includeMajor: z.boolean().default(true),
+            }),
+          )
+          .min(1),
+      });
+
+      const { selections } = bodySchema.parse(req.body);
+      const normalized: CalendarSelection[] = selections
+        .map((s) => ({
+          taskId: s.taskId,
+          includeMinor: !!s.includeMinor,
+          includeMajor: !!s.includeMajor,
+        }))
+        .filter((s) => s.includeMinor || s.includeMajor);
+
+      if (normalized.length === 0) {
+        return res.status(400).json({ message: "No valid selections provided" });
+      }
+
+      const payload: ParsedCalendarPayload = {
+        v: 1,
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 180, // 180 days
+        items: normalized.map((s) => ({
+          i: s.taskId,
+          m: (s.includeMinor ? 1 : 0) as 0 | 1,
+          M: (s.includeMajor ? 1 : 0) as 0 | 1,
+        })),
+      };
+
+      // Use compressed payloads to keep feed URLs shorter for Google "add by URL".
+      const encodedPayload = compressedBase64UrlEncode(JSON.stringify(payload));
+      const signature = signFeedPayload(encodedPayload);
+      const token = `${encodedPayload}.${signature}`;
+      const shortFeedId = randomBytes(9).toString("base64url");
+      shortCalendarFeedStore.set(shortFeedId, payload);
+      persistShortFeedStore();
+
+      // Estimate event count at generation time to catch empty feeds early.
+      const selectedTasks = await Promise.all(normalized.map((s) => storage.getMaintenanceTask(s.taskId, null)));
+      let estimatedEventCount = 0;
+      let missingTaskCount = 0;
+      for (let idx = 0; idx < normalized.length; idx++) {
+        const selection = normalized[idx];
+        const task = selectedTasks[idx];
+        if (!task || !task.nextMaintenanceDate) {
+          missingTaskCount++;
+          continue;
+        }
+        try {
+          const next = JSON.parse(task.nextMaintenanceDate) as { minor?: string | null; major?: string | null };
+          if (selection.includeMinor && next?.minor) estimatedEventCount++;
+          if (selection.includeMajor && next?.major) estimatedEventCount++;
+        } catch {
+          // Ignore malformed date blobs in estimate; feed endpoint handles them safely too.
+        }
+      }
+
+      const protocol = req.headers["x-forwarded-proto"]?.toString().split(",")[0] || req.protocol;
+      const host = req.get("host") || "localhost:5000";
+      const inferredBase = `${protocol}://${host}`;
+      const configuredBase = process.env.PUBLIC_BASE_URL?.trim();
+      const baseUrl = configuredBase && configuredBase.length > 0 ? configuredBase.replace(/\/$/, "") : inferredBase;
+      const feedUrlToken = `${baseUrl}/api/calendar/google/feed/${token}`;
+      const feedUrlTokenIcs = `${baseUrl}/api/calendar/google/feed/${token}/homeguard.ics`;
+      // Use short-id URLs as primary links for better Google compatibility.
+      const feedUrl = `${baseUrl}/api/calendar/google/subscriptions/${shortFeedId}`;
+      const feedUrlIcs = `${baseUrl}/api/calendar/google/subscriptions/${shortFeedId}.ics`;
+      const feedUrlShort = `${baseUrl}/api/calendar/google/feed/s/${shortFeedId}`;
+      const feedUrlShortIcs = `${baseUrl}/api/calendar/google/feed/s/${shortFeedId}/homeguard.ics`;
+      // Use .ics URL for Google prefill. Some Google flows validate extension-based feeds more reliably.
+      const googleSubscribeUrl = `https://calendar.google.com/calendar/u/0/r/settings/addbyurl?cid=${encodeURIComponent(feedUrlIcs)}`;
+      const googleSubscribeUrlFallback = "https://calendar.google.com/calendar/u/0/r/settings/addbyurl";
+      const isLikelyPrivateUrl = isLikelyPrivateHost(new URL(feedUrl).hostname);
+
+      logWithLevel(
+        "INFO",
+        `Google feed token created: selections=${normalized.length}, estimatedEvents=${estimatedEventCount}, missingTasks=${missingTaskCount}, shortId=${shortFeedId}, baseUrl=${baseUrl}, feedUrl=${feedUrlIcs}`,
+      );
+
+      res.json({
+        token,
+        shortFeedId,
+        feedUrl,
+        feedUrlIcs,
+        feedUrlShort,
+        feedUrlShortIcs,
+        feedUrlToken,
+        feedUrlTokenIcs,
+        baseUrl,
+        googleSubscribeUrl,
+        googleSubscribeUrlFallback,
+        itemCount: normalized.length,
+        estimatedEventCount,
+        missingTaskCount,
+        isLikelyPrivateUrl,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid payload", errors: error.errors });
+      }
+      console.error("Create Google feed token error:", error);
+      res.status(500).json({ message: "Failed to create Google feed token" });
+    }
+  });
+
+  const writeCalendarFeed = async (
+    req: express.Request,
+    res: express.Response,
+    parsed: ParsedCalendarPayload,
+  ) => {
+    if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.items)) {
+      return res.status(400).send("Invalid payload");
+    }
+    if (!parsed.exp || Math.floor(Date.now() / 1000) > parsed.exp) {
+      return res.status(401).send("Token expired");
+    }
+
+    const tasks = await Promise.all(parsed.items.map((item) => storage.getMaintenanceTask(item.i, null)));
+    const now = new Date();
+    let eventCount = 0;
+
+    const ics: string[] = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//HomeGuard//Google Subscription Feed//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      "X-WR-CALNAME:HomeGuard Maintenance Schedule",
+      "X-WR-TIMEZONE:UTC",
+    ];
+
+    for (let idx = 0; idx < parsed.items.length; idx++) {
+      const item = parsed.items[idx];
+      const task = tasks[idx];
+      if (!task || !task.nextMaintenanceDate) continue;
+
+      let next: { minor?: string | null; major?: string | null } = {};
+      try {
+        next = JSON.parse(task.nextMaintenanceDate);
+      } catch {
+        continue;
+      }
+
+      if (item.m && next.minor) {
+        const dt = new Date(next.minor);
+        const eventDate = dt < now ? now : dt;
+        const minorTasks = task.minorTasks ? JSON.parse(task.minorTasks) : [];
+        const description =
+          Array.isArray(minorTasks) && minorTasks.length > 0
+            ? minorTasks.join("\\n")
+            : task.description || "Regular minor maintenance";
+        const uid = `${task.id}-minor@homeguard.app`;
+        ics.push(
+          "BEGIN:VEVENT",
+          `UID:${uid}`,
+          `DTSTAMP:${formatICSDate(new Date())}`,
+          `DTSTART;VALUE=DATE:${formatICSDate(eventDate, true)}`,
+          `SUMMARY:Minor Maintenance: ${task.title}`,
+          `DESCRIPTION:${description.replace(/\n/g, "\\n")}`,
+          `CATEGORIES:${task.category}`,
+          "STATUS:CONFIRMED",
+          "END:VEVENT",
+        );
+        eventCount++;
+      }
+
+      if (item.M && next.major) {
+        const dt = new Date(next.major);
+        const eventDate = dt < now ? now : dt;
+        const majorTasks = task.majorTasks ? JSON.parse(task.majorTasks) : [];
+        const description =
+          Array.isArray(majorTasks) && majorTasks.length > 0
+            ? majorTasks.join("\\n")
+            : task.description || "Regular major maintenance";
+        const uid = `${task.id}-major@homeguard.app`;
+        ics.push(
+          "BEGIN:VEVENT",
+          `UID:${uid}`,
+          `DTSTAMP:${formatICSDate(new Date())}`,
+          `DTSTART;VALUE=DATE:${formatICSDate(eventDate, true)}`,
+          `SUMMARY:Major Maintenance: ${task.title}`,
+          `DESCRIPTION:${description.replace(/\n/g, "\\n")}`,
+          `CATEGORIES:${task.category}`,
+          "STATUS:CONFIRMED",
+          "END:VEVENT",
+        );
+        eventCount++;
+      }
+    }
+
+    ics.push("END:VCALENDAR");
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    res.setHeader("X-HomeGuard-Event-Count", String(eventCount));
+    res.setHeader("X-HomeGuard-Token-Items", String(parsed.items.length));
+    res.setHeader("Cache-Control", "no-store");
+    logWithLevel(
+      "INFO",
+      `Google feed served: events=${eventCount}, selectedItems=${parsed.items.length}, ua=${req.get("user-agent") || "unknown"}`,
+    );
+    return res.send(ics.join("\r\n"));
+  };
+
+  const handleGoogleCalendarFeed = async (req: express.Request, res: express.Response) => {
+    try {
+      const token = req.params.token;
+      const [encodedPayload, providedSig] = token.split(".");
+      if (!encodedPayload || !providedSig) {
+        return res.status(400).send("Invalid token");
+      }
+
+      const expectedSig = signFeedPayload(encodedPayload);
+      const providedSigBuffer = Buffer.from(providedSig, "base64url");
+      const expectedSigBuffer = Buffer.from(expectedSig, "base64url");
+      if (
+        providedSigBuffer.length !== expectedSigBuffer.length ||
+        !timingSafeEqual(providedSigBuffer, expectedSigBuffer)
+      ) {
+        return res.status(401).send("Invalid signature");
+      }
+
+      const parsed = decodeCalendarPayload(encodedPayload);
+      return await writeCalendarFeed(req, res, parsed);
+    } catch (error) {
+      console.error("Google feed render error:", error);
+      res.status(500).send("Failed to render feed");
+    }
+  };
+
+  const handleGoogleCalendarShortFeed = async (req: express.Request, res: express.Response) => {
+    try {
+      const feedId = (req.params.feedId ?? "").replace(/\.ics$/i, "");
+      let parsed = shortCalendarFeedStore.get(feedId);
+      if (!parsed) {
+        // The process may have restarted; reload persisted feed ids and retry once.
+        loadShortFeedStore();
+        parsed = shortCalendarFeedStore.get(feedId);
+      }
+      if (!parsed) {
+        logWithLevel("WARN", `Google short feed not found: feedId=${feedId}`);
+        return res.status(404).send("Feed not found");
+      }
+
+      if (!parsed.exp || Math.floor(Date.now() / 1000) > parsed.exp) {
+        shortCalendarFeedStore.delete(feedId);
+        persistShortFeedStore();
+        return res.status(401).send("Token expired");
+      }
+
+      return await writeCalendarFeed(req, res, parsed);
+    } catch (error) {
+      console.error("Google short feed render error:", error);
+      res.status(500).send("Failed to render feed");
+    }
+  };
+
+  // Google calendar subscription feed endpoint (ICS).
+  app.get("/api/calendar/google/feed/:token", handleGoogleCalendarFeed);
+  // Optional .ics-styled variant for providers that prefer a file-like URL.
+  app.get("/api/calendar/google/feed/:token/:fileName", handleGoogleCalendarFeed);
+  // Compact short-id feed endpoints for better provider URL compatibility.
+  app.get("/api/calendar/google/feed/s/:feedId", handleGoogleCalendarShortFeed);
+  app.get("/api/calendar/google/feed/s/:feedId/:fileName", handleGoogleCalendarShortFeed);
+  // Simple alias paths for providers that prefer plain .ics subscription URLs.
+  app.get("/api/calendar/google/subscriptions/:feedId", handleGoogleCalendarShortFeed);
+  app.get("/api/calendar/google/subscriptions/:feedId.ics", handleGoogleCalendarShortFeed);
+
+  // Diagnostic endpoint: minimal static ICS feed to validate Google reachability.
+  app.get("/api/calendar/google/diagnostic.ics", (_req, res) => {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setUTCDate(now.getUTCDate() + 1);
+
+    const ics: string[] = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//HomeGuard//Google Diagnostic Feed//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      "X-WR-CALNAME:HomeGuard Diagnostic Calendar",
+      "X-WR-TIMEZONE:UTC",
+      "BEGIN:VEVENT",
+      "UID:homeguard-diagnostic@homeguard.app",
+      `DTSTAMP:${formatICSDate(now)}`,
+      `DTSTART;VALUE=DATE:${formatICSDate(tomorrow, true)}`,
+      "SUMMARY:HomeGuard Diagnostic Event",
+      "DESCRIPTION:If this appears in Google Calendar, host reachability is working.",
+      "STATUS:CONFIRMED",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ];
+
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    logWithLevel("INFO", "Google diagnostic feed served");
+    res.send(ics.join("\r\n"));
   });
 
   // AI Task Generation
