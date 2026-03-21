@@ -6,8 +6,14 @@ import path from 'path';
 // Mock the Gemini service to avoid network calls
 jest.mock('../../server/services/gemini', () => ({
   generateGeminiContent: jest.fn(async (prompt: string, key?: string) => {
-    return { title: 'Mocked Gemini Response', promptSummary: prompt.slice(0, 100), keyUsed: key };
+    const { MOCK_GEMINI_TASK_SUGGESTION } = require('./helpers/geminiMock');
+    return { ...MOCK_GEMINI_TASK_SUGGESTION, promptSummary: prompt.slice(0, 100), keyUsed: key };
   }),
+}));
+
+jest.mock('../../server/auth', () => ({
+  requireAuth: (_req: any, _res: any, next: any) => next(),
+  hashPassword: jest.fn(async (password: string) => `hash-${password}`),
 }));
 
 import { registerRoutes } from '../../server/routes';

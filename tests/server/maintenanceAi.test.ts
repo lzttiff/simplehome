@@ -1,3 +1,10 @@
+jest.mock('../../server/services/gemini', () => ({
+  generateGeminiContent: jest.fn(async () => {
+    const { MOCK_GEMINI_SCHEDULE_RESPONSE } = require('./helpers/geminiMock');
+    return MOCK_GEMINI_SCHEDULE_RESPONSE;
+  }),
+}));
+
 import { generateMaintenanceSchedule, normalizeToMaintenanceAiResult } from '../../server/services/maintenanceAi';
 
 const provider = (process.env.PROVIDER as 'gemini' | 'openai') || 'gemini';

@@ -1,5 +1,6 @@
 import { MaintenanceTask } from "@shared/schema";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -34,6 +35,9 @@ interface CalendarExport {
 export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportScheduleModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Record<string, boolean>>({});
+  const [googleFeedUrl, setGoogleFeedUrl] = useState("");
+  const [googleAddByUrlPage, setGoogleAddByUrlPage] = useState("https://calendar.google.com/calendar/u/0/r/settings/addbyurl");
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, calendarExports }: { taskId: string; calendarExports: string }) => {
@@ -123,6 +127,53 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         variant: "destructive",
       });
     }
+  };
+
+  const tasksWithDates = tasks.filter(task => {
+    try {
+      const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : null;
+      return !!(nextMaintenance && (nextMaintenance.minor || nextMaintenance.major));
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (Object.keys(selectedTaskIds).length === 0 && tasksWithDates.length > 0) {
+      const defaults: Record<string, boolean> = {};
+      tasksWithDates.forEach(task => {
+        defaults[task.id] = true;
+      });
+      setSelectedTaskIds(defaults);
+    }
+  }, [tasksWithDates.length, selectedTaskIds]);
+
+  // Keep selection in sync when modal opens/tasks change.
+  useEffect(() => {
+    if (!isOpen) return;
+    const defaults: Record<string, boolean> = {};
+    tasksWithDates.forEach(task => {
+      defaults[task.id] = selectedTaskIds[task.id] ?? true;
+    });
+    setSelectedTaskIds(defaults);
+  }, [isOpen, tasks.length]);
+
+  const selectedTasks = tasksWithDates.filter(task => selectedTaskIds[task.id]);
+
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTaskIds(prev => ({
+      ...prev,
+      [taskId]: !prev[taskId],
+    }));
+  };
+
+  const toggleSelectAll = () => {
+    const allSelected = tasksWithDates.every(task => selectedTaskIds[task.id]);
+    const next: Record<string, boolean> = {};
+    tasksWithDates.forEach(task => {
+      next[task.id] = !allSelected;
+    });
+    setSelectedTaskIds(next);
   };
   
   const generateICSFile = async (provider: 'google' | 'apple' | 'generic' = 'generic') => {
@@ -252,28 +303,119 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     });
   };
 
-  const exportToGoogleCalendar = () => {
-    // For Google Calendar, we'll create multiple events using the Google Calendar URL scheme
-    // Since we can't add multiple events at once via URL, we'll open the first event
-    // and provide instructions for the ICS method
-    
-    const tasksWithDates = tasks.filter(task => {
-      try {
-        const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : null;
-        return nextMaintenance && (nextMaintenance.minor || nextMaintenance.major);
-      } catch {
-        return false;
-      }
-    });
-
-    if (tasksWithDates.length === 0) {
-      alert("No tasks with scheduled dates found to export.");
+  const exportToGoogleCalendar = async () => {
+    if (selectedTasks.length === 0) {
+      toast({
+        title: "No tasks selected",
+        description: "Select at least one task to create a Google subscription feed.",
+        variant: "destructive",
+      });
       return;
     }
 
-    // Download ICS file which can be imported to Google Calendar
-    alert("An ICS file will be downloaded. To import to Google Calendar:\n\n1. Open Google Calendar (calendar.google.com)\n2. Click the '+' next to 'Other calendars'\n3. Select 'Import'\n4. Choose the downloaded .ics file\n5. Click 'Import'\n\nThe events will be tracked here and you can view them in your Google Calendar.");
-    generateICSFile('google');
+    const selections = selectedTasks.map(task => {
+      let includeMinor = false;
+      let includeMajor = false;
+      try {
+        const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : {};
+        const taskWithFilters = task as any;
+        includeMinor = !!nextMaintenance?.minor && taskWithFilters.showMinor !== false;
+        includeMajor = !!nextMaintenance?.major && taskWithFilters.showMajor !== false;
+      } catch {
+        includeMinor = false;
+        includeMajor = false;
+      }
+
+      return {
+        taskId: task.id,
+        includeMinor,
+        includeMajor,
+      };
+    }).filter(s => s.includeMinor || s.includeMajor);
+
+    if (selections.length === 0) {
+      toast({
+        title: "No schedulable events",
+        description: "Selected tasks do not have upcoming minor/major dates to subscribe.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await apiRequest("POST", "/api/calendar/google/feed-token", { selections });
+      const data = await response.json();
+      const feedUrl: string = data.feedUrlIcs || data.feedUrl;
+      const googleSubscribeUrlFallback: string = data.googleSubscribeUrlFallback || "https://calendar.google.com/calendar/u/0/r/settings/addbyurl";
+      const isLikelyPrivateUrl: boolean = !!data.isLikelyPrivateUrl;
+      const estimatedEventCount: number = Number(data.estimatedEventCount || 0);
+      const missingTaskCount: number = Number(data.missingTaskCount || 0);
+
+      // Track this as a Google export for selected tasks.
+      for (const sel of selections) {
+        await trackCalendarExport(
+          sel.taskId,
+          "google",
+          {
+            minor: sel.includeMinor ? "feed" : undefined,
+            major: sel.includeMajor ? "feed" : undefined,
+          },
+          {
+            minor: feedUrl,
+            major: feedUrl,
+          },
+        );
+      }
+
+      try {
+        await navigator.clipboard.writeText(feedUrl);
+      } catch {
+        // Clipboard can fail in non-secure contexts; continue with link open.
+      }
+
+      setGoogleFeedUrl(feedUrl);
+      setGoogleAddByUrlPage(googleSubscribeUrlFallback);
+
+      toast({
+        title: "Google Feed Ready",
+        description: `Feed URL is ready for ${selections.length} selected task${selections.length === 1 ? "" : "s"}. Copy it first, then open Google Add by URL.`,
+      });
+
+      toast({
+        title: "Feed Diagnostics",
+        description: `Estimated events: ${estimatedEventCount}. Missing/invalid tasks: ${missingTaskCount}.`,
+      });
+
+      if (estimatedEventCount === 0) {
+        toast({
+          title: "Feed Contains 0 Events",
+          description:
+            "The current selection did not produce any schedulable minor/major dates. Adjust filters or selected tasks, then try again.",
+          variant: "destructive",
+        });
+      }
+
+      toast({
+        title: "Paste URL In Google",
+        description:
+          "Paste the copied feed URL into Google Calendar's Add by URL field. This is more reliable than prefilled Google links.",
+      });
+
+      if (isLikelyPrivateUrl) {
+        toast({
+          title: "Public URL Required",
+          description:
+            "The feed URL looks local/private (for example localhost/LAN). Google Calendar cannot fetch it. Set PUBLIC_BASE_URL to a publicly reachable HTTPS domain or use a tunnel.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to create Google subscription feed.",
+        variant: "destructive",
+      });
+    }
   };
 
   const exportToAppleCalendar = () => {
@@ -327,15 +469,90 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         </DialogHeader>
         
         <div className="space-y-3 py-4">
+          {tasksWithDates.length > 0 && (
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Select Schedule Items ({tasksWithDates.length})</h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleSelectAll}
+                  className="h-7 px-2 text-xs"
+                >
+                  {tasksWithDates.every(task => selectedTaskIds[task.id]) ? "Clear All" : "Select All"}
+                </Button>
+              </div>
+              <div className="max-h-36 overflow-y-auto space-y-1">
+                {tasksWithDates.map(task => (
+                  <label key={task.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedTaskIds[task.id]}
+                      onChange={() => toggleTaskSelection(task.id)}
+                    />
+                    <span className="truncate">{task.title}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <Button
             onClick={exportToGoogleCalendar}
             className="w-full justify-start"
             variant="outline"
-            title="Export to Google Calendar (downloads ICS file for import)"
+            title="Subscribe selected tasks in Google Calendar via HomeGuard feed"
           >
             <Calendar className="w-4 h-4 mr-3" />
-            Export to Google Calendar
+            Subscribe in Google Calendar (Selected)
           </Button>
+
+          {googleFeedUrl && (
+            <div className="border rounded-md p-3 space-y-2 bg-blue-50/50">
+              <p className="text-xs text-gray-700">
+                Step 1: Copy this feed URL. Step 2: Open Google Add by URL and paste it.
+              </p>
+              <input
+                value={googleFeedUrl}
+                readOnly
+                className="w-full text-xs rounded border bg-white px-2 py-1"
+                aria-label="Google calendar feed URL"
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(googleFeedUrl);
+                      toast({ title: "Copied", description: "Feed URL copied to clipboard." });
+                    } catch {
+                      toast({
+                        title: "Copy Failed",
+                        description: "Clipboard access failed. Select and copy the URL manually.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  Copy Feed URL
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => window.open(googleAddByUrlPage, "_blank", "noopener,noreferrer")}
+                >
+                  <ExternalLink className="w-3 h-3 mr-1" />
+                  Open Google Page
+                </Button>
+              </div>
+            </div>
+          )}
           
           <Button
             onClick={exportToAppleCalendar}
@@ -440,7 +657,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         )}
         
         <div className="text-xs text-gray-500 mt-2">
-          <p>The export includes all maintenance tasks with scheduled dates.</p>
+          <p>Google subscription uses your selected items and keeps calendar updates synced from HomeGuard.</p>
           <p className="mt-1">ICS files are compatible with most calendar applications.</p>
           <p className="mt-1 font-medium">Exported events are tracked locally for reference.</p>
         </div>

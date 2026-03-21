@@ -378,7 +378,8 @@ describe('AI Provider Route Tests', () => {
           majorIntervalMonths: expect.any(Number),
           minorTasks: expect.any(String),
           majorTasks: expect.any(String),
-        })
+        }),
+        null,
       );
     });
 
@@ -421,7 +422,7 @@ describe('AI Provider Route Tests', () => {
       expect(response.status).toBe(200);
       // Should only update the successful one
       expect(storage.storage.updateMaintenanceTask).toHaveBeenCalledTimes(1);
-      expect(storage.storage.updateMaintenanceTask).toHaveBeenCalledWith('test-1', expect.any(Object));
+      expect(storage.storage.updateMaintenanceTask).toHaveBeenCalledWith('test-1', expect.any(Object), null);
     });
   });
 

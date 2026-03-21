@@ -2,6 +2,13 @@ import request from 'supertest';
 import express, {Express} from 'express';
 import { registerRoutes } from '../../server/routes';
 
+jest.mock('../../server/services/gemini', () => ({
+  generateGeminiContent: jest.fn(async () => {
+    const { MOCK_GEMINI_SCHEDULE_RESPONSE } = require('./helpers/geminiMock');
+    return MOCK_GEMINI_SCHEDULE_RESPONSE;
+  }),
+}));
+
 const provider = (process.env.PROVIDER as 'gemini' | 'openai') || 'gemini';
 
 describe('/api/item-schedule', () => {

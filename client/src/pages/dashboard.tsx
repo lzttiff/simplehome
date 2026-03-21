@@ -14,6 +14,8 @@ import AddTaskModal from "@/components/add-task-modal";
 import ExportScheduleModal from "@/components/export-schedule-modal";
 import { cn } from "@/lib/utils";
 
+const EMPTY_TASKS: MaintenanceTask[] = [];
+
 const categoryColors = {
   Appliances: "bg-cyan-500",
   "HVAC & Mechanical": "bg-red-500",
@@ -41,9 +43,10 @@ export default function Dashboard() {
   const [includeMinor, setIncludeMinor] = useState(true);
   const [includeMajor, setIncludeMajor] = useState(true);
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery<MaintenanceTask[]>({
+  const { data: tasksData, isLoading: tasksLoading } = useQuery<MaintenanceTask[]>({
     queryKey: ["/api/tasks", { search: searchTerm, templateId }],
   });
+  const tasks = tasksData ?? EMPTY_TASKS;
 
   // Debug logging
   console.log('Dashboard - templateId:', templateId);
@@ -57,6 +60,12 @@ export default function Dashboard() {
   // Update category filters when tasks change
   // Note: tasks are already filtered by templateId from the backend API
   useEffect(() => {
+    // Avoid a render loop while query data is undefined/loading.
+    if (tasks.length === 0) {
+      setCategoryFilters((prev) => (prev.length === 0 ? prev : []));
+      return;
+    }
+
     const categoryCounts = tasks.reduce((acc, task) => {
       acc[task.category] = (acc[task.category] || 0) + 1;
       return acc;
@@ -82,10 +91,14 @@ export default function Dashboard() {
       }
       
       // Update counts only, preserve checked state
-      return prev.map(filter => {
+      const updated = prev.map(filter => {
         const newFilter = newFilters.find(f => f.category === filter.category);
         return newFilter ? { ...filter, count: newFilter.count } : filter;
       });
+
+      // If counts and checked state are unchanged, keep previous reference.
+      const changed = updated.some((f, idx) => f.count !== prev[idx]?.count || f.checked !== prev[idx]?.checked);
+      return changed ? updated : prev;
     });
   }, [tasks]);
 
