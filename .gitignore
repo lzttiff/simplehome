@@ -14,3 +14,5 @@ data/*.json
 out.json
 maintenance-template-ap-obsolete.orig.json
 .env
+.env.*
+!.env.example
