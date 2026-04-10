@@ -9,6 +9,189 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "default_key"
 });
 
+type AiProvider = "openai" | "gemini";
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientAiError(error: unknown): boolean {
+  const e = error as any;
+  const status = Number(e?.status ?? e?.response?.status ?? e?.code);
+  if ([408, 409, 425, 429, 500, 502, 503, 504].includes(status)) {
+    return true;
+  }
+
+  const code = String(e?.code ?? "").toUpperCase();
+  if (["ETIMEDOUT", "ECONNRESET", "ECONNABORTED", "EAI_AGAIN", "ENOTFOUND"].includes(code)) {
+    return true;
+  }
+
+  const message = String(e?.message ?? e ?? "").toLowerCase();
+  return (
+    message.includes("rate limit") ||
+    message.includes("quota") ||
+    message.includes("timeout") ||
+    message.includes("temporar") ||
+    message.includes("unavailable") ||
+    message.includes("overloaded")
+  );
+}
+
+async function runWithExponentialBackoff<T>(
+  opName: string,
+  fn: () => Promise<T>,
+  maxAttempts = 4,
+  baseDelayMs = 700,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const retryable = isTransientAiError(error);
+      if (!retryable || attempt === maxAttempts) {
+        throw error;
+      }
+      const jitter = Math.floor(Math.random() * 200);
+      const waitMs = baseDelayMs * (2 ** (attempt - 1)) + jitter;
+      logWithLevel("WARN", `[AI] ${opName} transient failure attempt ${attempt}/${maxAttempts}; retrying in ${waitMs}ms`);
+      await delay(waitMs);
+    }
+  }
+  throw lastError;
+}
+
+function stripJsonCodeFence(raw: string): string {
+  let content = raw.trim();
+  if (content.startsWith("```json")) content = content.replace(/^```json/, "").replace(/```$/, "").trim();
+  if (content.startsWith("```")) content = content.replace(/^```/, "").replace(/```$/, "").trim();
+  return content;
+}
+
+function parseProviderJson(rawResult: unknown): { parsed?: any; rawText: string; error?: string } {
+  if (typeof rawResult === "object" && rawResult !== null) {
+    return { parsed: rawResult, rawText: JSON.stringify(rawResult) };
+  }
+  if (typeof rawResult !== "string") {
+    return { rawText: String(rawResult), error: "Provider returned non-string/non-object payload" };
+  }
+
+  const rawText = rawResult;
+  try {
+    return { parsed: JSON.parse(stripJsonCodeFence(rawResult)), rawText };
+  } catch (error) {
+    return {
+      rawText,
+      error: error instanceof Error ? error.message : "Failed to parse JSON",
+    };
+  }
+}
+
+async function requestSchemaRepair(
+  provider: AiProvider,
+  rawText: string,
+  itemName: string,
+): Promise<unknown> {
+  const repairPrompt = `Fix this payload so it is valid JSON and EXACTLY matches this schema. Return ONLY JSON, no markdown, no explanation.
+
+Schema:
+{
+  "name": "string",
+  "nextMaintenanceDates": {
+    "minor": "YYYY-MM-DD",
+    "major": "YYYY-MM-DD"
+  },
+  "maintenanceSchedule": {
+    "minorIntervalMonths": "string",
+    "minorTasks": ["task 1", "task 2", "task 3"],
+    "majorIntervalMonths": "string",
+    "majorTasks": ["task 1", "task 2", "task 3"]
+  },
+  "reasoning": "string"
+}
+
+Item name: ${itemName}
+Payload to fix:
+${rawText.slice(0, 12000)}`;
+
+  if (provider === "gemini") {
+    const { generateGeminiContent } = await import("./gemini");
+    return runWithExponentialBackoff(`Gemini schema repair for ${itemName}`, async () =>
+      generateGeminiContent(repairPrompt),
+    );
+  }
+
+  const repaired = await runWithExponentialBackoff(`OpenAI schema repair for ${itemName}`, async () =>
+    openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: "You repair malformed JSON into an exact target schema." },
+        { role: "user", content: repairPrompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0,
+      max_tokens: 500,
+    }),
+  );
+  return repaired.choices[0].message.content || "{}";
+}
+
+async function callProviderGenerate(provider: AiProvider, prompt: string, itemName: string): Promise<unknown> {
+  if (provider === "gemini") {
+    const { generateGeminiContent } = await import("./gemini");
+    return runWithExponentialBackoff(`Gemini request for ${itemName}`, async () => generateGeminiContent(prompt));
+  }
+
+  const response = await runWithExponentialBackoff(`OpenAI request for ${itemName}`, async () =>
+    openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: "You are a home maintenance expert." },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.5,
+      max_tokens: 400
+    }),
+  );
+  return response.choices[0].message.content || "{}";
+}
+
+async function normalizeWithRepair(
+  provider: AiProvider,
+  rawResult: unknown,
+  itemName: string,
+  oneWeekFromToday: Date,
+): Promise<{ normalized?: MaintenanceAiResult; repaired: boolean; error?: string }> {
+  const firstPass = parseProviderJson(rawResult);
+  if (firstPass.parsed && typeof firstPass.parsed === "object") {
+    const normalized = normalizeToMaintenanceAiResult(firstPass.parsed, itemName, oneWeekFromToday);
+    if (validateMaintenanceAi(normalized)) {
+      return { normalized, repaired: false };
+    }
+  }
+
+  try {
+    const repairedRaw = await requestSchemaRepair(provider, firstPass.rawText, itemName);
+    const repairedParsed = parseProviderJson(repairedRaw);
+    if (repairedParsed.parsed && typeof repairedParsed.parsed === "object") {
+      const repairedNormalized = normalizeToMaintenanceAiResult(repairedParsed.parsed, itemName, oneWeekFromToday);
+      if (validateMaintenanceAi(repairedNormalized)) {
+        return { normalized: repairedNormalized, repaired: true };
+      }
+      return { repaired: true, error: "Validation failed after schema repair" };
+    }
+    return { repaired: true, error: repairedParsed.error || "Schema repair output not parseable" };
+  } catch (error) {
+    return {
+      repaired: false,
+      error: error instanceof Error ? error.message : "Schema repair failed",
+    };
+  }
+}
+
 export interface CatalogItem {
   id: string;
   name: string;
@@ -227,114 +410,55 @@ majorTasks: ["Inspect all wiring connections", "Replace aging light fixtures", "
 
 Respond ONLY with valid JSON exactly matching the schema above. No explanations, no markdown fences, no leading/trailing text.`;
 
-  // Support provider selection: "openai" (default) or "gemini"
+  // Support provider selection with automatic failover.
   const oneWeekFromToday = new Date();
   oneWeekFromToday.setDate(oneWeekFromToday.getDate() + 7);
-  // Choose provider from item, then environment default, then fallback to Gemini
-  const provider = (item as any).provider || process.env.DEFAULT_AI_PROVIDER || "gemini";
-  logWithLevel("DEBUG", `[AI] Using provider: ${provider} for item: ${item.name} with prompt: ${prompt}`);
-  if (provider === "gemini") {
-    const { generateGeminiContent } = await import("./gemini");
-    const geminiResult = await generateGeminiContent(prompt);
-    // Debug: log raw Gemini response (trim large responses)
-    try {
-      const rawPreview = typeof geminiResult === 'string' ? geminiResult.slice(0, 2000) : JSON.stringify(geminiResult).slice(0, 2000);
-      logWithLevel('DEBUG', `[AI] Raw Gemini response preview: ${rawPreview}`);
-    } catch (e) {
-      logWithLevel('DEBUG', `[AI] Raw Gemini response could not be stringified`);
-    }
-    // Try to parse Gemini result as JSON and normalize
-    let geminiJson: any;
-    if (typeof geminiResult === "string") {
-      logWithLevel("DEBUG", `[AI] Gemini raw result is a string: ${geminiResult}`);
-      try {
-        // strip markdown fences if present
-        let raw = geminiResult.trim();
-        if (raw.startsWith("```json")) raw = raw.replace(/^```json/, "").replace(/```$/, "").trim();
-        if (raw.startsWith("```")) raw = raw.replace(/^```/, "").replace(/```$/, "").trim();
-        geminiJson = JSON.parse(raw);
-      } catch (e) {
-        logWithLevel("ERROR", `[AI] Failed to parse Gemini JSON: ${e}`);
-        return { error: "Gemini response not valid JSON", raw: geminiResult } as any;
-      }
-    } else if (typeof geminiResult === "object" && geminiResult !== null) {
-      geminiJson = geminiResult;
-    } else {
-      return { error: "Gemini response not valid format", raw: geminiResult } as any;
-    }
+  const primaryProvider = ((item as any).provider || process.env.DEFAULT_AI_PROVIDER || "gemini") as AiProvider;
+  const secondaryProvider: AiProvider = primaryProvider === "gemini" ? "openai" : "gemini";
+  const providersToTry: AiProvider[] = [primaryProvider, secondaryProvider];
+  let lastFailure = "Unknown AI generation failure";
 
+  for (let idx = 0; idx < providersToTry.length; idx++) {
+    const provider = providersToTry[idx];
     try {
-      // If geminiJson is an array, use the first element
-      if (Array.isArray(geminiJson)) {
-        logWithLevel("DEBUG", `[AI] Gemini result is an array, using first element`);
-        geminiJson = geminiJson[0];
-        logWithLevel("DEBUG", `[AI] Gemini first element: ${JSON.stringify(geminiJson)}`);
-      }
-      // Defensive: If geminiJson is still invalid, return an error
-      if (!geminiJson || typeof geminiJson !== "object") {
-        return { error: "Gemini response does not contain a valid object", raw: geminiJson } as any;
+      logWithLevel("DEBUG", `[AI] Attempting provider=${provider} for item=${item.name}`);
+      const raw = await callProviderGenerate(provider, prompt, item.name);
+      const normalized = await normalizeWithRepair(provider, raw, item.name, oneWeekFromToday);
+      if (normalized.normalized) {
+        return {
+          ...normalized.normalized,
+          _meta: {
+            providerUsed: provider,
+            fallbackUsed: idx > 0,
+            repaired: normalized.repaired,
+          },
+        } as any;
       }
 
-      const normalized = normalizeToMaintenanceAiResult(geminiJson, item.name, oneWeekFromToday);
-      // Validate normalized object
-      const valid = validateMaintenanceAi(normalized);
-      if (!valid) {
-        logWithLevel('ERROR', `[AI] Validation failed for Gemini-normalized output: ${JSON.stringify(validateMaintenanceAi.errors)}`);
-        const diag: any = { error: 'Normalized result failed schema validation', validationErrors: validateMaintenanceAi.errors, normalized };
-        // Include raw only when enabled by env var
-        if (process.env.MAINT_AI_INCLUDE_RAW === 'true') diag.raw = geminiResult;
-        pushDiagnostic({ provider: 'gemini', itemName: item.name, ...diag });
-        return diag as any;
-      }
-      return normalized;
-    } catch (e) {
-      logWithLevel("ERROR", `[AI] Gemini processing error: ${e}`);
-      const diag: any = { error: 'Gemini response processing error' };
-      if (process.env.MAINT_AI_INCLUDE_RAW === 'true') diag.raw = geminiResult;
-      pushDiagnostic({ provider: 'gemini', itemName: item.name, ...diag });
-      return diag as any;
+      lastFailure = `${provider}: ${normalized.error || "normalized output invalid"}`;
+      pushDiagnostic({
+        provider,
+        itemName: item.name,
+        error: "Normalized result invalid",
+        details: normalized.error,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      lastFailure = `${provider}: ${errorMessage}`;
+      pushDiagnostic({ provider, itemName: item.name, error: "Provider request failed", details: errorMessage });
     }
-  } else {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: "You are a home maintenance expert." },
-        { role: "user", content: prompt }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.5,
-      max_tokens: 400
-    });
-    // OpenAI branch: try to parse JSON and normalize to the same shape
-    let openaiJson: any = {};
-    try {
-      const raw = response.choices[0].message.content || "{}";
-      // Debug: log raw OpenAI response (trimmed)
-      try {
-        const preview = String(raw).slice(0, 2000);
-        logWithLevel('DEBUG', `[AI] Raw OpenAI response preview: ${preview}`);
-      } catch (e) {
-        logWithLevel('DEBUG', `[AI] Raw OpenAI response could not be stringified`);
-      }
-      let content = String(raw).trim();
-      if (content.startsWith("```json")) content = content.replace(/^```json/, "").replace(/```$/, "").trim();
-      if (content.startsWith("```")) content = content.replace(/^```/, "").replace(/```$/, "").trim();
-      openaiJson = JSON.parse(content);
-    } catch (e) {
-      logWithLevel("ERROR", `[OPENAI] Failed to parse JSON response: ${e}`);
-      return { error: "OpenAI response not valid JSON", raw: response.choices[0].message.content } as any;
-    }
-    const normalizedOpen = normalizeToMaintenanceAiResult(openaiJson, item.name, oneWeekFromToday);
-    const validOpen = validateMaintenanceAi(normalizedOpen);
-    if (!validOpen) {
-      logWithLevel('ERROR', `[AI] Validation failed for OpenAI-normalized output: ${JSON.stringify(validateMaintenanceAi.errors)}`);
-      const diag: any = { error: 'Normalized result failed schema validation', validationErrors: validateMaintenanceAi.errors, normalized: normalizedOpen };
-      if (process.env.MAINT_AI_INCLUDE_RAW === 'true') diag.raw = response;
-      pushDiagnostic({ provider: 'openai', itemName: item.name, ...diag });
-      return diag as any;
-    }
-    return normalizedOpen;
   }
+
+  return {
+    error: "All providers failed",
+    itemName: item.name,
+    message: lastFailure,
+    _meta: {
+      providerUsed: primaryProvider,
+      fallbackUsed: true,
+      repaired: false,
+    },
+  } as any;
 }
 
 export async function generateCategoryMaintenanceSchedules(items: CatalogItem[]): Promise<any[]> {
@@ -343,7 +467,21 @@ export async function generateCategoryMaintenanceSchedules(items: CatalogItem[])
   oneWeekFromToday.setDate(oneWeekFromToday.getDate() + 7);
   const oneWeek = normalizeDateOnly(oneWeekFromToday.toISOString()) as string;
   for (const item of items) {
-    const result = await generateMaintenanceSchedule(item);
+    let result: any;
+    try {
+      result = await generateMaintenanceSchedule(item);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logWithLevel("ERROR", `[AI] Failed to generate maintenance schedule for ${item.name}: ${errorMessage}`);
+      result = {
+        error: "Provider request failed after retries",
+        itemId: item.id,
+        itemName: item.name,
+        message: errorMessage,
+      };
+      results.push(result);
+      continue;
+    }
     // Ensure nextMaintenanceDates entries are at least a week from today
     try {
       const minor = normalizeDateOnly(result?.nextMaintenanceDates?.minor);

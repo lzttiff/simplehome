@@ -53,6 +53,34 @@ export default function Dashboard() {
   const [includeMinor, setIncludeMinor] = useState(true);
   const [includeMajor, setIncludeMajor] = useState(true);
 
+  const fetchWithBackoff = async (url: string, init: RequestInit, maxAttempts = 3): Promise<Response> => {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(url, init);
+        if (response.ok) {
+          return response;
+        }
+
+        // Retry only transient server/provider failures.
+        if (![408, 425, 429, 500, 502, 503, 504].includes(response.status) || attempt === maxAttempts) {
+          return response;
+        }
+      } catch (error) {
+        lastError = error;
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+      }
+
+      const jitter = Math.floor(Math.random() * 200);
+      const delayMs = 700 * (2 ** (attempt - 1)) + jitter;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    throw lastError ?? new Error("Request failed after retries");
+  };
+
   const { data: user } = useQuery<User>({
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
@@ -206,7 +234,7 @@ export default function Dashboard() {
         }))
       }];
 
-      const response = await fetch('/api/category-schedule', {
+      const response = await fetchWithBackoff('/api/category-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ householdCatalog }),
@@ -235,8 +263,19 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       
       // Show success message
-      const updatedCount = result.updatedCount || categoryTasks.length;
-      alert(`AI schedule generated for ${categoryName}! ${updatedCount} items updated.`);
+      const summary = result?.summary;
+      const updatedCount = summary?.updated ?? result.updatedCount ?? categoryTasks.length;
+      const failedCount = summary?.failed ?? 0;
+      const fallbackUsed = summary?.fallbackUsed ?? 0;
+      const repaired = summary?.repaired ?? 0;
+
+      let message = `AI schedule finished for ${categoryName}: ${updatedCount} updated`;
+      if (failedCount > 0) message += `, ${failedCount} failed`;
+      if (fallbackUsed > 0) message += `, ${fallbackUsed} used fallback provider`;
+      if (repaired > 0) message += `, ${repaired} auto-repaired`;
+      message += ".";
+
+      alert(message);
     } catch (error) {
       // Don't show error if request was aborted
       if (error instanceof Error && error.name === 'AbortError') {

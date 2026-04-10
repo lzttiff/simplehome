@@ -360,12 +360,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import AI service (dynamic ESM import)
       const { generateCategoryMaintenanceSchedules } = await import("./services/maintenanceAi");
       const results = await generateCategoryMaintenanceSchedules(items as any);
+
+      const itemStatuses: Array<{
+        itemId: string;
+        itemName: string;
+        status: "updated" | "failed" | "skipped";
+        providerUsed: string | null;
+        fallbackUsed: boolean;
+        repaired: boolean;
+        error: string | null;
+      }> = [];
       
       // Update stored tasks with AI results
       let updatedCount = 0;
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const result = results[i];
+        const meta = (result && typeof result === "object") ? (result as any)._meta : undefined;
+
+        if (!result) {
+          itemStatuses.push({
+            itemId: item.id,
+            itemName: item.name,
+            status: "skipped",
+            providerUsed: null,
+            fallbackUsed: false,
+            repaired: false,
+            error: "No result returned",
+          });
+          continue;
+        }
         
         if (result && !result.error && item.id) {
           try {
@@ -407,15 +431,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await storage.updateMaintenanceTask(item.id, updates, null);
               updatedCount++;
               logWithLevel("INFO", `Updated task ${item.id} (${item.name}) with AI schedule data`);
+              itemStatuses.push({
+                itemId: item.id,
+                itemName: item.name,
+                status: "updated",
+                providerUsed: meta?.providerUsed ?? provider ?? null,
+                fallbackUsed: !!meta?.fallbackUsed,
+                repaired: !!meta?.repaired,
+                error: null,
+              });
+            } else {
+              itemStatuses.push({
+                itemId: item.id,
+                itemName: item.name,
+                status: "skipped",
+                providerUsed: meta?.providerUsed ?? provider ?? null,
+                fallbackUsed: !!meta?.fallbackUsed,
+                repaired: !!meta?.repaired,
+                error: "No update payload generated",
+              });
             }
           } catch (error) {
             logWithLevel("ERROR", `Failed to update task ${item.id}: ${error}`);
+            itemStatuses.push({
+              itemId: item.id,
+              itemName: item.name,
+              status: "failed",
+              providerUsed: meta?.providerUsed ?? provider ?? null,
+              fallbackUsed: !!meta?.fallbackUsed,
+              repaired: !!meta?.repaired,
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
+        } else {
+          itemStatuses.push({
+            itemId: item.id,
+            itemName: item.name,
+            status: "failed",
+            providerUsed: meta?.providerUsed ?? provider ?? null,
+            fallbackUsed: !!meta?.fallbackUsed,
+            repaired: !!meta?.repaired,
+            error: result?.error || "Unknown AI generation error",
+          });
         }
       }
       
       logWithLevel("INFO", `Updated ${updatedCount} tasks out of ${items.length} with AI schedule data`);
-      res.json({ results, updatedCount });
+      const failedCount = itemStatuses.filter((s) => s.status === "failed").length;
+      const fallbackUsedCount = itemStatuses.filter((s) => s.fallbackUsed).length;
+      const repairedCount = itemStatuses.filter((s) => s.repaired).length;
+
+      res.json({
+        results,
+        updatedCount,
+        itemStatuses,
+        summary: {
+          total: items.length,
+          updated: updatedCount,
+          failed: failedCount,
+          fallbackUsed: fallbackUsedCount,
+          repaired: repairedCount,
+        },
+      });
     } catch (error) {
       console.error("AI schedule error:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to generate maintenance schedules";
