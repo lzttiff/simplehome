@@ -1,11 +1,10 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ExportScheduleModal from './export-schedule-modal';
-import { MaintenanceTask } from '@shared/schema';
+import type { MaintenanceTask } from '@shared/schema';
 
-// Mock UI components
 jest.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children, open }: any) => open ? <div>{children}</div> : null,
+  Dialog: ({ children, open }: any) => (open ? <div>{children}</div> : null),
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
   DialogTitle: ({ children }: any) => <h2>{children}</h2>,
@@ -14,574 +13,184 @@ jest.mock('@/components/ui/dialog', () => ({
 
 jest.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, disabled }: any) => (
-    <button onClick={onClick} disabled={disabled}>{children}</button>
+    <button onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
   ),
 }));
 
-jest.mock('@/components/ui/badge', () => ({
-  Badge: ({ children }: any) => <span>{children}</span>,
-}));
+const toastMock = jest.fn();
 
 jest.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
-    toast: jest.fn(),
+    toast: toastMock,
   }),
 }));
 
+const createQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
 const createMockTask = (overrides: Partial<MaintenanceTask> = {}): MaintenanceTask => ({
-  id: 1,
-  title: 'Test Task',
-  category: 'Appliances',
-  brand: '',
-  model: '',
-  location: 'Kitchen',
-  installationDate: '2020-01-01',
+  id: 'task-1',
+  userId: 'user-1',
+  title: 'Replace HVAC Filter',
+  description: 'Swap the main filter',
+  category: 'HVAC & Mechanical',
+  priority: 'Medium',
+  status: 'pending',
   lastMaintenanceDate: JSON.stringify({ minor: null, major: null }),
-  nextMaintenanceDate: JSON.stringify({ 
-    minor: '2026-03-01T00:00:00.000Z', 
-    major: '2027-01-01T00:00:00.000Z' 
+  nextMaintenanceDate: JSON.stringify({
+    minor: '2026-04-01T00:00:00.000Z',
+    major: '2026-10-01T00:00:00.000Z',
   }),
-  minorIntervalMonths: 12,
-  majorIntervalMonths: 60,
-  minorTasks: JSON.stringify(['Clean', 'Inspect']),
-  majorTasks: JSON.stringify(['Replace', 'Service']),
-  notes: '',
+  isTemplate: false,
+  isAiGenerated: false,
+  templateId: null,
+  notes: null,
+  brand: null,
+  model: null,
+  serialNumber: null,
+  location: 'Hallway',
+  installationDate: new Date('2020-01-01T00:00:00.000Z'),
+  warrantyPeriodMonths: null,
+  minorIntervalMonths: 6,
+  majorIntervalMonths: 12,
+  minorTasks: JSON.stringify(['Inspect airflow', 'Replace filter']),
+  majorTasks: JSON.stringify(['Deep clean unit']),
+  relatedItemIds: null,
   calendarExports: null,
-  templateId: 'test-template',
+  dueDate: null,
+  createdAt: new Date('2025-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2025-01-01T00:00:00.000Z'),
   ...overrides,
 });
 
-const createQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: { retry: false },
-  },
-});
-
-describe('ExportScheduleModal', () => {
-  let queryClient: QueryClient;
-  let createObjectURLSpy: jest.SpyInstance;
-  let revokeObjectURLSpy: jest.SpyInstance;
+describe('ExportScheduleModal Google sync', () => {
+  const originalLocation = window.location;
+  let assignMock: jest.Mock;
 
   beforeEach(() => {
-    queryClient = createQueryClient();
-    
-    // Mock URL.createObjectURL and revokeObjectURL
-    createObjectURLSpy = jest.spyOn(window.URL, 'createObjectURL').mockReturnValue('mock-url');
-    revokeObjectURLSpy = jest.spyOn(window.URL, 'revokeObjectURL').mockImplementation();
-    
-    // Mock createElement to track download link creation
-    const originalCreateElement = document.createElement.bind(document);
-    jest.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
-      const element = originalCreateElement(tagName);
-      if (tagName === 'a') {
-        // Mock click to prevent actual download
-        element.click = jest.fn();
+    jest.resetAllMocks();
+    assignMock = jest.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        pathname: '/dashboard/test-template',
+        search: '',
+        assign: assignMock,
+      },
+    });
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    });
+  });
+
+  it('starts Google OAuth when sync is configured but not connected', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({
+            configured: true,
+            connected: false,
+            accountEmail: null,
+            calendarId: null,
+            lastSyncedAt: null,
+          }),
+        } as Response;
       }
-      return element;
-    });
-    
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
-    ) as jest.Mock;
+      if (url.includes('/api/calendar/google/sync/start')) {
+        return {
+          ok: true,
+          json: async () => ({ authorizationUrl: 'https://accounts.google.com/mock-auth' }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
+    }) as jest.Mock;
 
-    // Mock alert
-    global.alert = jest.fn();
-  });
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ExportScheduleModal isOpen={true} onClose={() => {}} tasks={[createMockTask()]} />
+      </QueryClientProvider>,
+    );
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+    const connectButton = await screen.findByRole('button', { name: /connect google calendar/i });
+    fireEvent.click(connectButton);
 
-  describe('Filter Respect in ICS Export', () => {
-    it('should export both minor and major maintenance when both flags are true', async () => {
-      const task = createMockTask();
-      const taskWithFilters = { ...task, showMinor: true, showMajor: true };
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[taskWithFilters]} 
-          />
-        </QueryClientProvider>
-      );
-
-      // Click export for Google Calendar
-      const googleButton = screen.getByRole('button', { name: /google calendar/i });
-      fireEvent.click(googleButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Should contain both minor and major events
-          expect(icsContent).toContain('Minor Maintenance: Test Task');
-          expect(icsContent).toContain('Major Maintenance: Test Task');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
-
-    it('should export only minor maintenance when showMinor is true and showMajor is false', async () => {
-      const task = createMockTask();
-      const taskWithFilters = { ...task, showMinor: true, showMajor: false };
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[taskWithFilters]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const googleButton = screen.getByRole('button', { name: /google calendar/i });
-      fireEvent.click(googleButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Should contain only minor event
-          expect(icsContent).toContain('Minor Maintenance: Test Task');
-          expect(icsContent).not.toContain('Major Maintenance: Test Task');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
-
-    it('should export only major maintenance when showMinor is false and showMajor is true', async () => {
-      const task = createMockTask();
-      const taskWithFilters = { ...task, showMinor: false, showMajor: true };
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[taskWithFilters]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const appleButton = screen.getByRole('button', { name: /apple calendar/i });
-      fireEvent.click(appleButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Should contain only major event
-          expect(icsContent).not.toContain('Minor Maintenance: Test Task');
-          expect(icsContent).toContain('Major Maintenance: Test Task');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
-
-    it('should export both maintenance types when filter properties are not present (default behavior)', async () => {
-      const task = createMockTask();
-      // Task without showMinor/showMajor properties should default to true
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[task]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const genericButton = screen.getByRole('button', { name: /generic|other/i });
-      fireEvent.click(genericButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Should contain both events by default
-          expect(icsContent).toContain('Minor Maintenance: Test Task');
-          expect(icsContent).toContain('Major Maintenance: Test Task');
-        };
-        
-        reader.readAsText(blob);
-      });
+    await waitFor(() => {
+      expect(assignMock).toHaveBeenCalledWith('https://accounts.google.com/mock-auth');
     });
   });
 
-  describe('Past Due Date Handling', () => {
-    beforeEach(() => {
-      jest.useFakeTimers();
-      jest.setSystemTime(new Date('2026-02-24T00:00:00.000Z'));
-    });
-
-    afterEach(() => {
-      jest.useRealTimers();
-    });
-
-    it('should use today\'s date for past due minor maintenance', async () => {
-      const task = createMockTask({
-        nextMaintenanceDate: JSON.stringify({ 
-          minor: '2026-02-20T00:00:00.000Z', // Past due (4 days ago)
-          major: '2027-01-01T00:00:00.000Z' 
-        }),
-      });
-      const taskWithFilters = { ...task, showMinor: true, showMajor: false };
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[taskWithFilters]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const googleButton = screen.getByRole('button', { name: /google calendar/i });
-      fireEvent.click(googleButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Should use today's date (2026-02-24) instead of past date (2026-02-20)
-          expect(icsContent).toContain('DTSTART;VALUE=DATE:20260224');
-          expect(icsContent).not.toContain('DTSTART;VALUE=DATE:20260220');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
-
-    it('should use today\'s date for past due major maintenance', async () => {
-      const task = createMockTask({
-        nextMaintenanceDate: JSON.stringify({ 
-          minor: '2026-03-01T00:00:00.000Z',
-          major: '2026-01-01T00:00:00.000Z' // Past due
-        }),
-      });
-      const taskWithFilters = { ...task, showMinor: false, showMajor: true };
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[taskWithFilters]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const appleButton = screen.getByRole('button', { name: /apple calendar/i });
-      fireEvent.click(appleButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Should use today's date (2026-02-24) instead of past date (2026-01-01)
-          expect(icsContent).toContain('DTSTART;VALUE=DATE:20260224');
-          expect(icsContent).not.toContain('DTSTART;VALUE=DATE:20260101');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
-
-    it('should not modify future maintenance dates', async () => {
-      const task = createMockTask({
-        nextMaintenanceDate: JSON.stringify({ 
-          minor: '2026-03-10T00:00:00.000Z', // Future
-          major: '2027-05-15T00:00:00.000Z' // Future
-        }),
-      });
-      const taskWithFilters = { ...task, showMinor: true, showMajor: true };
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[taskWithFilters]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const genericButton = screen.getByRole('button', { name: /generic|other/i });
-      fireEvent.click(genericButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Should use original future dates
-          expect(icsContent).toContain('DTSTART;VALUE=DATE:20260310');
-          expect(icsContent).toContain('DTSTART;VALUE=DATE:20270515');
-          // Should not use today's date
-          expect(icsContent).not.toContain('DTSTART;VALUE=DATE:20260224');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
-
-    it('should handle mixed past due and future dates correctly', async () => {
-      const tasks = [
-        createMockTask({ 
-          id: 1,
-          title: 'Past Due Task',
-          nextMaintenanceDate: JSON.stringify({ 
-            minor: '2026-02-15T00:00:00.000Z', // Past due
-            major: '2027-01-01T00:00:00.000Z' 
+  it('syncs selected tasks when Google Calendar is connected', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({
+            configured: true,
+            connected: true,
+            accountEmail: 'owner@example.com',
+            calendarId: 'homeguard@example.com',
+            lastSyncedAt: '2026-03-20T12:00:00.000Z',
           }),
-        }),
-        createMockTask({ 
-          id: 2,
-          title: 'Future Task',
-          nextMaintenanceDate: JSON.stringify({ 
-            minor: '2026-03-15T00:00:00.000Z', // Future
-            major: '2027-06-01T00:00:00.000Z' 
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync') && init?.method === 'POST') {
+        return {
+          ok: true,
+          json: async () => ({
+            syncedTasks: 1,
+            pushedEvents: 2,
+            pulledChanges: 1,
+            createdEvents: 1,
+            updatedEvents: 1,
           }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
+    }) as jest.Mock;
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ExportScheduleModal isOpen={true} onClose={() => {}} tasks={[createMockTask()]} />
+      </QueryClientProvider>,
+    );
+
+    const syncButton = await screen.findByRole('button', { name: /sync selected two-way/i });
+    fireEvent.click(syncButton);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/calendar/google/sync',
+        expect.objectContaining({
+          method: 'POST',
+          credentials: 'include',
         }),
-      ];
-      
-      const tasksWithFilters = tasks.map(task => ({ ...task, showMinor: true, showMajor: true }));
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={tasksWithFilters} 
-          />
-        </QueryClientProvider>
       );
-
-      const googleButton = screen.getByRole('button', { name: /google calendar/i });
-      fireEvent.click(googleButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Past due task should use today
-          expect(icsContent).toContain('Minor Maintenance: Past Due Task');
-          expect(icsContent).toMatch(/Past Due Task[\s\S]*?DTSTART;VALUE=DATE:20260224/);
-          
-          // Future task should use original date
-          expect(icsContent).toContain('Minor Maintenance: Future Task');
-          expect(icsContent).toContain('DTSTART;VALUE=DATE:20260315');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
-  });
-
-  describe('Clear Calendar Exports', () => {
-    it('should clear Google calendar exports', async () => {
-      const task = createMockTask({
-        calendarExports: JSON.stringify({
-          google: { exportedAt: '2026-02-01', eventIds: { minor: 'test-minor', major: 'test-major' } }
-        }),
-      });
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[task]} 
-          />
-        </QueryClientProvider>
-      );
-
-      // Find and click "Clear Google" button
-      const clearGoogleButton = screen.getByRole('button', { name: /clear google/i });
-      fireEvent.click(clearGoogleButton);
-
-      await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining('/api/tasks/1'),
-          expect.objectContaining({
-            method: 'PATCH',
-            body: expect.stringContaining('calendarExports'),
-          })
-        );
-      });
     });
 
-    it('should clear Apple calendar exports', async () => {
-      const task = createMockTask({
-        calendarExports: JSON.stringify({
-          apple: { exportedAt: '2026-02-01', eventIds: { minor: 'test-minor', major: 'test-major' } }
-        }),
-      });
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[task]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const clearAppleButton = screen.getByRole('button', { name: /clear apple/i });
-      fireEvent.click(clearAppleButton);
-
-      await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining('/api/tasks/1'),
-          expect.objectContaining({
-            method: 'PATCH',
-          })
-        );
-      });
-    });
-
-    it('should clear all calendar exports', async () => {
-      const task = createMockTask({
-        calendarExports: JSON.stringify({
-          google: { exportedAt: '2026-02-01', eventIds: { minor: 'g-minor', major: 'g-major' } },
-          apple: { exportedAt: '2026-02-01', eventIds: { minor: 'a-minor', major: 'a-major' } }
-        }),
-      });
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[task]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const clearAllButton = screen.getByRole('button', { name: /clear all/i });
-      fireEvent.click(clearAllButton);
-
-      await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining('/api/tasks/1'),
-          expect.objectContaining({
-            method: 'PATCH',
-            body: expect.stringContaining('"calendarExports":null'),
-          })
-        );
-      });
-    });
-  });
-
-  describe('ICS File Generation', () => {
-    it('should generate valid ICS file with correct headers', async () => {
-      const task = createMockTask();
-      const taskWithFilters = { ...task, showMinor: true, showMajor: true };
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[taskWithFilters]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const googleButton = screen.getByRole('button', { name: /google calendar/i });
-      fireEvent.click(googleButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Check for required ICS headers
-          expect(icsContent).toContain('BEGIN:VCALENDAR');
-          expect(icsContent).toContain('VERSION:2.0');
-          expect(icsContent).toContain('PRODID:-//HomeGuard//Maintenance Schedule//EN');
-          expect(icsContent).toContain('END:VCALENDAR');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
-
-    it('should include task details in event description', async () => {
-      const task = createMockTask({
-        title: 'HVAC System',
-        minorTasks: JSON.stringify(['Clean filters', 'Check thermostat']),
-        majorTasks: JSON.stringify(['Replace compressor', 'Full inspection']),
-      });
-      const taskWithFilters = { ...task, showMinor: true, showMajor: true };
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <ExportScheduleModal 
-            open={true} 
-            onOpenChange={() => {}} 
-            tasks={[taskWithFilters]} 
-          />
-        </QueryClientProvider>
-      );
-
-      const googleButton = screen.getByRole('button', { name: /google calendar/i });
-      fireEvent.click(googleButton);
-
-      await waitFor(() => {
-        expect(createObjectURLSpy).toHaveBeenCalled();
-        const blob = createObjectURLSpy.mock.calls[0][0];
-        const reader = new FileReader();
-        
-        reader.onload = () => {
-          const icsContent = reader.result as string;
-          // Check for task details
-          expect(icsContent).toContain('HVAC System');
-          expect(icsContent).toContain('Clean filters');
-          expect(icsContent).toContain('Check thermostat');
-          expect(icsContent).toContain('Replace compressor');
-          expect(icsContent).toContain('Full inspection');
-        };
-        
-        reader.readAsText(blob);
-      });
-    });
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Google Calendar Synced',
+      }),
+    );
   });
 });

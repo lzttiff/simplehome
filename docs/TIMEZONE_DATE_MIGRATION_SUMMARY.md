@@ -1,72 +1,129 @@
 # Timezone and Date-Only Migration Summary
 
-## Scope
+## Objective
 
-This document summarizes the timezone and maintenance-date migration work completed so far.
+Make the application multi-user timezone-safe by:
 
-The goal was to make user timezone the source of truth for date interpretation while storing maintenance schedule dates as canonical date-only values (`YYYY-MM-DD`) instead of instant timestamps.
+1. Persisting each user's IANA timezone preference.
+2. Treating maintenance schedule dates as business dates (`YYYY-MM-DD`) instead of timestamp instants.
+3. Using user/feed timezone for day-boundary logic (filtering, overdue checks, and calendar outputs).
 
-## What Changed
+## Final Design
 
-### 1. User timezone support
+### Time semantics
 
-- Added/used `timezone` on the `User` model.
-- Profile update endpoint supports timezone updates.
-- Client settings UI allows selecting and saving an IANA timezone.
-- Session/user profile refresh reflects updated timezone in subsequent requests.
+- **Instant fields** stay as UTC timestamps (for example: `createdAt`, `updatedAt`, sync metadata).
+- **Maintenance schedule fields** (`lastMaintenanceDate`, `nextMaintenanceDate`) are stored as date-only payloads in JSON:
+  - `{ minor: "YYYY-MM-DD" | null, major: "YYYY-MM-DD" | null }`
 
-Primary files:
+### Timezone source of truth
+
+- User timezone is stored on the user profile (`User.timezone`) and used in server-side calculations where day boundaries matter.
+
+## Implemented Changes
+
+### 1) User timezone model, storage, and profile update
+
+- Added timezone to shared user types and storage read/write paths.
+- Added profile endpoint support for timezone update.
+- Ensured session user refresh after profile change.
+
+Key files:
 
 - `shared/schema.ts`
 - `server/storage.ts`
 - `server/routes.ts`
+
+### 2) Client timezone settings and display behavior
+
+- Added timezone settings modal with common IANA options and browser-timezone fallback.
+- Added timezone-aware date formatting fallback for legacy timed strings.
+- Updated date picker storage conversion to output canonical date-only strings.
+
+Key files:
+
 - `client/src/components/user-settings-modal.tsx`
 - `client/src/pages/dashboard.tsx`
 
-### 2. Canonical maintenance-date storage (`YYYY-MM-DD`)
+### 3) Shared date-only utility layer
 
-- Added shared helpers for:
-  - date normalization (`normalizeDateOnly`)
-  - local date conversion (`toDateOnlyFromLocalDate`)
-  - date math (`addMonthsToDateOnly`)
-  - date comparison and day-diff logic
-  - maintenance schedule parse/serialize helpers for backward compatibility
-- Updated create/update flows to write canonical date-only schedule payloads.
-- Added normalization at storage boundary so legacy ISO payloads are normalized when persisted.
+Added shared helpers to centralize business-date logic:
 
-Primary files:
+- `normalizeDateOnly`
+- `toDateOnlyFromLocalDate`
+- `dateOnlyToUtcIsoString`
+- `addMonthsToDateOnly`
+- `compareDateOnly`
+- `dayDiffDateOnly`
+- `parseMaintenanceSchedule`
+- `serializeMaintenanceSchedule`
+
+Key file:
 
 - `shared/schema.ts`
-- `server/storage.ts`
+
+### 4) Client write paths migrated to date-only
+
+- Add Task, Edit Task, and Task completion flows now serialize maintenance schedules via shared date-only helpers.
+- Next maintenance date calculations now use date-only month math.
+
+Key files:
+
 - `client/src/components/add-task-modal.tsx`
 - `client/src/components/edit-task-modal.tsx`
 - `client/src/components/task-card.tsx`
+
+### 5) Client filter/sort logic migrated to date-only
+
+- Dashboard date filtering and next-date sorting now compare date-only values directly.
+- Avoids timezone drift from instant parsing.
+
+Key file:
+
 - `client/src/pages/dashboard.tsx`
 
-### 3. Calendar and stats behavior aligned to timezone semantics
+### 6) Storage boundary normalization
 
-- Google and Apple feed token payloads include timezone.
-- ICS generation uses payload timezone and date-only values.
-- Past-due stats now evaluate "today" by authenticated user timezone.
-- Google two-way sync schedule handling now keeps canonical date-only schedule values.
+- Maintenance schedule blobs are normalized on create/update in storage.
+- Legacy ISO-shaped values are accepted and converted to canonical date-only values during persistence.
 
-Primary files:
+Key file:
+
+- `server/storage.ts`
+
+### 7) Calendar feed and sync alignment
+
+- Google/Apple feed token payloads include timezone (`tz`).
+- ICS feed header timezone uses payload timezone.
+- ICS event day clamping (past-date handling) now uses feed timezone day boundary.
+- Google two-way sync now keeps canonical date-only schedule values.
+
+Key files:
 
 - `server/routes.ts`
 - `server/services/googleCalendarSync.ts`
 
-## Compatibility
+### 8) Stats overdue logic uses user timezone
 
-- Existing legacy schedule values (ISO strings) are still accepted.
-- Shared parsing logic normalizes legacy values to `YYYY-MM-DD`.
-- New writes are canonicalized so data converges over time.
+- `/api/stats` overdue checks now compute "today" in authenticated user's timezone.
 
-## Current Behavior Model
+Key file:
 
-- Keep UTC/instant timestamps for true instants (e.g., `createdAt`, `updatedAt`, sync metadata).
-- Keep maintenance business dates as date-only values (`YYYY-MM-DD`).
-- Apply user/feed timezone when evaluating day boundaries or rendering fallback timed values.
+- `server/routes.ts`
 
-## Notes
+## Backward Compatibility
 
-- Some unrelated workspace file changes existed before this commit; they were intentionally excluded from this migration commit.
+- Legacy maintenance date values (ISO strings) remain readable.
+- Shared parsing converts legacy inputs to canonical date-only outputs.
+- New writes converge data toward date-only canonical format.
+
+## Operational Notes
+
+- The timezone/date-only migration was committed separately from unrelated local changes to keep history focused.
+- Temporary reconciliation branch used for upstream history alignment was deleted after merge.
+
+## Recommended Next Validation
+
+1. Verify task add/edit/complete flows in two different user timezones.
+2. Verify dashboard filter and sort behavior around local midnight boundaries.
+3. Verify Google/Apple subscriptions render same calendar day as in-app schedule.

@@ -3,6 +3,7 @@ import { logWithLevel, LogLevel, LOG_LEVEL } from "./logWithLevel";
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { OpenAI } from "openai";
+import { normalizeDateOnly } from "../../shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "default_key"
@@ -46,6 +47,14 @@ export interface MaintenanceAiResult {
 // Exported helper so we can unit test normalization logic separately
 export function normalizeToMaintenanceAiResult(raw: any, fallbackName: string, oneWeekFromToday: Date): MaintenanceAiResult {
   const item = { name: fallbackName } as any;
+  const normalizeDateValue = (value: string | null): string | null => {
+    if (!value) return value;
+    const trimmed = value.trim();
+    if (!trimmed) return trimmed;
+
+    return normalizeDateOnly(trimmed);
+  };
+
   const out: any = {
     name: raw?.name || raw?.Name || fallbackName || "",
     nextMaintenanceDates: {
@@ -68,6 +77,9 @@ export function normalizeToMaintenanceAiResult(raw: any, fallbackName: string, o
   if (out.nextMaintenanceDates.major && typeof out.nextMaintenanceDates.major !== 'string') {
     out.nextMaintenanceDates.major = String(out.nextMaintenanceDates.major);
   }
+
+  out.nextMaintenanceDates.minor = normalizeDateValue(out.nextMaintenanceDates.minor);
+  out.nextMaintenanceDates.major = normalizeDateValue(out.nextMaintenanceDates.major);
 
   // maintenance schedule variants
   const ms = raw?.maintenanceSchedule || raw?.maintenanceScheduleRecommendation || raw?.["Maintenance Schedule"] || raw?.["MaintenanceSchedule"] || {};
@@ -99,16 +111,15 @@ export function normalizeToMaintenanceAiResult(raw: any, fallbackName: string, o
   out.maintenanceSchedule.minorIntervalMonths = parseInterval(out.maintenanceSchedule.minorIntervalMonths || '');
   out.maintenanceSchedule.majorIntervalMonths = parseInterval(out.maintenanceSchedule.majorIntervalMonths || '');
 
-  // Ensure dates are at least one week from today
-  const oneWeek = oneWeekFromToday.toISOString();
-  try {
-    const minorDate = new Date(out.nextMaintenanceDates.minor as string);
-    if (isNaN(minorDate.getTime()) || minorDate < oneWeekFromToday) out.nextMaintenanceDates.minor = oneWeek;
-  } catch {}
-  try {
-    const majorDate = new Date(out.nextMaintenanceDates.major as string);
-    if (isNaN(majorDate.getTime()) || majorDate < oneWeekFromToday) out.nextMaintenanceDates.major = oneWeek;
-  } catch {}
+  // Ensure dates are at least one week from today (date-only semantics).
+  const oneWeek = normalizeDateOnly(oneWeekFromToday.toISOString()) as string;
+  const ensureDateAtLeast = (value: string | null): string => {
+    const normalized = normalizeDateOnly(value);
+    if (!normalized || normalized < oneWeek) return oneWeek;
+    return normalized;
+  };
+  out.nextMaintenanceDates.minor = ensureDateAtLeast(out.nextMaintenanceDates.minor);
+  out.nextMaintenanceDates.major = ensureDateAtLeast(out.nextMaintenanceDates.major);
 
   return out as MaintenanceAiResult;
 }
@@ -127,8 +138,8 @@ const maintenanceAiSchema = {
       required: ['minor', 'major'],
       additionalProperties: false,
       properties: {
-        minor: { type: 'string', format: 'date-time' },
-        major: { type: 'string', format: 'date-time' }
+        minor: { type: 'string', format: 'date' },
+        major: { type: 'string', format: 'date' }
       }
     },
     maintenanceSchedule: {
@@ -199,7 +210,7 @@ CRITICAL REQUIREMENTS:
 2. majorTasks MUST be an array with at least 3-5 specific maintenance tasks
 3. Tasks must be specific to the item type (${item.name})
 4. DO NOT return empty arrays [] for minorTasks or majorTasks
-5. Use ISO 8601 for dates (e.g. 2025-12-12T00:00:00.000Z)
+5. Use YYYY-MM-DD format for dates (e.g. 2025-12-12)
 6. If a date would be in the past, set it to a date one week from today
 
 Item details:
@@ -330,27 +341,30 @@ export async function generateCategoryMaintenanceSchedules(items: CatalogItem[])
   const results: any[] = [];
   const oneWeekFromToday = new Date();
   oneWeekFromToday.setDate(oneWeekFromToday.getDate() + 7);
+  const oneWeek = normalizeDateOnly(oneWeekFromToday.toISOString()) as string;
   for (const item of items) {
     const result = await generateMaintenanceSchedule(item);
     // Ensure nextMaintenanceDates entries are at least a week from today
     try {
-      const minor = result?.nextMaintenanceDates?.minor;
+      const minor = normalizeDateOnly(result?.nextMaintenanceDates?.minor);
       if (minor) {
-        const minorDate = new Date(minor);
-        if (isNaN(minorDate.getTime()) || minorDate < oneWeekFromToday) {
-          result.nextMaintenanceDates.minor = oneWeekFromToday.toISOString();
+        if (minor < oneWeek) {
+          result.nextMaintenanceDates.minor = oneWeek;
           logWithLevel("INFO", `[AI] Adjusted nextMaintenanceDates.minor for item: ${item.name} to ${result.nextMaintenanceDates.minor}`);
         }
+      } else if (result?.nextMaintenanceDates) {
+        result.nextMaintenanceDates.minor = oneWeek;
       }
     } catch {}
     try {
-      const major = result?.nextMaintenanceDates?.major;
+      const major = normalizeDateOnly(result?.nextMaintenanceDates?.major);
       if (major) {
-        const majorDate = new Date(major);
-        if (isNaN(majorDate.getTime()) || majorDate < oneWeekFromToday) {
-          result.nextMaintenanceDates.major = oneWeekFromToday.toISOString();
+        if (major < oneWeek) {
+          result.nextMaintenanceDates.major = oneWeek;
           logWithLevel("INFO", `[AI] Adjusted nextMaintenanceDates.major for item: ${item.name} to ${result.nextMaintenanceDates.major}`);
         }
+      } else if (result?.nextMaintenanceDates) {
+        result.nextMaintenanceDates.major = oneWeek;
       }
     } catch {}
     logWithLevel("DEBUG", `[AI] Generated maintenance schedule for item: ${item.name}`);

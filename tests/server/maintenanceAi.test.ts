@@ -36,7 +36,24 @@ describe('normalizeToMaintenanceAiResult', () => {
     const out = normalizeToMaintenanceAiResult(raw, 'Pump', oneWeek);
     expect(out.maintenanceSchedule.minorTasks.length).toBeGreaterThan(0);
     expect(out.maintenanceSchedule.minorIntervalMonths).toBe('12');
-    expect(out.nextMaintenanceDates.minor).toBe(oneWeek.toISOString());
+    expect(out.nextMaintenanceDates.minor).toBe(oneWeek.toISOString().slice(0, 10));
+  });
+
+  test('normalizes mixed date strings into YYYY-MM-DD', () => {
+    const raw = {
+      name: 'Electrical Panel',
+      nextMaintenanceDates: { minor: '2029-05-27', major: '2029-05-28T15:22:00.000Z' },
+      maintenanceSchedule: {
+        minorIntervalMonths: '12',
+        minorTasks: ['Inspect breakers'],
+        majorIntervalMonths: '60',
+        majorTasks: ['Licensed panel inspection'],
+      },
+      reasoning: 'Date-only response from model',
+    };
+    const out = normalizeToMaintenanceAiResult(raw, 'Electrical Panel', oneWeek);
+    expect(out.nextMaintenanceDates.minor).toBe('2029-05-27');
+    expect(out.nextMaintenanceDates.major).toBe('2029-05-28');
   });
 });
 
