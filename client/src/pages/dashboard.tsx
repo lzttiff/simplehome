@@ -1,17 +1,26 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
-import { MaintenanceTask } from "@shared/schema";
+import {
+  compareDateOnly,
+  dayDiffDateOnly,
+  MaintenanceTask,
+  parseMaintenanceSchedule,
+  toDateOnlyFromLocalDate,
+  User,
+} from "@shared/schema";
 import { TaskStats, CategoryFilter } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, ClipboardList, Sparkles } from "lucide-react";
+import { Plus, Search, ClipboardList, Sparkles, Settings } from "lucide-react";
 import TaskCard from "@/components/task-card";
 import AddTaskModal from "@/components/add-task-modal";
 import ExportScheduleModal from "@/components/export-schedule-modal";
+import UserSettingsModal from "@/components/user-settings-modal";
+import { getQueryFn } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
 const EMPTY_TASKS: MaintenanceTask[] = [];
@@ -36,12 +45,20 @@ export default function Dashboard() {
   const [categoryFilters, setCategoryFilters] = useState<CategoryFilter[]>([]);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState<Record<string, boolean>>({});
   const [abortControllers, setAbortControllers] = useState<Record<string, AbortController>>({});
   const [sortBy, setSortBy] = useState<"default" | "nextDate">("default");
   const [dateFilter, setDateFilter] = useState<number | null>(null); // null = all, 0 = past due only, positive = past due + days
   const [includeMinor, setIncludeMinor] = useState(true);
   const [includeMajor, setIncludeMajor] = useState(true);
+
+  const { data: user } = useQuery<User>({
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    staleTime: Infinity,
+    retry: false,
+  });
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery<MaintenanceTask[]>({
     queryKey: ["/api/tasks", { search: searchTerm, templateId }],
@@ -155,21 +172,8 @@ export default function Dashboard() {
     
     try {
       const safeParseMaintenanceDate = (value: unknown) => {
-        if (!value) return { minor: null, major: null };
         if (typeof value !== "string") return { minor: null, major: null };
-        try {
-          const parsed = JSON.parse(value);
-          if (parsed && typeof parsed === "object") {
-            return {
-              minor: (parsed as any).minor ?? null,
-              major: (parsed as any).major ?? null,
-            };
-          }
-        } catch {
-          // Legacy values may be plain date strings. Use as minor date fallback.
-          return { minor: value, major: null };
-        }
-        return { minor: null, major: null };
+        return parseMaintenanceSchedule(value);
       };
 
       // Get all tasks for this category
@@ -298,20 +302,19 @@ export default function Dashboard() {
     if (!maintenanceDate) return false;
     if (dateFilter === null) return true; // Show all
     
-    try {
-      const date = new Date(maintenanceDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const daysDiff = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (dateFilter === 0) {
-        return daysDiff < 0; // Past due only
-      } else if (dateFilter > 0) {
-        return daysDiff <= dateFilter; // Past due + within specified days
-      }
-    } catch {
+    const todayDateOnly = toDateOnlyFromLocalDate(new Date());
+    const daysDiff = dayDiffDateOnly(maintenanceDate, todayDateOnly);
+    if (daysDiff === null) {
       return false;
     }
+
+    if (dateFilter === 0) {
+      return daysDiff < 0; // Past due only
+    }
+    if (dateFilter > 0) {
+      return daysDiff <= dateFilter; // Past due + within specified days
+    }
+
     return false;
   };
 
@@ -386,18 +389,18 @@ export default function Dashboard() {
   const sortedTasks = [...dateFilteredTasks].sort((a, b) => {
     if (sortBy === "nextDate") {
       // Get the closer nextMaintenanceDate for each task
-      const getCloserDate = (task: MaintenanceTask): Date | null => {
+      const getCloserDate = (task: MaintenanceTask): string | null => {
         try {
           if (!task.nextMaintenanceDate) return null;
-          const nextDates = JSON.parse(task.nextMaintenanceDate);
-          const minorDate = nextDates.minor ? new Date(nextDates.minor) : null;
-          const majorDate = nextDates.major ? new Date(nextDates.major) : null;
+          const nextDates = parseMaintenanceSchedule(task.nextMaintenanceDate);
+          const minorDate = nextDates.minor;
+          const majorDate = nextDates.major;
           
           if (!minorDate && !majorDate) return null;
           if (!minorDate) return majorDate;
           if (!majorDate) return minorDate;
           
-          return minorDate < majorDate ? minorDate : majorDate;
+          return compareDateOnly(minorDate, majorDate) <= 0 ? minorDate : majorDate;
         } catch {
           return null;
         }
@@ -411,7 +414,7 @@ export default function Dashboard() {
       if (!dateA) return 1;
       if (!dateB) return -1;
       
-      return dateA.getTime() - dateB.getTime();
+      return compareDateOnly(dateA, dateB);
     }
     return 0; // Default: maintain original order
   });
@@ -445,6 +448,15 @@ export default function Dashboard() {
               </div>
             </nav>
             <div className="flex items-center space-x-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSettingsModal(true)}
+                title="User settings"
+                className="text-gray-600 hover:text-gray-900"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
               <Button onClick={() => setShowAddTaskModal(true)} className="bg-primary text-white hover:bg-blue-700" title="Add a new custom maintenance item or task">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Item / Task
@@ -716,6 +728,13 @@ export default function Dashboard() {
           tasks={sortedTasks}
         />
       )}
+
+      <UserSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        currentTimezone={user?.timezone ?? null}
+        currentName={user?.name ?? ""}
+      />
     </div>
   );
 }

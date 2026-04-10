@@ -21,6 +21,9 @@ import { storage } from "./storage";
 import { 
   insertMaintenanceTaskSchema, 
   insertQuestionnaireResponseSchema,
+  compareDateOnly,
+  normalizeDateOnly,
+  toDateOnlyFromLocalDate,
   validateInsertMaintenanceTask,
   validateInsertQuestionnaireResponse,
   registerSchema,
@@ -38,6 +41,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
+import {
+  createGoogleCalendarAuthorizationUrl,
+  deleteGoogleCalendarEventsForTask,
+  disconnectGoogleCalendar,
+  getGoogleCalendarSyncStatus,
+  handleGoogleCalendarOAuthCallback,
+  runGoogleCalendarTwoWaySync,
+} from "./services/googleCalendarSync";
 import passport from "passport";
 import { requireAuth, hashPassword } from "./auth";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
@@ -52,6 +63,7 @@ type CalendarSelection = {
 type ParsedCalendarPayload = {
   v: number;
   exp: number;
+  tz?: string;
   items: Array<{ i: string; m: 0 | 1; M: 0 | 1 }>;
 };
 
@@ -122,6 +134,24 @@ function formatICSDate(date: Date, dateOnly: boolean = false): string {
   const minutes = String(date.getUTCMinutes()).padStart(2, "0");
   const seconds = String(date.getUTCSeconds()).padStart(2, "0");
   return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+}
+
+function formatICSDateOnly(dateOnly: string): string {
+  return dateOnly.replace(/-/g, "");
+}
+
+function getTodayDateOnlyInTimezone(timezone: string): string {
+  try {
+    const formatted = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    return normalizeDateOnly(formatted) ?? toDateOnlyFromLocalDate(new Date());
+  } catch {
+    return toDateOnlyFromLocalDate(new Date());
+  }
 }
 
 function isLikelyPrivateHost(host: string): boolean {
@@ -213,7 +243,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(safeUser);
   });
 
-  // Helper: get userId from authenticated request (null if not logged in)
+  app.patch("/api/user/profile", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { name, timezone } = req.body ?? {};
+
+      const allowed: { name?: string; timezone?: string | null } = {};
+      if (typeof name === "string" && name.trim()) allowed.name = name.trim();
+      if (timezone !== undefined) {
+        // Accept either a valid IANA string or null to clear
+        if (timezone === null || typeof timezone === "string") {
+          allowed.timezone = timezone || null;
+        }
+      }
+
+      if (Object.keys(allowed).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+
+      const updated = await storage.updateUserProfile(userId, allowed);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+
+      // Refresh the session user so req.user reflects the new timezone going forward
+      const { passwordHash: _pw, ...safeUser } = updated;
+      req.login(updated, (err) => {
+        if (err) return res.status(500).json({ message: "Session refresh failed" });
+        res.json(safeUser);
+      });
+    } catch (error) {
+      console.error("Update profile error:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   const getUserId = (req: express.Request): string | null => {
     return req.isAuthenticated() ? (req.user as User).id : null;
   };
@@ -421,6 +483,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
+      // Fetch the task first so we can clean up Google Calendar events before deletion.
+      const task = await storage.getMaintenanceTask(req.params.id, userId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      // Best-effort removal of associated Google Calendar events.
+      try {
+        await deleteGoogleCalendarEventsForTask(req, task);
+      } catch {
+        // Don't let GCal cleanup failure prevent task deletion.
+      }
       const deleted = await storage.deleteMaintenanceTask(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ message: "Task not found" });
@@ -463,6 +536,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/calendar/google/sync/status", requireAuth, async (req, res) => {
+    try {
+      const status = await getGoogleCalendarSyncStatus(req);
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Failed to load Google Calendar sync status" });
+    }
+  });
+
+  app.post("/api/calendar/google/sync/start", requireAuth, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        returnPath: z.string().optional(),
+      });
+      const { returnPath } = bodySchema.parse(req.body ?? {});
+      const userId = (req.user as User | undefined)?.id || "unknown";
+      console.log(
+        `[GOOGLE_OAUTH_START] userId=${userId} returnPath=${returnPath || "/"} hasSession=${!!req.session} sessionId=${(req.session as any)?.id || "n/a"}`,
+      );
+      const authorizationUrl = createGoogleCalendarAuthorizationUrl(req, returnPath);
+      res.json({ authorizationUrl });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Failed to start Google Calendar authorization" });
+    }
+  });
+
+  app.get("/api/calendar/google/oauth/callback", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User | undefined)?.id || "unknown";
+      const hasCode = typeof req.query.code === "string";
+      const hasState = typeof req.query.state === "string";
+      const sessionOAuth = (req.session as any)?.googleCalendarOAuth;
+      console.log(
+        `[GOOGLE_OAUTH_CALLBACK] userId=${userId} hasCode=${hasCode} hasState=${hasState} hasSessionOAuth=${!!sessionOAuth} stateMatch=${hasState && !!sessionOAuth?.state ? req.query.state === sessionOAuth.state : false}`,
+      );
+      const returnPath = await handleGoogleCalendarOAuthCallback(req);
+      const separator = returnPath.includes("?") ? "&" : "?";
+      console.log(`[GOOGLE_OAUTH_CALLBACK_OK] userId=${userId} returnPath=${returnPath}`);
+      res.redirect(`${returnPath}${separator}googleCalendar=connected`);
+    } catch (error: any) {
+      const userId = (req.user as User | undefined)?.id || "unknown";
+      console.error(`[GOOGLE_OAUTH_CALLBACK_FAIL] userId=${userId} message=${error?.message || "unknown error"}`);
+      const message = encodeURIComponent(error?.message || "Google Calendar connection failed");
+      res.redirect(`/?googleCalendarError=${message}`);
+    }
+  });
+
+  app.get("/api/calendar/google/debug", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User | undefined)?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const connection = await storage.getGoogleCalendarConnection(userId);
+      const sessionOAuth = (req.session as any)?.googleCalendarOAuth;
+
+      res.json({
+        userId,
+        callbackQuery: {
+          hasCode: typeof req.query.code === "string",
+          hasState: typeof req.query.state === "string",
+        },
+        session: {
+          hasSession: !!req.session,
+          hasOAuthState: !!sessionOAuth?.state,
+          returnPath: sessionOAuth?.returnPath || null,
+        },
+        connection: {
+          exists: !!connection,
+          accountEmail: connection?.email || null,
+          calendarId: connection?.calendarId || null,
+          hasAccessToken: !!connection?.accessToken,
+          hasRefreshToken: !!connection?.refreshToken,
+          lastSyncedAt: connection?.lastSyncedAt ? connection.lastSyncedAt.toISOString() : null,
+          updatedAt: connection?.updatedAt ? connection.updatedAt.toISOString() : null,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Failed to load Google debug state" });
+    }
+  });
+
+  app.post("/api/calendar/google/sync", requireAuth, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        selections: z
+          .array(
+            z.object({
+              taskId: z.string().min(1),
+              includeMinor: z.boolean().default(true),
+              includeMajor: z.boolean().default(true),
+            }),
+          )
+          .min(1),
+      });
+
+      const { selections } = bodySchema.parse(req.body);
+      const outcome = await runGoogleCalendarTwoWaySync(
+        req,
+        selections
+          .map((selection) => ({
+            taskId: selection.taskId,
+            includeMinor: !!selection.includeMinor,
+            includeMajor: !!selection.includeMajor,
+          }))
+          .filter((selection) => selection.includeMinor || selection.includeMajor),
+      );
+      res.json(outcome);
+    } catch (error: any) {
+      const status = error?.message?.includes("not connected") ? 409 : 500;
+      res.status(status).json({ message: error?.message || "Google Calendar sync failed" });
+    }
+  });
+
+  app.post("/api/calendar/google/disconnect", requireAuth, async (req, res) => {
+    try {
+      await disconnectGoogleCalendar(req);
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Failed to disconnect Google Calendar" });
+    }
+  });
+
   // Google calendar subscription feed: issue signed token for selected tasks.
   app.post("/api/calendar/google/feed-token", async (req, res) => {
     try {
@@ -494,6 +691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const payload: ParsedCalendarPayload = {
         v: 1,
         exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 180, // 180 days
+        tz: req.isAuthenticated() ? ((req.user as User).timezone ?? "UTC") : "UTC",
         items: normalized.map((s) => ({
           i: s.taskId,
           m: (s.includeMinor ? 1 : 0) as 0 | 1,
@@ -591,6 +789,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const tasks = await Promise.all(parsed.items.map((item) => storage.getMaintenanceTask(item.i, null)));
     const now = new Date();
+    const feedTimezone = parsed.tz || "UTC";
+    const todayDateOnly = getTodayDateOnlyInTimezone(feedTimezone);
     let eventCount = 0;
 
     const ics: string[] = [
@@ -600,7 +800,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
       "X-WR-CALNAME:HomeGuard Maintenance Schedule",
-      "X-WR-TIMEZONE:UTC",
+      `X-WR-TIMEZONE:${parsed.tz || "UTC"}`,
     ];
 
     for (let idx = 0; idx < parsed.items.length; idx++) {
@@ -616,8 +816,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (item.m && next.minor) {
-        const dt = new Date(next.minor);
-        const eventDate = dt < now ? now : dt;
+        const dateOnly = normalizeDateOnly(next.minor);
+        if (!dateOnly) {
+          continue;
+        }
+        const eventDateOnly = compareDateOnly(dateOnly, todayDateOnly) < 0 ? todayDateOnly : dateOnly;
         const minorTasks = task.minorTasks ? JSON.parse(task.minorTasks) : [];
         const description =
           Array.isArray(minorTasks) && minorTasks.length > 0
@@ -628,7 +831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "BEGIN:VEVENT",
           `UID:${uid}`,
           `DTSTAMP:${formatICSDate(new Date())}`,
-          `DTSTART;VALUE=DATE:${formatICSDate(eventDate, true)}`,
+          `DTSTART;VALUE=DATE:${formatICSDateOnly(eventDateOnly)}`,
           `SUMMARY:Minor Maintenance: ${task.title}`,
           `DESCRIPTION:${description.replace(/\n/g, "\\n")}`,
           `CATEGORIES:${task.category}`,
@@ -639,8 +842,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (item.M && next.major) {
-        const dt = new Date(next.major);
-        const eventDate = dt < now ? now : dt;
+        const dateOnly = normalizeDateOnly(next.major);
+        if (!dateOnly) {
+          continue;
+        }
+        const eventDateOnly = compareDateOnly(dateOnly, todayDateOnly) < 0 ? todayDateOnly : dateOnly;
         const majorTasks = task.majorTasks ? JSON.parse(task.majorTasks) : [];
         const description =
           Array.isArray(majorTasks) && majorTasks.length > 0
@@ -651,7 +857,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "BEGIN:VEVENT",
           `UID:${uid}`,
           `DTSTAMP:${formatICSDate(new Date())}`,
-          `DTSTART;VALUE=DATE:${formatICSDate(eventDate, true)}`,
+          `DTSTART;VALUE=DATE:${formatICSDateOnly(eventDateOnly)}`,
           `SUMMARY:Major Maintenance: ${task.title}`,
           `DESCRIPTION:${description.replace(/\n/g, "\\n")}`,
           `CATEGORIES:${task.category}`,
@@ -800,6 +1006,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const payload: ParsedCalendarPayload = {
         v: 1,
         exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 180, // 180 days
+        tz: req.isAuthenticated() ? ((req.user as User).timezone ?? "UTC") : "UTC",
         items: normalized.map((s) => ({
           i: s.taskId,
           m: (s.includeMinor ? 1 : 0) as 0 | 1,
@@ -1089,11 +1296,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/stats", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
+      const userTimezone = ((req.user as User | undefined)?.timezone || "UTC");
       const filters = {
         templateId: req.query.templateId as string,
       };
       const allTasks = await storage.getMaintenanceTasks(userId, filters);
-      const now = new Date();
+      const todayDateOnly = getTodayDateOnlyInTimezone(userTimezone);
       
       const stats = {
         total: allTasks.length,
@@ -1108,10 +1316,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ? JSON.parse(t.nextMaintenanceDate) 
               : t.nextMaintenanceDate;
             
-            const minorDate = nextMaintenance.minor ? new Date(nextMaintenance.minor) : null;
-            const majorDate = nextMaintenance.major ? new Date(nextMaintenance.major) : null;
+            const minorDate = normalizeDateOnly(nextMaintenance.minor ?? null);
+            const majorDate = normalizeDateOnly(nextMaintenance.major ?? null);
             
-            return (minorDate && minorDate < now) || (majorDate && majorDate < now);
+            return (
+              (minorDate && compareDateOnly(minorDate, todayDateOnly) < 0) ||
+              (majorDate && compareDateOnly(majorDate, todayDateOnly) < 0)
+            );
           } catch {
             return false;
           }

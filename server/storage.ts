@@ -9,7 +9,9 @@ import {
   type QuestionnaireResponse,
   type InsertQuestionnaireResponse,
   type User,
-  type InsertUser
+  type InsertUser,
+  parseMaintenanceSchedule,
+  serializeMaintenanceSchedule,
 } from "@shared/schema";
 import { randomUUID, createHash } from "crypto";
 
@@ -28,7 +30,15 @@ export interface IStorage {
   createUser(user: InsertUser & { passwordHash: string }): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
+  updateUserProfile(id: string, updates: { name?: string; timezone?: string | null }): Promise<User | undefined>;
 
+  // Google Calendar Connections
+  getGoogleCalendarConnection(userId: string): Promise<GoogleCalendarConnection | undefined>;
+  upsertGoogleCalendarConnection(
+    userId: string,
+    updates: Partial<Omit<GoogleCalendarConnection, 'userId' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<GoogleCalendarConnection>;
+  deleteGoogleCalendarConnection(userId: string): Promise<boolean>;
   // Property Templates
   getPropertyTemplates(): Promise<PropertyTemplate[]>;
   getPropertyTemplate(id: string): Promise<PropertyTemplate | undefined>;
@@ -76,6 +86,26 @@ interface MongoUser extends Omit<User, 'id'> {
   id: string;
 }
 
+export interface GoogleCalendarConnection {
+  userId: string;
+  email: string | null;
+  calendarId: string | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  scope: string | null;
+  tokenType: string | null;
+  expiryDate: number | null;
+  connectedAt: Date;
+  lastSyncedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface MongoGoogleCalendarConnection extends Omit<GoogleCalendarConnection, 'userId'> {
+  _id?: ObjectId;
+  userId: string;
+}
+
 export class MongoDBStorage implements IStorage {
   private client: MongoClient;
   private db!: Db;
@@ -83,6 +113,7 @@ export class MongoDBStorage implements IStorage {
   private tasksCollection!: Collection<MongoMaintenanceTask>;
   private responsesCollection!: Collection<MongoQuestionnaireResponse>;
   private usersCollection!: Collection<MongoUser>;
+  private googleCalendarConnectionsCollection!: Collection<MongoGoogleCalendarConnection>;
   private initialized = false;
 
   constructor() {
@@ -95,6 +126,7 @@ export class MongoDBStorage implements IStorage {
     this.tasksCollection = this.db.collection<MongoMaintenanceTask>("maintenance_tasks");
     this.responsesCollection = this.db.collection<MongoQuestionnaireResponse>("questionnaire_responses");
     this.usersCollection = this.db.collection<MongoUser>("users");
+    this.googleCalendarConnectionsCollection = this.db.collection<MongoGoogleCalendarConnection>("google_calendar_connections");
   }
 
   async initialize(): Promise<void> {
@@ -111,6 +143,7 @@ export class MongoDBStorage implements IStorage {
       await this.tasksCollection.createIndex({ priority: 1 });
       await this.responsesCollection.createIndex({ sessionId: 1 }, { unique: true });
       await this.usersCollection.createIndex({ email: 1 }, { unique: true });
+      await this.googleCalendarConnectionsCollection.createIndex({ userId: 1 }, { unique: true });
       
       // Check if we need to seed data
       const templateCount = await this.templatesCollection.countDocuments();
@@ -280,163 +313,138 @@ export class MongoDBStorage implements IStorage {
       const id = randomUUID();
       await this.tasksCollection.insertOne({
         ...task,
-        id,
         userId: null,
+        calendarExports: null,
+        id,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as MongoMaintenanceTask);
-    }
-
-    // Seed template-specific tasks from bundled JSON templates
-    const templateFiles = [
-      { type: "single_family", file: "maintenance-template-singleFamilyHome.json" },
-      { type: "commercial", file: "maintenance-template-commercial.json" },
-      { type: "condo", file: "maintenance-template-condo.json" },
-      { type: "townhouse", file: "maintenance-template-townhouse.json" },
-      { type: "rental", file: "maintenance-template-rental.json" },
-    ];
-
-    for (const { type, file } of templateFiles) {
-      try {
-        const filePath = path.join(process.cwd(), file);
-        await this._seedTemplateTasksFromFile(type, filePath, templateIdMap);
-      } catch (e) {
-        // ignore failures during seeding
-      }
-    }
-
-    // Recalculate task counts
-    await this._recalculateTaskCounts();
-    console.log("Seeding complete.");
-  }
-
-  private async _seedTemplateTasksFromFile(templateType: string, filePath: string, templateIdMap: Map<string, string>): Promise<void> {
-    if (!fs.existsSync(filePath)) return;
-    
-    const raw = fs.readFileSync(filePath, "utf-8");
-    let json: any;
-    try {
-      json = JSON.parse(raw);
-    } catch (e) {
-      return;
-    }
-    
-    const householdCatalog = json.householdCatalog || [];
-    const templateId = templateIdMap.get(templateType);
-    if (!templateId) return;
-
-    for (const category of householdCatalog) {
-      const catName = category.categoryName || category.category || "General";
-      const items = Array.isArray(category.items) ? category.items : [];
-      
-      for (const item of items) {
-        const isUuid = (s: string) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
-        const id = isUuid(item.id) ? item.id : randomUUID();
-        
-        const parseDate = (dateStr: any) => {
-          if (!dateStr) return null;
-          if (dateStr instanceof Date) return dateStr;
-          if (typeof dateStr === 'string') return new Date(dateStr);
-          return null;
-        };
-        
-        const newTask: MongoMaintenanceTask = {
-          id,
-          userId: null,
-          title: item.name || "Untitled",
-          description: item.description || item.notes || "",
-          category: catName,
-          priority: item.priority || "Medium",
-          status: "pending",
-          lastMaintenanceDate: item.lastMaintenanceDate ? JSON.stringify(item.lastMaintenanceDate) : null,
-          nextMaintenanceDate: item.nextMaintenanceDate ? JSON.stringify(item.nextMaintenanceDate) : null,
-          isTemplate: true,
-          isAiGenerated: false,
-          templateId: templateId,
-          notes: item.notes ?? null,
-          brand: item.brand ?? null,
-          model: item.model ?? null,
-          serialNumber: item.serialNumber ?? null,
-          location: item.location ?? null,
-          installationDate: parseDate(item.installationDate),
-          warrantyPeriodMonths: item.warrantyPeriodMonths ?? null,
-          minorIntervalMonths: item.maintenanceSchedule?.minorIntervalMonths ?? null,
-          majorIntervalMonths: item.maintenanceSchedule?.majorIntervalMonths ?? null,
-          minorTasks: item.maintenanceSchedule?.minorTasks ? JSON.stringify(item.maintenanceSchedule.minorTasks) : null,
-          majorTasks: item.maintenanceSchedule?.majorTasks ? JSON.stringify(item.maintenanceSchedule.majorTasks) : null,
-          relatedItemIds: item.relatedItemIds ? JSON.stringify(item.relatedItemIds) : null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        
-        // Use upsert to avoid duplicates
-        await this.tasksCollection.updateOne(
-          { id },
-          { $setOnInsert: newTask },
-          { upsert: true }
-        );
-      }
+      });
     }
   }
 
-  private async _recalculateTaskCounts(): Promise<void> {
-    const templates = await this.templatesCollection.find().toArray();
-    
-    for (const template of templates) {
-      const count = await this.tasksCollection.countDocuments({ templateId: template.id });
-      await this.templatesCollection.updateOne(
-        { id: template.id },
-        { $set: { taskCount: count } }
-      );
-    }
-  }
-
-  // Convert MongoDB document to PropertyTemplate
   private toPropertyTemplate(doc: MongoPropertyTemplate): PropertyTemplate {
-    const { _id, ...rest } = doc;
-    return rest as PropertyTemplate;
+    return {
+      id: doc.id,
+      name: doc.name,
+      type: doc.type,
+      description: doc.description,
+      taskCount: doc.taskCount ?? 0,
+      createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
+    };
   }
 
-  // Convert MongoDB document to MaintenanceTask
   private toMaintenanceTask(doc: MongoMaintenanceTask): MaintenanceTask {
-    const { _id, ...rest } = doc;
-    return rest as MaintenanceTask;
+    return {
+      id: doc.id,
+      userId: doc.userId ?? null,
+      title: doc.title,
+      description: doc.description,
+      category: doc.category,
+      priority: doc.priority,
+      status: doc.status,
+      lastMaintenanceDate: doc.lastMaintenanceDate ?? null,
+      nextMaintenanceDate: doc.nextMaintenanceDate ?? null,
+      isTemplate: doc.isTemplate ?? false,
+      isAiGenerated: doc.isAiGenerated ?? false,
+      templateId: doc.templateId ?? null,
+      notes: doc.notes ?? null,
+      brand: doc.brand ?? null,
+      model: doc.model ?? null,
+      serialNumber: doc.serialNumber ?? null,
+      location: doc.location ?? null,
+      installationDate: doc.installationDate ? new Date(doc.installationDate) : null,
+      warrantyPeriodMonths: doc.warrantyPeriodMonths ?? null,
+      minorIntervalMonths: doc.minorIntervalMonths ?? null,
+      majorIntervalMonths: doc.majorIntervalMonths ?? null,
+      minorTasks: doc.minorTasks ?? null,
+      majorTasks: doc.majorTasks ?? null,
+      relatedItemIds: doc.relatedItemIds ?? null,
+      calendarExports: doc.calendarExports ?? null,
+      dueDate: doc.dueDate ? new Date(doc.dueDate) : null,
+      createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
+      updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
+    };
   }
 
-  // Convert MongoDB document to QuestionnaireResponse
   private toQuestionnaireResponse(doc: MongoQuestionnaireResponse): QuestionnaireResponse {
-    const { _id, ...rest } = doc;
-    return rest as QuestionnaireResponse;
+    return {
+      id: doc.id,
+      userId: doc.userId ?? null,
+      sessionId: doc.sessionId,
+      responses: doc.responses,
+      propertyType: doc.propertyType,
+      createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
+    };
   }
 
-  // Convert MongoDB document to User
-  private toUser(doc: MongoUser): User {
-    const { _id, ...rest } = doc;
-    return rest as User;
-  }
-
-  // --- User methods ---
   async createUser(user: InsertUser & { passwordHash: string }): Promise<User> {
-    const id = randomUUID();
     const newUser: MongoUser = {
-      id,
+      id: randomUUID(),
       email: user.email,
-      name: user.name,
       passwordHash: user.passwordHash,
+      name: user.name,
+      timezone: user.timezone ?? null,
       createdAt: new Date(),
     };
+
     await this.usersCollection.insertOne(newUser);
-    return this.toUser(newUser);
+    return {
+      id: newUser.id,
+      email: newUser.email,
+      passwordHash: newUser.passwordHash,
+      name: newUser.name,
+      timezone: newUser.timezone ?? null,
+      createdAt: newUser.createdAt,
+    };
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const doc = await this.usersCollection.findOne({ email });
-    return doc ? this.toUser(doc) : undefined;
+    if (!doc) {
+      return undefined;
+    }
+
+    return {
+      id: doc.id,
+      email: doc.email,
+      passwordHash: doc.passwordHash,
+      name: doc.name,
+      timezone: doc.timezone ?? null,
+      createdAt: new Date(doc.createdAt),
+    };
   }
 
   async getUserById(id: string): Promise<User | undefined> {
     const doc = await this.usersCollection.findOne({ id });
-    return doc ? this.toUser(doc) : undefined;
+    if (!doc) {
+      return undefined;
+    }
+
+    return {
+      id: doc.id,
+      email: doc.email,
+      passwordHash: doc.passwordHash,
+      name: doc.name,
+      timezone: doc.timezone ?? null,
+      createdAt: new Date(doc.createdAt),
+    };
+  }
+
+  async updateUserProfile(id: string, updates: { name?: string; timezone?: string | null }): Promise<User | undefined> {
+    const result = await this.usersCollection.findOneAndUpdate(
+      { id },
+      { $set: { ...updates } },
+      { returnDocument: 'after' },
+    );
+    if (!result) return undefined;
+    return {
+      id: result.id,
+      email: result.email,
+      passwordHash: result.passwordHash,
+      name: result.name,
+      timezone: result.timezone ?? null,
+      createdAt: new Date(result.createdAt),
+    };
   }
 
   async getPropertyTemplates(): Promise<PropertyTemplate[]> {
@@ -512,6 +520,72 @@ export class MongoDBStorage implements IStorage {
     });
   }
 
+
+  async getGoogleCalendarConnection(userId: string): Promise<GoogleCalendarConnection | undefined> {
+    const doc = await this.googleCalendarConnectionsCollection.findOne({ userId });
+    if (!doc) {
+      return undefined;
+    }
+
+    return {
+      userId: doc.userId,
+      email: doc.email ?? null,
+      calendarId: doc.calendarId ?? null,
+      accessToken: doc.accessToken ?? null,
+      refreshToken: doc.refreshToken ?? null,
+      scope: doc.scope ?? null,
+      tokenType: doc.tokenType ?? null,
+      expiryDate: doc.expiryDate ?? null,
+      connectedAt: new Date(doc.connectedAt),
+      lastSyncedAt: doc.lastSyncedAt ? new Date(doc.lastSyncedAt) : null,
+      createdAt: new Date(doc.createdAt),
+      updatedAt: new Date(doc.updatedAt),
+    };
+  }
+
+  async upsertGoogleCalendarConnection(
+    userId: string,
+    updates: Partial<Omit<GoogleCalendarConnection, 'userId' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<GoogleCalendarConnection> {
+    const now = new Date();
+
+    await this.googleCalendarConnectionsCollection.updateOne(
+      { userId },
+      {
+        $set: {
+          ...updates,
+          updatedAt: now,
+        },
+        $setOnInsert: {
+          userId,
+          email: null,
+          calendarId: null,
+          accessToken: null,
+          refreshToken: null,
+          scope: null,
+          tokenType: null,
+          expiryDate: null,
+          connectedAt: now,
+          lastSyncedAt: null,
+          createdAt: now,
+        },
+      },
+      { upsert: true },
+    );
+
+    const record = await this.getGoogleCalendarConnection(userId);
+    if (!record) {
+      throw new Error('Failed to persist Google Calendar connection');
+    }
+
+    return record;
+  }
+
+  async deleteGoogleCalendarConnection(userId: string): Promise<boolean> {
+    const result = await this.googleCalendarConnectionsCollection.deleteOne({ userId });
+    return result.deletedCount > 0;
+  }
+
   async getMaintenanceTask(id: string, userId: string | null): Promise<MaintenanceTask | undefined> {
     const query: any = { id };
     if (userId) {
@@ -523,13 +597,20 @@ export class MongoDBStorage implements IStorage {
 
   async createMaintenanceTask(task: InsertMaintenanceTask, userId: string | null): Promise<MaintenanceTask> {
     const id = randomUUID();
+    const normalizedLastMaintenanceDate = task.lastMaintenanceDate
+      ? serializeMaintenanceSchedule(parseMaintenanceSchedule(task.lastMaintenanceDate))
+      : null;
+    const normalizedNextMaintenanceDate = task.nextMaintenanceDate
+      ? serializeMaintenanceSchedule(parseMaintenanceSchedule(task.nextMaintenanceDate))
+      : null;
+
     const newTask: MongoMaintenanceTask = {
       ...task,
       id,
       userId: userId ?? null,
       status: task.status ?? "pending",
-      lastMaintenanceDate: task.lastMaintenanceDate ?? null,
-      nextMaintenanceDate: task.nextMaintenanceDate ?? null,
+      lastMaintenanceDate: normalizedLastMaintenanceDate,
+      nextMaintenanceDate: normalizedNextMaintenanceDate,
       isTemplate: task.isTemplate ?? false,
       isAiGenerated: task.isAiGenerated ?? false,
       templateId: task.templateId ?? null,
@@ -545,6 +626,7 @@ export class MongoDBStorage implements IStorage {
       minorTasks: task.minorTasks ?? null,
       majorTasks: task.majorTasks ?? null,
       relatedItemIds: task.relatedItemIds ?? null,
+      calendarExports: task.calendarExports ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -564,6 +646,16 @@ export class MongoDBStorage implements IStorage {
 
   async updateMaintenanceTask(id: string, updates: Partial<MaintenanceTask>, userId: string | null): Promise<MaintenanceTask | undefined> {
     const updateData = { ...updates, updatedAt: new Date() };
+    if (typeof updateData.lastMaintenanceDate === "string") {
+      updateData.lastMaintenanceDate = serializeMaintenanceSchedule(
+        parseMaintenanceSchedule(updateData.lastMaintenanceDate),
+      );
+    }
+    if (typeof updateData.nextMaintenanceDate === "string") {
+      updateData.nextMaintenanceDate = serializeMaintenanceSchedule(
+        parseMaintenanceSchedule(updateData.nextMaintenanceDate),
+      );
+    }
     delete (updateData as any).id; // Don't update id field
     delete (updateData as any)._id; // Don't update _id field
     

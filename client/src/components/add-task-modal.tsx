@@ -35,6 +35,7 @@ import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { toStorageDate } from "@/components/user-settings-modal";
 
 interface AddTaskModalProps {
   isOpen: boolean;
@@ -91,8 +92,8 @@ export default function AddTaskModal({ isOpen, onClose }: AddTaskModalProps) {
   const addTaskMutation = useMutation({
     mutationFn: async (data: FormData) => {
       const lastMaintenanceDate = JSON.stringify({
-        minor: data.lastMaintenanceDateMinor?.toISOString() || null,
-        major: data.lastMaintenanceDateMajor?.toISOString() || null,
+        minor: data.lastMaintenanceDateMinor ? toStorageDate(data.lastMaintenanceDateMinor) : null,
+        major: data.lastMaintenanceDateMajor ? toStorageDate(data.lastMaintenanceDateMajor) : null,
       });
       
       const response = await apiRequest("POST", "/api/tasks", {

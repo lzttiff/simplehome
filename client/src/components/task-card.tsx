@@ -1,16 +1,25 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MaintenanceTask } from "@shared/schema";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  addMonthsToDateOnly,
+  MaintenanceTask,
+  normalizeCalendarExports,
+  normalizeDateOnly,
+  parseMaintenanceSchedule,
+  serializeMaintenanceSchedule,
+  User,
+} from "@shared/schema";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Edit2, Trash2, Sparkles, CheckCircle2, Calendar as CalendarIcon } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import EditTaskModal from "./edit-task-modal";
+import { toStorageDate, formatDateInTimezone } from "@/components/user-settings-modal";
 
 interface TaskCardProps {
   task: MaintenanceTask;
@@ -43,6 +52,14 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: user } = useQuery<User>({
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    staleTime: Infinity,
+    retry: false,
+  });
+  const userTimezone = user?.timezone ?? null;
 
   const updateTaskMutation = useMutation({
     mutationFn: async (updates: Partial<MaintenanceTask>) => {
@@ -104,17 +121,16 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
     setIsMinorCalendarOpen(false);
     
     try {
-      const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
-      const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+      const lastMaintenance = parseMaintenanceSchedule(task.lastMaintenanceDate);
+      const nextMaintenance = parseMaintenanceSchedule(task.nextMaintenanceDate);
       
-      lastMaintenance.minor = date.toISOString();
+      lastMaintenance.minor = toStorageDate(date);
       
       // Calculate nextMaintenanceDate.minor based on formula: lastMaintenanceDate.minor + minorIntervalMonths
       if (task.minorIntervalMonths) {
-        const nextDate = new Date(date);
-        nextDate.setMonth(nextDate.getMonth() + task.minorIntervalMonths);
-        nextMaintenance.minor = nextDate.toISOString();
-        console.log('[Minor Complete] Setting next minor date to:', nextDate.toISOString(), 'from', date.toISOString(), '+', task.minorIntervalMonths, 'months');
+        const nextDateOnly = addMonthsToDateOnly(lastMaintenance.minor, task.minorIntervalMonths);
+        nextMaintenance.minor = nextDateOnly;
+        console.log('[Minor Complete] Setting next minor date to:', nextDateOnly, 'from', lastMaintenance.minor, '+', task.minorIntervalMonths, 'months');
       } else {
         console.warn('[Minor Complete] No minorIntervalMonths defined for task:', task.title);
         toast({
@@ -128,8 +144,8 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
       }
       
       const updates: Partial<MaintenanceTask> = {
-        lastMaintenanceDate: JSON.stringify(lastMaintenance),
-        nextMaintenanceDate: JSON.stringify(nextMaintenance),
+        lastMaintenanceDate: serializeMaintenanceSchedule(lastMaintenance),
+        nextMaintenanceDate: serializeMaintenanceSchedule(nextMaintenance),
       };
       
       console.log('[Minor Complete] Updating task with:', updates);
@@ -152,17 +168,16 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
     setIsMajorCalendarOpen(false);
     
     try {
-      const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
-      const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
+      const lastMaintenance = parseMaintenanceSchedule(task.lastMaintenanceDate);
+      const nextMaintenance = parseMaintenanceSchedule(task.nextMaintenanceDate);
       
-      lastMaintenance.major = date.toISOString();
+      lastMaintenance.major = toStorageDate(date);
       
       // Calculate nextMaintenanceDate.major based on formula: lastMaintenanceDate.major + majorIntervalMonths
       if (task.majorIntervalMonths) {
-        const nextDate = new Date(date);
-        nextDate.setMonth(nextDate.getMonth() + task.majorIntervalMonths);
-        nextMaintenance.major = nextDate.toISOString();
-        console.log('[Major Complete] Setting next major date to:', nextDate.toISOString(), 'from', date.toISOString(), '+', task.majorIntervalMonths, 'months');
+        const nextDateOnly = addMonthsToDateOnly(lastMaintenance.major, task.majorIntervalMonths);
+        nextMaintenance.major = nextDateOnly;
+        console.log('[Major Complete] Setting next major date to:', nextDateOnly, 'from', lastMaintenance.major, '+', task.majorIntervalMonths, 'months');
       } else {
         console.warn('[Major Complete] No majorIntervalMonths defined for task:', task.title);
         toast({
@@ -176,8 +191,8 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
       }
       
       const updates: Partial<MaintenanceTask> = {
-        lastMaintenanceDate: JSON.stringify(lastMaintenance),
-        nextMaintenanceDate: JSON.stringify(nextMaintenance),
+        lastMaintenanceDate: serializeMaintenanceSchedule(lastMaintenance),
+        nextMaintenanceDate: serializeMaintenanceSchedule(nextMaintenance),
       };
       
       console.log('[Major Complete] Updating task with:', updates);
@@ -207,8 +222,8 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
         brand: task.brand || "",
         model: task.model || "",
         installationDate: task.installationDate || "",
-        lastMaintenanceDate: task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null },
-        nextMaintenanceDate: task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null },
+        lastMaintenanceDate: parseMaintenanceSchedule(task.lastMaintenanceDate),
+        nextMaintenanceDate: parseMaintenanceSchedule(task.nextMaintenanceDate),
         location: task.location || "",
         notes: task.notes || ""
       };
@@ -230,9 +245,9 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
       const updates: any = {};
       
       if (result.nextMaintenanceDates) {
-        updates.nextMaintenanceDate = JSON.stringify({
-          minor: result.nextMaintenanceDates.minor || null,
-          major: result.nextMaintenanceDates.major || null
+        updates.nextMaintenanceDate = serializeMaintenanceSchedule({
+          minor: normalizeDateOnly(result.nextMaintenanceDates.minor || null),
+          major: normalizeDateOnly(result.nextMaintenanceDates.major || null),
         });
       }
       
@@ -276,7 +291,7 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
 
   const formatDate = (date: Date | string | null) => {
     if (!date) return "Not set";
-    return new Date(date).toLocaleDateString();
+    return formatDateInTimezone(typeof date === 'string' ? date : date.toISOString(), userTimezone ?? 'UTC');
   };
 
   // Check if task has AI-generated task lists
@@ -298,11 +313,7 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
 
   // Check if task has calendar exports
   const getCalendarExports = () => {
-    try {
-      return task.calendarExports ? JSON.parse(task.calendarExports) : [];
-    } catch {
-      return [];
-    }
+    return normalizeCalendarExports(task.calendarExports);
   };
 
   const calendarExports = getCalendarExports();
@@ -331,9 +342,13 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
               </Badge>
             )}
             {hasCalendarExport && (
-              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700" title={`Exported to: ${calendarExports.map((e: any) => e.provider).join(', ')}`}>
+              <Badge
+                variant="secondary"
+                className="text-xs bg-green-100 text-green-700"
+                title={`Exported to: ${calendarExports.map((record) => `${record.provider}${record.syncMode === 'direct' ? ' sync' : ''}`).join(', ')}`}
+              >
                 <CalendarIcon className="w-3 h-3 mr-1" />
-                {calendarExports.map((exp: any) => exp.provider === 'google' ? 'G' : 'A').join('/')}
+                {calendarExports.map((record) => record.provider === 'google' ? 'G' : 'A').join('/')}
               </Badge>
             )}
           </div>
@@ -378,32 +393,29 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
               </div>
               <div className="flex flex-col ml-2">
                 {(() => {
-                  try {
-                    const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
-                    const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
-                    
-                    if (lastMaintenance.minor) {
-                      return (
-                        <div className="space-y-0.5">
-                          <span className="text-xs text-gray-700">
-                            <strong className="text-blue-600">Last:</strong> {formatDate(lastMaintenance.minor)}
-                          </span>
-                          {nextMaintenance.minor && (
-                            <span className="text-xs text-gray-700">
-                              <strong className="text-blue-600">Next:</strong> {formatDate(nextMaintenance.minor)}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    } else if (nextMaintenance.minor) {
-                      return (
-                        <span className="text-xs text-gray-600">
-                          <strong className="text-blue-600">Next:</strong> {formatDate(nextMaintenance.minor)}
+                  const lastMaintenance = parseMaintenanceSchedule(task.lastMaintenanceDate);
+                  const nextMaintenance = parseMaintenanceSchedule(task.nextMaintenanceDate);
+
+                  if (lastMaintenance.minor) {
+                    return (
+                      <div className="space-y-0.5">
+                        <span className="text-xs text-gray-700">
+                          <strong className="text-blue-600">Last:</strong> {formatDate(lastMaintenance.minor)}
                         </span>
-                      );
-                    }
-                  } catch {
-                    return null;
+                        {nextMaintenance.minor && (
+                          <span className="text-xs text-gray-700">
+                            <strong className="text-blue-600">Next:</strong> {formatDate(nextMaintenance.minor)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+                  if (nextMaintenance.minor) {
+                    return (
+                      <span className="text-xs text-gray-600">
+                        <strong className="text-blue-600">Next:</strong> {formatDate(nextMaintenance.minor)}
+                      </span>
+                    );
                   }
                   return null;
                 })()}
@@ -458,32 +470,29 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
               </div>
               <div className="flex flex-col ml-2">
                 {(() => {
-                  try {
-                    const lastMaintenance = task.lastMaintenanceDate ? JSON.parse(task.lastMaintenanceDate) : { minor: null, major: null };
-                    const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : { minor: null, major: null };
-                    
-                    if (lastMaintenance.major) {
-                      return (
-                        <div className="space-y-0.5">
-                          <span className="text-xs text-gray-700">
-                            <strong className="text-purple-600">Last:</strong> {formatDate(lastMaintenance.major)}
-                          </span>
-                          {nextMaintenance.major && (
-                            <span className="text-xs text-gray-700">
-                              <strong className="text-purple-600">Next:</strong> {formatDate(nextMaintenance.major)}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    } else if (nextMaintenance.major) {
-                      return (
-                        <span className="text-xs text-gray-600">
-                          <strong className="text-purple-600">Next:</strong> {formatDate(nextMaintenance.major)}
+                  const lastMaintenance = parseMaintenanceSchedule(task.lastMaintenanceDate);
+                  const nextMaintenance = parseMaintenanceSchedule(task.nextMaintenanceDate);
+
+                  if (lastMaintenance.major) {
+                    return (
+                      <div className="space-y-0.5">
+                        <span className="text-xs text-gray-700">
+                          <strong className="text-purple-600">Last:</strong> {formatDate(lastMaintenance.major)}
                         </span>
-                      );
-                    }
-                  } catch {
-                    return null;
+                        {nextMaintenance.major && (
+                          <span className="text-xs text-gray-700">
+                            <strong className="text-purple-600">Next:</strong> {formatDate(nextMaintenance.major)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+                  if (nextMaintenance.major) {
+                    return (
+                      <span className="text-xs text-gray-600">
+                        <strong className="text-purple-600">Next:</strong> {formatDate(nextMaintenance.major)}
+                      </span>
+                    );
                   }
                   return null;
                 })()}

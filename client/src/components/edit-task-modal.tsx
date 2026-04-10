@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@hookform/resolvers/zod" ;
 import { z } from "zod";
-import { MaintenanceTask } from "@shared/schema";
+import { MaintenanceTask, parseMaintenanceSchedule, serializeMaintenanceSchedule } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,7 @@ import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { toStorageDate } from "@/components/user-settings-modal";
 
 interface EditTaskModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ const formSchema = z.object({
   description: z.string().min(1, "Description is required"),
   category: z.string().min(1, "Category is required"),
   priority: z.enum(["Low", "Medium", "High", "Urgent"]),
+  status: z.string().optional(),
   brand: z.string().optional(),
   model: z.string().optional(),
   location: z.string().optional(),
@@ -85,18 +87,17 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
 
   // Parse lastMaintenanceDate from task
   const getLastMaintenanceDates = () => {
-    try {
-      if (task.lastMaintenanceDate) {
-        const parsed = JSON.parse(task.lastMaintenanceDate);
-        return {
-          minor: parsed.minor ? new Date(parsed.minor) : null,
-          major: parsed.major ? new Date(parsed.major) : null,
-        };
-      }
-    } catch (e) {
-      console.error("Error parsing lastMaintenanceDate:", e);
+    const parsed = parseMaintenanceSchedule(task.lastMaintenanceDate);
+    const toPickerDate = (value: string | null): Date | null => {
+      if (!value) return null;
+      const [year, month, day] = value.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    };
+
+    return {
+      minor: toPickerDate(parsed.minor),
+      major: toPickerDate(parsed.major),
     }
-    return { minor: null, major: null };
   };
 
   // Parse task lists from JSON
@@ -120,6 +121,7 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
       description: task.description,
       category: task.category,
       priority: task.priority as "Low" | "Medium" | "High" | "Urgent",
+      status: task.status,
       brand: task.brand || "",
       model: task.model || "",
       location: task.location || "",
@@ -141,6 +143,7 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
       description: task.description,
       category: task.category,
       priority: task.priority as "Low" | "Medium" | "High" | "Urgent",
+      status: task.status,
       brand: task.brand || "",
       model: task.model || "",
       location: task.location || "",
@@ -156,9 +159,9 @@ export default function EditTaskModal({ isOpen, onClose, task }: EditTaskModalPr
 
   const updateTaskMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const lastMaintenanceDate = JSON.stringify({
-        minor: data.lastMaintenanceDateMinor?.toISOString() || null,
-        major: data.lastMaintenanceDateMajor?.toISOString() || null,
+      const lastMaintenanceDate = serializeMaintenanceSchedule({
+        minor: data.lastMaintenanceDateMinor ? toStorageDate(data.lastMaintenanceDateMinor) : null,
+        major: data.lastMaintenanceDateMajor ? toStorageDate(data.lastMaintenanceDateMajor) : null,
       });
       
       // Parse task lists from newline-separated strings to JSON arrays
