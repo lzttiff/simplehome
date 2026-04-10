@@ -549,26 +549,38 @@ export class MongoDBStorage implements IStorage {
   ): Promise<GoogleCalendarConnection> {
     const now = new Date();
 
+    const setFields: Record<string, unknown> = { updatedAt: now };
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        setFields[key] = value;
+      }
+    }
+
+    const setOnInsertFields: Record<string, unknown> = {
+      userId,
+      email: null,
+      calendarId: null,
+      accessToken: null,
+      refreshToken: null,
+      scope: null,
+      tokenType: null,
+      expiryDate: null,
+      connectedAt: now,
+      lastSyncedAt: null,
+      createdAt: now,
+    };
+
+    // MongoDB rejects update documents that target the same path in both
+    // $set and $setOnInsert. Remove overlapping keys from $setOnInsert.
+    for (const key of Object.keys(setFields)) {
+      delete setOnInsertFields[key];
+    }
+
     await this.googleCalendarConnectionsCollection.updateOne(
       { userId },
       {
-        $set: {
-          ...updates,
-          updatedAt: now,
-        },
-        $setOnInsert: {
-          userId,
-          email: null,
-          calendarId: null,
-          accessToken: null,
-          refreshToken: null,
-          scope: null,
-          tokenType: null,
-          expiryDate: null,
-          connectedAt: now,
-          lastSyncedAt: null,
-          createdAt: now,
-        },
+        $set: setFields,
+        $setOnInsert: setOnInsertFields,
       },
       { upsert: true },
     );

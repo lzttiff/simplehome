@@ -207,6 +207,8 @@ async function getAuthorizedCalendar(req: express.Request, userId: string) {
       expiryDate: tokens.expiry_date ?? connection.expiryDate,
       scope: tokens.scope ?? connection.scope,
       tokenType: tokens.token_type ?? connection.tokenType,
+    }).catch((error) => {
+      console.error("Failed to persist refreshed Google OAuth tokens:", error);
     });
   });
 
