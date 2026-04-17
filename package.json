@@ -10,6 +10,8 @@
     "check": "tsc",
     "test": "NODE_OPTIONS=--max-old-space-size=4096 jest --maxWorkers=50%",
     "test:server": "NODE_OPTIONS=--max-old-space-size=4096 jest --runInBand tests/server",
+    "test:client:targeted": "NODE_OPTIONS=--max-old-space-size=4096 jest --runInBand --silent --testMatch='**/client/src/components/task-card.test.tsx' --testMatch='**/client/src/pages/dashboard.test.tsx'",
+    "test:client:stability": "./scripts/verify-client-test-stability.sh 3",
     "test:changed": "NODE_OPTIONS=--max-old-space-size=4096 jest -o --maxWorkers=50%",
     "test:highmem": "NODE_OPTIONS=--max-old-space-size=6144 jest",
     "test:coverage": "jest --coverage",

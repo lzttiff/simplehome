@@ -93,17 +93,31 @@ Goal:
 
 - prevent reliability regression from reappearing
 
-Proposed follow-up:
+Implemented guardrails:
+
+- Added npm scripts:
+  - `npm run test:client:targeted`
+  - `npm run test:client:stability`
+- Added repeat-run script:
+  - `scripts/verify-client-test-stability.sh`
+- Added CI workflow:
+  - `.github/workflows/test-reliability.yml`
+  - PR fast gate runs targeted client reliability suites
+  - Nightly job runs repeated stability check
+
+Ongoing practices:
 
 - prefer shared fixture builders for all new client tests
 - avoid assertions on incidental text/layout where role-based assertions are available
 - keep fetch mocks centralized per suite
 - evaluate warning cleanup (`act(...)`) as a separate pass to keep semantic changes isolated
 
-Status: Planned
+Status: In progress
 
 ## Change log
 
 - 2026-04-17: Created this plan and completed Phases 1 and 2 foundation/migration for task-card and dashboard suites.
 - 2026-04-17: Committed Phase 1-2 work in `test: phase 1-2 reliability foundation for client suites`.
 - 2026-04-17: Began next phase warning-noise reduction (`use-toast` mock in task-card tests, dashboard log suppression in dashboard tests).
+- 2026-04-17: Committed phase 3 warning hygiene in `test: phase 3 warning hygiene and cleaner verification output`.
+- 2026-04-17: Started phase 4 CI guardrails with targeted/stability scripts and GitHub workflow automation.
