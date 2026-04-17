@@ -30,6 +30,18 @@ interface GoogleCalendarSyncStatus {
   accountEmail: string | null;
   calendarId: string | null;
   lastSyncedAt: string | null;
+  activeScopeCount?: number;
+  syncScopeVersion?: number;
+  syncScopeUpdatedAt?: string | null;
+}
+
+interface GoogleCalendarSyncScope {
+  selections: Array<{
+    taskId: string;
+    includeMinor: boolean;
+    includeMajor: boolean;
+  }>;
+  count: number;
 }
 
 type CalendarProvider = "google" | "apple";
@@ -57,10 +69,17 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   const [googleFeedUrl, setGoogleFeedUrl] = useState("");
   const [googleAddByUrlPage, setGoogleAddByUrlPage] = useState("https://calendar.google.com/calendar/u/0/r/settings/addbyurl");
   const [appleFeedUrl, setAppleFeedUrl] = useState("");
+  const [keepOutOfScopeEvents, setKeepOutOfScopeEvents] = useState(false);
 
   const googleSyncStatusQuery = useQuery<GoogleCalendarSyncStatus>({
     queryKey: ["/api/calendar/google/sync/status"],
     enabled: isOpen,
+    retry: false,
+  });
+
+  const googleSyncScopeQuery = useQuery<GoogleCalendarSyncScope>({
+    queryKey: ["/api/calendar/google/sync/scope"],
+    enabled: isOpen && !!googleSyncStatusQuery.data?.configured && !!googleSyncStatusQuery.data?.connected,
     retry: false,
   });
 
@@ -82,7 +101,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       return response.json() as Promise<{ authorizationUrl: string }>;
     },
     onSuccess: ({ authorizationUrl }) => {
-      window.location.assign(authorizationUrl);
+      window.open(authorizationUrl, "_self");
     },
     onError: (error: any) => {
       toast({
@@ -127,26 +146,43 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   );
 
   useEffect(() => {
-    if (Object.keys(selectedTaskIds).length === 0 && tasksWithDates.length > 0) {
+    if (tasksWithDates.length === 0) {
+      return;
+    }
+
+    setSelectedTaskIds((prev) => {
+      if (Object.keys(prev).length > 0) {
+        return prev;
+      }
+
       const defaults: Record<string, boolean> = {};
       tasksWithDates.forEach((task) => {
         defaults[task.id] = true;
       });
-      setSelectedTaskIds(defaults);
-    }
-  }, [selectedTaskIds, tasksWithDates]);
+      return defaults;
+    });
+  }, [tasksWithDates]);
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
 
-    const defaults: Record<string, boolean> = {};
-    tasksWithDates.forEach((task) => {
-      defaults[task.id] = selectedTaskIds[task.id] ?? true;
+    setSelectedTaskIds((prev) => {
+      const next: Record<string, boolean> = {};
+      tasksWithDates.forEach((task) => {
+        next[task.id] = prev[task.id] ?? true;
+      });
+
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      const unchanged =
+        prevKeys.length === nextKeys.length &&
+        nextKeys.every((key) => prev[key] === next[key]);
+
+      return unchanged ? prev : next;
     });
-    setSelectedTaskIds(defaults);
-  }, [isOpen, selectedTaskIds, tasksWithDates]);
+  }, [isOpen, tasksWithDates]);
 
   const selectedTasks = tasksWithDates.filter((task) => selectedTaskIds[task.id]);
 
@@ -175,14 +211,9 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       .filter((selection) => selection.includeMinor || selection.includeMajor);
   };
 
-  const googleTwoWaySyncMutation = useMutation({
+  const syncActiveScopeMutation = useMutation({
     mutationFn: async () => {
-      const selections = buildSelections();
-      if (selections.length === 0) {
-        throw new Error("Select at least one task with an upcoming maintenance date.");
-      }
-
-      const response = await apiRequest("POST", "/api/calendar/google/sync", { selections });
+      const response = await apiRequest("POST", "/api/calendar/google/sync", { selections: [] });
       return response.json() as Promise<{
         syncedTasks: number;
         pushedEvents: number;
@@ -190,23 +221,70 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         createdEvents: number;
         updatedEvents: number;
         completedFromGoogle?: number;
+        rescheduledFromGoogle?: number;
       }>;
     },
     onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/tasks"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/sync/status"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/sync/scope"] }),
       ]);
 
       toast({
         title: "Google Calendar Synced",
-        description: `Synced ${result.syncedTasks} task${result.syncedTasks === 1 ? "" : "s"}. Pushed ${result.pushedEvents} event${result.pushedEvents === 1 ? "" : "s"}, pulled ${result.pulledChanges} change${result.pulledChanges === 1 ? "" : "s"}, completed ${result.completedFromGoogle ?? 0} from Google.`,
+        description: `Synced ${result.syncedTasks} task${result.syncedTasks === 1 ? "" : "s"}. Pushed ${result.pushedEvents} event${result.pushedEvents === 1 ? "" : "s"}, pulled ${result.pulledChanges} change${result.pulledChanges === 1 ? "" : "s"}, completed ${result.completedFromGoogle ?? 0} and rescheduled ${result.rescheduledFromGoogle ?? 0} from Google.`,
       });
     },
     onError: (error: any) => {
       toast({
         title: "Google Sync Failed",
-        description: error?.message || "Unable to sync with Google Calendar.",
+        description: error?.message || "Unable to sync with Google Calendar active scope.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateScopeMutation = useMutation({
+    mutationFn: async () => {
+      const selections = buildSelections();
+      if (selections.length === 0) {
+        throw new Error("Select at least one task with an upcoming maintenance date.");
+      }
+
+      const currentScopeCount = googleSyncScopeQuery.data?.count ?? googleSyncStatusQuery.data?.activeScopeCount ?? 0;
+      if (currentScopeCount > selections.length) {
+        const accepted = window.confirm(
+          keepOutOfScopeEvents
+            ? "This reduces active scope. Keep-out-of-scope behavior is planned in a future phase; for now, out-of-scope events may still be removed during sync. Continue updating scope?"
+            : "This reduces active scope. Out-of-scope events may be removed from Google on subsequent sync. Continue updating scope?",
+        );
+        if (!accepted) {
+          throw new Error("Scope update cancelled.");
+        }
+      }
+
+      const response = await apiRequest("PUT", "/api/calendar/google/sync/scope", { selections });
+      return response.json() as Promise<{ count: number }>;
+    },
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/sync/scope"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/sync/status"] }),
+      ]);
+
+      toast({
+        title: "Sync Scope Updated",
+        description: `Active Google sync scope now includes ${result.count} task${result.count === 1 ? "" : "s"}.`,
+      });
+    },
+    onError: (error: any) => {
+      if (error?.message === "Scope update cancelled.") {
+        return;
+      }
+      toast({
+        title: "Scope Update Failed",
+        description: error?.message || "Unable to update Google sync scope.",
         variant: "destructive",
       });
     },
@@ -578,6 +656,8 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   };
 
   const googleStatus = googleSyncStatusQuery.data;
+  const activeScopeCount = googleSyncScopeQuery.data?.count ?? googleStatus?.activeScopeCount ?? 0;
+  const selectedScopeCount = buildSelections().length;
   const googleStatusErrorMessage = useMemo(() => {
     const error = googleSyncStatusQuery.error;
     if (!error) {
@@ -656,17 +736,46 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
                   <p>
                     Last synced: {googleStatus.lastSyncedAt ? new Date(googleStatus.lastSyncedAt).toLocaleString() : "Never"}
                   </p>
+                  <p>
+                    Active sync scope: <span className="font-medium">{activeScopeCount}</span> task{activeScopeCount === 1 ? "" : "s"}
+                  </p>
+                  <p>
+                    Current selection: <span className="font-medium">{selectedScopeCount}</span> task{selectedScopeCount === 1 ? "" : "s"}
+                  </p>
+                  {googleStatus.syncScopeUpdatedAt ? (
+                    <p>
+                      Scope updated: {new Date(googleStatus.syncScopeUpdatedAt).toLocaleString()}
+                    </p>
+                  ) : null}
                 </div>
+                <label className="flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={keepOutOfScopeEvents}
+                    onChange={(event) => setKeepOutOfScopeEvents(event.target.checked)}
+                  />
+                  Keep out-of-scope events (planned behavior; currently informational)
+                </label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
-                    onClick={() => googleTwoWaySyncMutation.mutate()}
+                    onClick={() => syncActiveScopeMutation.mutate()}
                     className="flex-1 justify-start"
                     variant="outline"
-                    disabled={googleTwoWaySyncMutation.isPending || selectedTasks.length === 0}
+                    disabled={syncActiveScopeMutation.isPending || activeScopeCount === 0}
                   >
                     <RefreshCw className="w-4 h-4 mr-3" />
-                    {googleTwoWaySyncMutation.isPending ? "Syncing..." : "Sync Selected Two-Way"}
+                    {syncActiveScopeMutation.isPending ? "Syncing..." : "Sync Active Scope"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => updateScopeMutation.mutate()}
+                    className="flex-1 justify-start"
+                    variant="outline"
+                    disabled={updateScopeMutation.isPending || selectedScopeCount === 0}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-3" />
+                    {updateScopeMutation.isPending ? "Updating Scope..." : "Update Scope from Current View"}
                   </Button>
                   <Button
                     type="button"

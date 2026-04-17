@@ -1,3 +1,5 @@
+/** @jest-environment jsdom */
+
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ExportScheduleModal from './export-schedule-modal';
@@ -30,7 +32,20 @@ jest.mock('@/hooks/use-toast', () => ({
 const createQueryClient = () =>
   new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: {
+        retry: false,
+        queryFn: async ({ queryKey }) => {
+          const url = String(queryKey[0]);
+          const response = await fetch(url, {
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          if (!response.ok) {
+            throw new Error(`${response.status}: ${(await response.text()) || response.statusText}`);
+          }
+          return response.json();
+        },
+      },
       mutations: { retry: false },
     },
   });
@@ -71,21 +86,12 @@ const createMockTask = (overrides: Partial<MaintenanceTask> = {}): MaintenanceTa
 });
 
 describe('ExportScheduleModal Google sync', () => {
-  const originalLocation = window.location;
-  let assignMock: jest.Mock;
+  let openMock: jest.SpyInstance;
 
   beforeEach(() => {
     jest.resetAllMocks();
-    assignMock = jest.fn();
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: {
-        ...originalLocation,
-        pathname: '/dashboard/test-template',
-        search: '',
-        assign: assignMock,
-      },
-    });
+    openMock = jest.spyOn(window, 'open').mockImplementation(() => null);
+    window.history.replaceState({}, '', '/dashboard/test-template');
     Object.assign(navigator, {
       clipboard: {
         writeText: jest.fn().mockResolvedValue(undefined),
@@ -93,11 +99,8 @@ describe('ExportScheduleModal Google sync', () => {
     });
   });
 
-  afterAll(() => {
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: originalLocation,
-    });
+  afterEach(() => {
+    openMock.mockRestore();
   });
 
   it('starts Google OAuth when sync is configured but not connected', async () => {
@@ -134,7 +137,7 @@ describe('ExportScheduleModal Google sync', () => {
     fireEvent.click(connectButton);
 
     await waitFor(() => {
-      expect(assignMock).toHaveBeenCalledWith('https://accounts.google.com/mock-auth');
+      expect(openMock).toHaveBeenCalledWith('https://accounts.google.com/mock-auth', '_self');
     });
   });
 
@@ -150,6 +153,18 @@ describe('ExportScheduleModal Google sync', () => {
             accountEmail: 'owner@example.com',
             calendarId: 'simplehome@example.com',
             lastSyncedAt: '2026-03-20T12:00:00.000Z',
+            activeScopeCount: 1,
+            syncScopeVersion: 2,
+            syncScopeUpdatedAt: '2026-03-20T12:00:00.000Z',
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/scope') && (!init || !init.method || init.method === 'GET')) {
+        return {
+          ok: true,
+          json: async () => ({
+            selections: [{ taskId: 'task-1', includeMinor: true, includeMajor: true }],
+            count: 1,
           }),
         } as Response;
       }
@@ -162,6 +177,8 @@ describe('ExportScheduleModal Google sync', () => {
             pulledChanges: 1,
             createdEvents: 1,
             updatedEvents: 1,
+            completedFromGoogle: 1,
+            rescheduledFromGoogle: 1,
           }),
         } as Response;
       }
@@ -174,7 +191,7 @@ describe('ExportScheduleModal Google sync', () => {
       </QueryClientProvider>,
     );
 
-    const syncButton = await screen.findByRole('button', { name: /sync selected two-way/i });
+    const syncButton = await screen.findByRole('button', { name: /sync active scope/i });
     fireEvent.click(syncButton);
 
     await waitFor(() => {
@@ -190,6 +207,66 @@ describe('ExportScheduleModal Google sync', () => {
     expect(toastMock).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Google Calendar Synced',
+      }),
+    );
+  });
+
+  it('updates active scope from current selections', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({
+            configured: true,
+            connected: true,
+            accountEmail: 'owner@example.com',
+            calendarId: 'simplehome@example.com',
+            lastSyncedAt: '2026-03-20T12:00:00.000Z',
+            activeScopeCount: 1,
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/scope') && (!init || !init.method || init.method === 'GET')) {
+        return {
+          ok: true,
+          json: async () => ({
+            selections: [{ taskId: 'task-1', includeMinor: true, includeMajor: true }],
+            count: 1,
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/scope') && init?.method === 'PUT') {
+        return {
+          ok: true,
+          json: async () => ({ count: 1, syncScopeVersion: 3 }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
+    }) as jest.Mock;
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ExportScheduleModal isOpen={true} onClose={() => {}} tasks={[createMockTask()]} />
+      </QueryClientProvider>,
+    );
+
+    const updateScopeButton = await screen.findByRole('button', { name: /update scope from current view/i });
+    fireEvent.click(updateScopeButton);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/calendar/google/sync/scope',
+        expect.objectContaining({
+          method: 'PUT',
+          credentials: 'include',
+        }),
+      );
+    });
+
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Sync Scope Updated',
       }),
     );
   });
