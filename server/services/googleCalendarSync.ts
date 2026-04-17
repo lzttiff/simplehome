@@ -32,6 +32,9 @@ type GoogleCalendarSyncStatus = {
   accountEmail: string | null;
   calendarId: string | null;
   lastSyncedAt: string | null;
+  activeScopeCount?: number;
+  syncScopeVersion?: number;
+  syncScopeUpdatedAt?: string | null;
 };
 
 type SyncOutcome = {
@@ -43,6 +46,11 @@ type SyncOutcome = {
   completedFromGoogle: number;
   lastSyncedAt: string;
   calendarId: string;
+};
+
+type SyncScopeOutcome = {
+  activeSelections: GoogleSyncSelection[];
+  initializedFromRequest: boolean;
 };
 
 const GOOGLE_SCOPES = [
@@ -71,6 +79,16 @@ function getGoogleClientSecret(): string | null {
 
 function isGoogleCalendarConfigured(): boolean {
   return !!(getGoogleClientId() && getGoogleClientSecret());
+}
+
+function normalizeSelections(selections: GoogleSyncSelection[]): GoogleSyncSelection[] {
+  return selections
+    .map((selection) => ({
+      taskId: (selection.taskId || "").trim(),
+      includeMinor: !!selection.includeMinor,
+      includeMajor: !!selection.includeMajor,
+    }))
+    .filter((selection) => !!selection.taskId && (selection.includeMinor || selection.includeMajor));
 }
 
 function inferBaseUrl(req: express.Request): string {
@@ -690,6 +708,75 @@ export async function getGoogleCalendarSyncStatus(req: express.Request): Promise
     accountEmail: connection?.email ?? null,
     calendarId: connection?.calendarId ?? null,
     lastSyncedAt: connection?.lastSyncedAt ? connection.lastSyncedAt.toISOString() : null,
+    activeScopeCount: connection?.activeSyncSelections?.length ?? 0,
+    syncScopeVersion: connection?.syncScopeVersion ?? undefined,
+    syncScopeUpdatedAt: connection?.syncScopeUpdatedAt ? connection.syncScopeUpdatedAt.toISOString() : null,
+  };
+}
+
+async function resolveActiveSyncScope(
+  userId: string,
+  requestSelections: GoogleSyncSelection[],
+): Promise<SyncScopeOutcome> {
+  const requested = normalizeSelections(requestSelections);
+  const existingScope = normalizeSelections(await storage.getGoogleCalendarSyncScope(userId));
+
+  if (existingScope.length > 0) {
+    return {
+      activeSelections: existingScope,
+      initializedFromRequest: false,
+    };
+  }
+
+  if (requested.length === 0) {
+    throw new Error("Select at least one task to sync.");
+  }
+
+  const connection = await storage.setGoogleCalendarSyncScope(userId, requested);
+  logWithLevel(
+    "INFO",
+    `[Google Sync] Initialized active sync scope with ${connection.activeSyncSelections.length} task(s) for user ${userId}`,
+  );
+
+  return {
+    activeSelections: normalizeSelections(connection.activeSyncSelections),
+    initializedFromRequest: true,
+  };
+}
+
+export async function getGoogleCalendarSyncScope(req: express.Request): Promise<{ selections: GoogleSyncSelection[]; count: number }> {
+  const userId = (req.user as { id?: string } | undefined)?.id;
+  if (!userId) {
+    throw new Error("Not authenticated");
+  }
+
+  const selections = normalizeSelections(await storage.getGoogleCalendarSyncScope(userId));
+  return {
+    selections,
+    count: selections.length,
+  };
+}
+
+export async function setGoogleCalendarSyncScope(
+  req: express.Request,
+  selections: GoogleSyncSelection[],
+): Promise<{ selections: GoogleSyncSelection[]; count: number; syncScopeVersion: number; syncScopeUpdatedAt: string | null }> {
+  const userId = (req.user as { id?: string } | undefined)?.id;
+  if (!userId) {
+    throw new Error("Not authenticated");
+  }
+
+  const normalized = normalizeSelections(selections);
+  if (normalized.length === 0) {
+    throw new Error("Select at least one task to include in sync scope.");
+  }
+
+  const connection = await storage.setGoogleCalendarSyncScope(userId, normalized);
+  return {
+    selections: normalizeSelections(connection.activeSyncSelections),
+    count: connection.activeSyncSelections.length,
+    syncScopeVersion: connection.syncScopeVersion,
+    syncScopeUpdatedAt: connection.syncScopeUpdatedAt ? connection.syncScopeUpdatedAt.toISOString() : null,
   };
 }
 
@@ -786,9 +873,7 @@ export async function runGoogleCalendarTwoWaySync(
     throw new Error("Google Calendar sync is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.");
   }
 
-  if (selections.length === 0) {
-    throw new Error("Select at least one task to sync.");
-  }
+  const { activeSelections } = await resolveActiveSyncScope(userId, selections);
 
   // Fetch user's timezone preference for the calendar.
   const userRecord = await storage.getUserById(userId);
@@ -806,7 +891,7 @@ export async function runGoogleCalendarTwoWaySync(
   let updatedEvents = 0;
   let completedFromGoogle = 0;
 
-  for (const selection of selections) {
+  for (const selection of activeSelections) {
     const task = await storage.getMaintenanceTask(selection.taskId, userId);
     if (!task) {
       continue;

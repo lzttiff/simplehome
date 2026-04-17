@@ -39,6 +39,8 @@ export interface IStorage {
     updates: Partial<Omit<GoogleCalendarConnection, 'userId' | 'createdAt' | 'updatedAt'>>,
   ): Promise<GoogleCalendarConnection>;
   deleteGoogleCalendarConnection(userId: string): Promise<boolean>;
+  getGoogleCalendarSyncScope(userId: string): Promise<GoogleCalendarSyncSelection[]>;
+  setGoogleCalendarSyncScope(userId: string, selections: GoogleCalendarSyncSelection[]): Promise<GoogleCalendarConnection>;
   // Property Templates
   getPropertyTemplates(): Promise<PropertyTemplate[]>;
   getPropertyTemplate(id: string): Promise<PropertyTemplate | undefined>;
@@ -63,6 +65,12 @@ export interface IStorage {
   
   // Initialization
   initialize(): Promise<void>;
+}
+
+export interface GoogleCalendarSyncSelection {
+  taskId: string;
+  includeMinor: boolean;
+  includeMajor: boolean;
 }
 
 // MongoDB document types (with _id for MongoDB internal use)
@@ -97,6 +105,9 @@ export interface GoogleCalendarConnection {
   expiryDate: number | null;
   connectedAt: Date;
   lastSyncedAt: Date | null;
+  activeSyncSelections: GoogleCalendarSyncSelection[];
+  syncScopeVersion: number;
+  syncScopeUpdatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -104,6 +115,30 @@ export interface GoogleCalendarConnection {
 interface MongoGoogleCalendarConnection extends Omit<GoogleCalendarConnection, 'userId'> {
   _id?: ObjectId;
   userId: string;
+}
+
+function normalizeGoogleSyncSelections(raw: unknown): GoogleCalendarSyncSelection[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .map((entry) => {
+      const selection = entry as Partial<GoogleCalendarSyncSelection>;
+      const taskId = typeof selection.taskId === 'string' ? selection.taskId.trim() : '';
+      const includeMinor = !!selection.includeMinor;
+      const includeMajor = !!selection.includeMajor;
+      if (!taskId || (!includeMinor && !includeMajor)) {
+        return null;
+      }
+
+      return {
+        taskId,
+        includeMinor,
+        includeMajor,
+      } satisfies GoogleCalendarSyncSelection;
+    })
+    .filter((selection): selection is GoogleCalendarSyncSelection => !!selection);
 }
 
 export class MongoDBStorage implements IStorage {
@@ -538,6 +573,9 @@ export class MongoDBStorage implements IStorage {
       expiryDate: doc.expiryDate ?? null,
       connectedAt: new Date(doc.connectedAt),
       lastSyncedAt: doc.lastSyncedAt ? new Date(doc.lastSyncedAt) : null,
+      activeSyncSelections: normalizeGoogleSyncSelections(doc.activeSyncSelections),
+      syncScopeVersion: typeof doc.syncScopeVersion === 'number' ? doc.syncScopeVersion : 1,
+      syncScopeUpdatedAt: doc.syncScopeUpdatedAt ? new Date(doc.syncScopeUpdatedAt) : null,
       createdAt: new Date(doc.createdAt),
       updatedAt: new Date(doc.updatedAt),
     };
@@ -567,6 +605,9 @@ export class MongoDBStorage implements IStorage {
       expiryDate: null,
       connectedAt: now,
       lastSyncedAt: null,
+      activeSyncSelections: [],
+      syncScopeVersion: 1,
+      syncScopeUpdatedAt: null,
       createdAt: now,
     };
 
@@ -591,6 +632,21 @@ export class MongoDBStorage implements IStorage {
     }
 
     return record;
+  }
+
+  async getGoogleCalendarSyncScope(userId: string): Promise<GoogleCalendarSyncSelection[]> {
+    const connection = await this.getGoogleCalendarConnection(userId);
+    return connection?.activeSyncSelections ?? [];
+  }
+
+  async setGoogleCalendarSyncScope(userId: string, selections: GoogleCalendarSyncSelection[]): Promise<GoogleCalendarConnection> {
+    const normalized = normalizeGoogleSyncSelections(selections);
+    const current = await this.getGoogleCalendarConnection(userId);
+    return this.upsertGoogleCalendarConnection(userId, {
+      activeSyncSelections: normalized,
+      syncScopeVersion: (current?.syncScopeVersion ?? 1) + 1,
+      syncScopeUpdatedAt: new Date(),
+    });
   }
 
   async deleteGoogleCalendarConnection(userId: string): Promise<boolean> {

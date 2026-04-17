@@ -46,9 +46,11 @@ import {
   createGoogleCalendarAuthorizationUrl,
   deleteGoogleCalendarEventsForTask,
   disconnectGoogleCalendar,
+  getGoogleCalendarSyncScope,
   getGoogleCalendarSyncStatus,
   handleGoogleCalendarOAuthCallback,
   runGoogleCalendarTwoWaySync,
+  setGoogleCalendarSyncScope,
 } from "./services/googleCalendarSync";
 import passport from "passport";
 import { requireAuth, hashPassword } from "./auth";
@@ -726,6 +728,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       const status = error?.message?.includes("not connected") ? 409 : 500;
       res.status(status).json({ message: error?.message || "Google Calendar sync failed" });
+    }
+  });
+
+  app.get("/api/calendar/google/sync/scope", requireAuth, async (req, res) => {
+    try {
+      const scope = await getGoogleCalendarSyncScope(req);
+      res.json(scope);
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Failed to load Google Calendar sync scope" });
+    }
+  });
+
+  app.put("/api/calendar/google/sync/scope", requireAuth, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        selections: z
+          .array(
+            z.object({
+              taskId: z.string().min(1),
+              includeMinor: z.boolean().default(true),
+              includeMajor: z.boolean().default(true),
+            }),
+          )
+          .min(1),
+      });
+
+      const { selections } = bodySchema.parse(req.body ?? {});
+      const outcome = await setGoogleCalendarSyncScope(
+        req,
+        selections
+          .map((selection) => ({
+            taskId: selection.taskId,
+            includeMinor: !!selection.includeMinor,
+            includeMajor: !!selection.includeMajor,
+          }))
+          .filter((selection) => selection.includeMinor || selection.includeMajor),
+      );
+      res.json(outcome);
+    } catch (error: any) {
+      res.status(500).json({ message: error?.message || "Failed to update Google Calendar sync scope" });
     }
   });
 
