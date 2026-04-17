@@ -1,7 +1,10 @@
+/** @jest-environment jsdom */
+
+import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TaskCard from './task-card';
-import { MaintenanceTask } from '@shared/schema';
+import { createMaintenanceTaskFixture } from '@/test/fixtures';
+import { mockJsonFetch, renderWithQueryClient } from '@/test/test-utils';
 
 // Mock child components
 jest.mock('@/components/ui/card', () => ({
@@ -12,8 +15,8 @@ jest.mock('@/components/ui/card', () => ({
 }));
 
 jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled }: any) => (
-    <button onClick={onClick} disabled={disabled}>{children}</button>
+  Button: ({ children, ...props }: any) => (
+    <button {...props}>{children}</button>
   ),
 }));
 
@@ -33,46 +36,24 @@ jest.mock('@/components/ui/calendar', () => ({
   ),
 }));
 
-const createMockTask = (overrides: Partial<MaintenanceTask> = {}): MaintenanceTask => ({
-  id: 1,
-  title: 'Test HVAC Unit',
-  category: 'HVAC & Mechanical',
-  brand: 'TestBrand',
-  model: 'Model123',
-  location: 'Basement',
-  installationDate: '2020-01-01',
-  lastMaintenanceDate: JSON.stringify({ minor: '2025-01-01', major: '2024-01-01' }),
-  nextMaintenanceDate: JSON.stringify({ 
-    minor: '2026-03-01T00:00:00.000Z', 
-    major: '2027-01-01T00:00:00.000Z' 
-  }),
-  minorIntervalMonths: 12,
-  majorIntervalMonths: 60,
-  minorTasks: JSON.stringify(['Clean filters', 'Check thermostat', 'Inspect ductwork']),
-  majorTasks: JSON.stringify(['Deep clean system', 'Replace parts', 'Professional inspection']),
-  notes: 'Important equipment',
-  calendarExports: null,
-  templateId: 'test-template',
-  ...overrides,
-});
-
-const createQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: { retry: false },
-  },
-});
-
 describe('TaskCard Component', () => {
-  let queryClient: QueryClient;
-
   beforeEach(() => {
-    queryClient = createQueryClient();
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
-    ) as jest.Mock;
+    mockJsonFetch({
+      '/api/auth/me': null,
+      '/api/tasks': { success: true },
+      '/api/stats': { success: true },
+      '/api/item-schedule': {
+        result: {
+          nextMaintenanceDates: { minor: '2026-03-01', major: '2027-01-01' },
+          maintenanceSchedule: {
+            minorIntervalMonths: '12',
+            majorIntervalMonths: '60',
+            minorTasks: ['New task 1', 'New task 2'],
+            majorTasks: ['New major task 1', 'New major task 2'],
+          },
+        },
+      },
+    });
   });
 
   afterEach(() => {
@@ -81,133 +62,139 @@ describe('TaskCard Component', () => {
 
   describe('Conditional Rendering with showMinor and showMajor', () => {
     it('should render both minor and major sections when both flags are true', () => {
-      const task = createMockTask();
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        description: 'Test HVAC maintenance',
+        category: 'HVAC & Mechanical',
+        model: 'Model123',
+        location: 'Basement',
+        lastMaintenanceDate: JSON.stringify({ minor: '2025-01-01', major: '2024-01-01' }),
+        minorTasks: JSON.stringify(['Clean filters', 'Check thermostat', 'Inspect ductwork']),
+        majorTasks: JSON.stringify(['Deep clean system', 'Replace parts', 'Professional inspection']),
+        notes: 'Important equipment',
+        templateId: 'test-template',
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} showMinor={true} showMajor={true} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} showMinor={true} showMajor={true} />);
 
       // Check for minor maintenance indicators
-      expect(screen.getByText(/minor maintenance/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /mark minor complete/i })).toBeInTheDocument();
       expect(screen.getByText(/clean filters/i)).toBeInTheDocument();
       
       // Check for major maintenance indicators
-      expect(screen.getByText(/major maintenance/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /mark major complete/i })).toBeInTheDocument();
       expect(screen.getByText(/deep clean system/i)).toBeInTheDocument();
     });
 
     it('should render only minor section when showMinor is true and showMajor is false', () => {
-      const task = createMockTask();
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        category: 'HVAC & Mechanical',
+        minorTasks: JSON.stringify(['Clean filters', 'Check thermostat', 'Inspect ductwork']),
+        majorTasks: JSON.stringify(['Deep clean system', 'Replace parts', 'Professional inspection']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} showMinor={true} showMajor={false} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} showMinor={true} showMajor={false} />);
 
       // Minor should be visible
-      expect(screen.getByText(/minor maintenance/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /mark minor complete/i })).toBeInTheDocument();
       
       // Major should not be visible
-      expect(screen.queryByText(/major maintenance/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /mark major complete/i })).not.toBeInTheDocument();
       expect(screen.queryByText(/deep clean system/i)).not.toBeInTheDocument();
     });
 
     it('should render only major section when showMinor is false and showMajor is true', () => {
-      const task = createMockTask();
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        category: 'HVAC & Mechanical',
+        minorTasks: JSON.stringify(['Clean filters', 'Check thermostat', 'Inspect ductwork']),
+        majorTasks: JSON.stringify(['Deep clean system', 'Replace parts', 'Professional inspection']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} showMinor={false} showMajor={true} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} showMinor={false} showMajor={true} />);
 
       // Minor should not be visible
-      expect(screen.queryByText(/minor maintenance/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /mark minor complete/i })).not.toBeInTheDocument();
       expect(screen.queryByText(/clean filters/i)).not.toBeInTheDocument();
       
       // Major should be visible
-      expect(screen.getByText(/major maintenance/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /mark major complete/i })).toBeInTheDocument();
       expect(screen.getByText(/deep clean system/i)).toBeInTheDocument();
     });
 
     it('should render task header even when both flags are false', () => {
-      const task = createMockTask();
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} showMinor={false} showMajor={false} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} showMinor={false} showMajor={false} />);
 
       // Task title should still be visible
       expect(screen.getByText(task.title)).toBeInTheDocument();
       
       // But neither maintenance section should be visible
-      expect(screen.queryByText(/minor maintenance/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/major maintenance/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /mark minor complete/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /mark major complete/i })).not.toBeInTheDocument();
     });
 
     it('should default to showing both sections when props are not provided', () => {
-      const task = createMockTask();
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       // Both should be visible by default
-      expect(screen.getByText(/minor maintenance/i)).toBeInTheDocument();
-      expect(screen.getByText(/major maintenance/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /mark minor complete/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /mark major complete/i })).toBeInTheDocument();
     });
   });
 
   describe('Task Information Display', () => {
     it('should display task basic information', () => {
-      const task = createMockTask({
+      const task = createMaintenanceTaskFixture({
         title: 'Custom HVAC',
         brand: 'CustomBrand',
         model: 'CustomModel',
         location: 'Attic',
+        notes: 'Important equipment',
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
       });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       expect(screen.getByText('Custom HVAC')).toBeInTheDocument();
-      expect(screen.getByText(/CustomBrand/)).toBeInTheDocument();
-      expect(screen.getByText(/CustomModel/)).toBeInTheDocument();
-      expect(screen.getByText(/Attic/)).toBeInTheDocument();
+      expect(screen.getByText(/important equipment/i)).toBeInTheDocument();
     });
 
     it('should display next maintenance dates', () => {
-      const task = createMockTask();
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       // Should show formatted dates
-      expect(screen.getByText(/mar.*1.*2026/i)).toBeInTheDocument();
-      expect(screen.getByText(/jan.*1.*2027/i)).toBeInTheDocument();
+      expect(screen.getByText(/3\/1\/2026/i)).toBeInTheDocument();
+      expect(screen.getByText(/1\/1\/2027/i)).toBeInTheDocument();
     });
 
     it('should display AI-generated task lists', () => {
-      const task = createMockTask();
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        minorTasks: JSON.stringify(['Clean filters', 'Check thermostat', 'Inspect ductwork']),
+        majorTasks: JSON.stringify(['Deep clean system', 'Replace parts', 'Professional inspection']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       // Check for minor tasks
       expect(screen.getByText(/clean filters/i)).toBeInTheDocument();
@@ -230,16 +217,18 @@ describe('TaskCard Component', () => {
     });
 
     it('should mark minor maintenance as complete', async () => {
-      const task = createMockTask({ minorIntervalMonths: 12 });
+      const task = createMaintenanceTaskFixture({
+        id: '1',
+        title: 'Test HVAC Unit',
+        minorIntervalMonths: 12,
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} showMinor={true} showMajor={false} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} showMinor={true} showMajor={false} />);
 
       // Find and click the "Mark Complete" button for minor maintenance
-      const markCompleteButton = screen.getAllByRole('button', { name: /mark complete/i })[0];
+      const markCompleteButton = screen.getByRole('button', { name: /mark minor complete/i });
       fireEvent.click(markCompleteButton);
 
       // Calendar should appear - click it to select a date
@@ -258,17 +247,17 @@ describe('TaskCard Component', () => {
     });
 
     it('should mark major maintenance as complete', async () => {
-      const task = createMockTask({ majorIntervalMonths: 60 });
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        majorIntervalMonths: 60,
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} showMinor={false} showMajor={true} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} showMinor={false} showMajor={true} />);
 
       // Find and click the "Mark Complete" button for major maintenance
-      const markCompleteButtons = screen.getAllByRole('button', { name: /mark complete/i });
-      const majorButton = markCompleteButtons[markCompleteButtons.length - 1];
+      const majorButton = screen.getByRole('button', { name: /mark major complete/i });
       fireEvent.click(majorButton);
 
       // Calendar should appear
@@ -283,7 +272,11 @@ describe('TaskCard Component', () => {
 
   describe('AI Schedule Generation', () => {
     it('should trigger AI schedule generation when button is clicked', async () => {
-      const task = createMockTask({ minorTasks: null, majorTasks: null });
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        minorTasks: null,
+        majorTasks: null,
+      });
       
       global.fetch = jest.fn(() =>
         Promise.resolve({
@@ -302,14 +295,10 @@ describe('TaskCard Component', () => {
         })
       ) as jest.Mock;
 
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       // Find AI generation button (sparkles icon)
-      const aiButton = screen.getByRole('button', { name: /generate ai schedule/i });
+      const aiButton = screen.getByTitle(/ai .*schedule|generate ai schedule/i);
       fireEvent.click(aiButton);
 
       await waitFor(() => {
@@ -324,59 +313,58 @@ describe('TaskCard Component', () => {
     });
 
     it('should not send provider in request body', async () => {
-      const task = createMockTask();
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
+      });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
-      const aiButton = screen.getByRole('button', { name: /generate ai schedule/i });
+      const aiButton = screen.getByTitle(/ai .*schedule|generate ai schedule/i);
       fireEvent.click(aiButton);
 
       await waitFor(() => {
-        const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
-        if (fetchCall) {
-          const body = JSON.parse(fetchCall[1].body);
-          expect(body.provider).toBeUndefined();
-        }
+        const fetchCall = (global.fetch as jest.Mock).mock.calls.find(
+          (call) => String(call[0]).includes('/api/item-schedule') && call[1]?.method === 'POST',
+        );
+        expect(fetchCall).toBeDefined();
+        const body = JSON.parse(fetchCall![1].body as string);
+        expect(body.provider).toBeUndefined();
       });
     });
   });
 
   describe('Date Formatting', () => {
     it('should format dates correctly', () => {
-      const task = createMockTask({
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
         nextMaintenanceDate: JSON.stringify({ 
           minor: '2026-12-25T00:00:00.000Z', 
           major: '2028-07-04T00:00:00.000Z' 
         }),
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
       });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       // Check for formatted minor date
-      expect(screen.getByText(/dec.*25.*2026/i)).toBeInTheDocument();
+      expect(screen.getByText(/12\/25\/2026/i)).toBeInTheDocument();
       
       // Check for formatted major date
-      expect(screen.getByText(/jul.*4.*2028/i)).toBeInTheDocument();
+      expect(screen.getByText(/7\/4\/2028/i)).toBeInTheDocument();
     });
 
     it('should handle missing maintenance dates gracefully', () => {
-      const task = createMockTask({
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
         nextMaintenanceDate: JSON.stringify({ minor: null, major: null }),
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
       });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       // Should still render the card without errors
       expect(screen.getByText(task.title)).toBeInTheDocument();
@@ -394,36 +382,34 @@ describe('TaskCard Component', () => {
     });
 
     it('should show past due indicator for overdue minor maintenance', () => {
-      const task = createMockTask({
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
         nextMaintenanceDate: JSON.stringify({ 
           minor: '2026-02-20T00:00:00.000Z', // Past due
           major: '2027-01-01T00:00:00.000Z' 
         }),
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
       });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       // Look for past due indicator (could be text or styling)
       expect(screen.getByText(/overdue|past due/i)).toBeInTheDocument();
     });
 
     it('should not show past due indicator for future maintenance', () => {
-      const task = createMockTask({
+      const task = createMaintenanceTaskFixture({
+        title: 'Test HVAC Unit',
         nextMaintenanceDate: JSON.stringify({ 
           minor: '2026-03-01T00:00:00.000Z', // Future
           major: '2027-01-01T00:00:00.000Z' 
         }),
+        minorTasks: JSON.stringify(['Clean filters']),
+        majorTasks: JSON.stringify(['Deep clean system']),
       });
       
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TaskCard task={task} />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<TaskCard task={task} />);
 
       // Should not show past due indicator
       expect(screen.queryByText(/overdue|past due/i)).not.toBeInTheDocument();

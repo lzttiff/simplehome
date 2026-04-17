@@ -1,7 +1,10 @@
+/** @jest-environment jsdom */
+
+import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Dashboard from './dashboard';
-import { MaintenanceTask } from '@shared/schema';
+import { createMaintenanceTaskFixture } from '@/test/fixtures';
+import { mockJsonFetch, renderWithQueryClient } from '@/test/test-utils';
 
 // Mock wouter
 jest.mock('wouter', () => ({
@@ -34,60 +37,30 @@ jest.mock('@/components/export-schedule-modal', () => {
   };
 });
 
-const createMockTask = (overrides: Partial<MaintenanceTask> = {}): MaintenanceTask => ({
-  id: 1,
-  title: 'Test Task',
-  category: 'Appliances',
-  brand: '',
-  model: '',
-  location: 'Kitchen',
-  installationDate: '2020-01-01',
-  lastMaintenanceDate: JSON.stringify({ minor: null, major: null }),
-  nextMaintenanceDate: JSON.stringify({ 
-    minor: '2026-03-01T00:00:00.000Z', 
-    major: '2027-01-01T00:00:00.000Z' 
-  }),
-  minorIntervalMonths: 12,
-  majorIntervalMonths: 60,
-  minorTasks: null,
-  majorTasks: null,
-  notes: '',
-  calendarExports: null,
-  templateId: 'test-template',
-  ...overrides,
-});
-
-const createQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: { retry: false },
-  },
-});
-
 describe('Dashboard Filtering', () => {
-  let queryClient: QueryClient;
+  const getDateInput = () => screen.queryByPlaceholderText(/all/i) ?? screen.getByRole('spinbutton');
+
+  const getCategoryCheckbox = (categoryLabel: string) => {
+    const row = screen.getByText(new RegExp(categoryLabel, 'i')).closest('div');
+    if (!row) {
+      throw new Error(`Category row not found for ${categoryLabel}`);
+    }
+    const checkbox = row.querySelector('[role="checkbox"]') as HTMLElement | null;
+    if (!checkbox) {
+      throw new Error(`Category checkbox not found for ${categoryLabel}`);
+    }
+    return checkbox;
+  };
 
   beforeEach(() => {
-    queryClient = createQueryClient();
-    
-    // Mock fetch for tasks endpoint
-    global.fetch = jest.fn((url: string) => {
-      if (url.includes('/api/tasks')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            createMockTask({ id: 1, title: 'Task 1', category: 'Appliances' }),
-            createMockTask({ id: 2, title: 'Task 2', category: 'HVAC & Mechanical' }),
-          ],
-        });
-      }
-      if (url.includes('/api/stats')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ total: 2, dueNext30Days: 1, overdue: 0 }),
-        });
-      }
-      return Promise.resolve({ ok: true, json: async () => ({}) });
-    }) as jest.Mock;
+    mockJsonFetch({
+      '/api/auth/me': null,
+      '/api/tasks': [
+        createMaintenanceTaskFixture({ id: '1', title: 'Task 1', category: 'Appliances', templateId: 'test-template' }),
+        createMaintenanceTaskFixture({ id: '2', title: 'Task 2', category: 'HVAC & Mechanical', templateId: 'test-template' }),
+      ],
+      '/api/stats': { total: 2, dueNext30Days: 1, overdue: 0 },
+    });
   });
 
   afterEach(() => {
@@ -96,11 +69,7 @@ describe('Dashboard Filtering', () => {
 
   describe('Minor/Major Filtering', () => {
     it('should show both minor and major maintenance by default', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         const task1Minor = screen.queryByTestId('task-1-showMinor');
@@ -114,11 +83,7 @@ describe('Dashboard Filtering', () => {
     });
 
     it('should hide minor maintenance when minor checkbox is unchecked', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText('Task 1')).toBeInTheDocument();
@@ -137,11 +102,7 @@ describe('Dashboard Filtering', () => {
     });
 
     it('should hide major maintenance when major checkbox is unchecked', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText('Task 1')).toBeInTheDocument();
@@ -160,11 +121,7 @@ describe('Dashboard Filtering', () => {
     });
 
     it('should apply independent filters for minor and major maintenance', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText('Task 1')).toBeInTheDocument();
@@ -202,15 +159,19 @@ describe('Dashboard Filtering', () => {
           return Promise.resolve({
             ok: true,
             json: async () => [
-              createMockTask({ 
-                id: 1, 
+              createMaintenanceTaskFixture({ 
+                id: '1',
+                title: 'Task 1',
+                templateId: 'test-template',
                 nextMaintenanceDate: JSON.stringify({ 
                   minor: '2026-02-20T00:00:00.000Z', // Past due
                   major: '2027-01-01T00:00:00.000Z' 
                 })
               }),
-              createMockTask({ 
-                id: 2, 
+              createMaintenanceTaskFixture({ 
+                id: '2',
+                title: 'Task 2',
+                templateId: 'test-template',
                 nextMaintenanceDate: JSON.stringify({ 
                   minor: '2026-03-10T00:00:00.000Z', // Future
                   major: '2027-01-01T00:00:00.000Z' 
@@ -222,18 +183,14 @@ describe('Dashboard Filtering', () => {
         return Promise.resolve({ ok: true, json: async () => ({}) });
       }) as jest.Mock;
 
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText('Task 1')).toBeInTheDocument();
       });
 
       // Set date filter to 0 (past due only)
-      const dateInput = screen.getByPlaceholderText(/days/i) || screen.getByRole('spinbutton');
+      const dateInput = getDateInput();
       fireEvent.change(dateInput, { target: { value: '0' } });
 
       await waitFor(() => {
@@ -249,15 +206,19 @@ describe('Dashboard Filtering', () => {
           return Promise.resolve({
             ok: true,
             json: async () => [
-              createMockTask({ 
-                id: 1, 
+              createMaintenanceTaskFixture({ 
+                id: '1',
+                title: 'Task 1',
+                templateId: 'test-template',
                 nextMaintenanceDate: JSON.stringify({ 
                   minor: '2026-02-26T00:00:00.000Z', // 2 days from now
                   major: '2027-01-01T00:00:00.000Z' 
                 })
               }),
-              createMockTask({ 
-                id: 2, 
+              createMaintenanceTaskFixture({ 
+                id: '2',
+                title: 'Task 2',
+                templateId: 'test-template',
                 nextMaintenanceDate: JSON.stringify({ 
                   minor: '2026-03-20T00:00:00.000Z', // 24 days from now
                   major: '2027-01-01T00:00:00.000Z' 
@@ -269,18 +230,14 @@ describe('Dashboard Filtering', () => {
         return Promise.resolve({ ok: true, json: async () => ({}) });
       }) as jest.Mock;
 
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText('Task 1')).toBeInTheDocument();
       });
 
       // Set date filter to 7 days
-      const dateInput = screen.getByPlaceholderText(/days/i) || screen.getByRole('spinbutton');
+      const dateInput = getDateInput();
       fireEvent.change(dateInput, { target: { value: '7' } });
 
       await waitFor(() => {
@@ -292,11 +249,7 @@ describe('Dashboard Filtering', () => {
 
   describe('Category Filtering', () => {
     it('should filter tasks by category', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText('Task 1')).toBeInTheDocument();
@@ -304,7 +257,7 @@ describe('Dashboard Filtering', () => {
       });
 
       // Find and uncheck a category
-      const appliancesCheckbox = screen.getByRole('checkbox', { name: /appliances/i });
+      const appliancesCheckbox = getCategoryCheckbox('Appliances');
       fireEvent.click(appliancesCheckbox);
 
       await waitFor(() => {
@@ -316,19 +269,15 @@ describe('Dashboard Filtering', () => {
     });
 
     it('should toggle all categories', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText('Task 1')).toBeInTheDocument();
       });
 
       // Find "Select All" or "Deselect All" button
-      const toggleAllButton = screen.getByRole('button', { name: /select all|deselect all/i });
-      fireEvent.click(toggleAllButton);
+      const toggleAllCheckbox = getCategoryCheckbox('Select/Deselect All');
+      fireEvent.click(toggleAllCheckbox);
 
       await waitFor(() => {
         // All tasks should be hidden
@@ -340,27 +289,21 @@ describe('Dashboard Filtering', () => {
 
   describe('Over Due Stat Card Click', () => {
     it('should set date filter to 0 when Over Due card is clicked', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText(/over due/i)).toBeInTheDocument();
       });
 
       // Find and click the Over Due card
-      const overDueCard = screen.getByText(/over due/i).closest('div');
-      if (overDueCard) {
-        fireEvent.click(overDueCard);
+      const overDueCard = screen.getByTitle(/overdue filter|filter and show only overdue tasks|clear overdue filter/i);
+      fireEvent.click(overDueCard);
 
-        // Check that date filter input shows 0
-        await waitFor(() => {
-          const dateInput = screen.getByPlaceholderText(/days/i) || screen.getByRole('spinbutton');
-          expect(dateInput).toHaveValue(0);
-        });
-      }
+      // Check that date filter input shows 0
+      await waitFor(() => {
+        const dateInput = getDateInput();
+        expect(dateInput).toHaveValue(0);
+      });
     });
   });
 
@@ -375,17 +318,21 @@ describe('Dashboard Filtering', () => {
           return Promise.resolve({
             ok: true,
             json: async () => [
-              createMockTask({ 
-                id: 1, 
+              createMaintenanceTaskFixture({ 
+                id: '1', 
+                title: 'Task 1',
                 category: 'Appliances',
+                templateId: 'test-template',
                 nextMaintenanceDate: JSON.stringify({ 
                   minor: '2026-02-26T00:00:00.000Z', // 2 days - within filter
                   major: '2027-01-01T00:00:00.000Z' 
                 })
               }),
-              createMockTask({ 
-                id: 2, 
+              createMaintenanceTaskFixture({ 
+                id: '2', 
+                title: 'Task 2',
                 category: 'HVAC & Mechanical',
+                templateId: 'test-template',
                 nextMaintenanceDate: JSON.stringify({ 
                   minor: '2026-03-20T00:00:00.000Z', // 24 days - outside filter
                   major: '2027-01-01T00:00:00.000Z' 
@@ -397,18 +344,14 @@ describe('Dashboard Filtering', () => {
         return Promise.resolve({ ok: true, json: async () => ({}) });
       }) as jest.Mock;
 
-      render(
-        <QueryClientProvider client={queryClient}>
-          <Dashboard />
-        </QueryClientProvider>
-      );
+      renderWithQueryClient(<Dashboard />);
 
       await waitFor(() => {
         expect(screen.queryByText('Task 1')).toBeInTheDocument();
       });
 
       // Apply date filter (7 days)
-      const dateInput = screen.getByPlaceholderText(/days/i) || screen.getByRole('spinbutton');
+      const dateInput = getDateInput();
       fireEvent.change(dateInput, { target: { value: '7' } });
 
       // Uncheck major maintenance
