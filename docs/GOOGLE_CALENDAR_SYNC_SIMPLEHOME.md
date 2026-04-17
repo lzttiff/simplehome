@@ -70,14 +70,23 @@ During the same run:
 2. Compare against last synced date (`syncedDates`).
 3. If Google changed and local did not, pull Google date into local `nextMaintenanceDate`.
 4. If both changed, use last-write-wins by comparing Google event `updated` timestamp with local task `updatedAt`.
+5. If event summary or description contains `[DONE]`, treat it as a completion action:
+- copy event date into `lastMaintenanceDate` for that maintenance type
+- compute new `nextMaintenanceDate` using interval months
+- delete the DONE event
+- create a fresh event for the new next date
+
+Compatibility notes:
+- DONE detection only applies to Google two-way direct sync events (not subscription feeds).
+- For older synced events created before rebranding, sync also checks legacy event metadata keys to find matching events.
 
 ### Persisted local updates
 At end of item sync, server updates:
 - `calendarExports`
 - `nextMaintenanceDate`
+- `lastMaintenanceDate` (when `[DONE]` completion is applied)
 
 Notes:
-- Current sync does not update `lastMaintenanceDate`.
 - Current sync does not change task `status`.
 - Pull is user-triggered, not background real-time.
 
@@ -113,16 +122,23 @@ This is applied independently for minor and major event tracks.
 
 ## Current Limitations
 
-- Completing a task from Google is not implemented.
-- Marking event `DONE` in Google currently has no native semantic meaning in sync.
-- To apply Google date edits, user must run `Sync Selected Two-Way` again.
+- Sync does not update task `status`; completion is reflected through maintenance dates.
+- To apply Google date edits or DONE actions, user must run `Sync Selected Two-Way` again.
 
-## Suggested Future Enhancement (Planned)
+## Using DONE From Google
 
-To support completion from Google consistently:
-1. Detect completion marker (for example `[DONE]`) in Google event.
-2. Map that to completion flow in SimpleHome:
-- copy completion date into `lastMaintenanceDate`
-- compute new `nextMaintenanceDate` using interval months
-3. Delete/retire DONE event and create next maintenance event.
-4. Track processed event version to ensure idempotency.
+To complete a task from Google Calendar:
+1. Open the event in the direct sync calendar (`SimpleHome Maintenance`).
+2. Prefix event summary with `[DONE]` and keep the maintenance prefix and task title, for example:
+- `[DONE] Major Maintenance: Driveway`
+3. Run `Sync Selected Two-Way` in SimpleHome.
+
+Expected result:
+- `lastMaintenanceDate` is set from the event date.
+- `nextMaintenanceDate` is rolled forward using interval months.
+- DONE event is removed.
+- New next-cycle event is created.
+
+Troubleshooting:
+- If you use subscription feeds, DONE is ignored (one-way mode).
+- Optional verbose sync diagnostics can be enabled with `GOOGLE_SYNC_DEBUG=true`.

@@ -189,6 +189,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         pulledChanges: number;
         createdEvents: number;
         updatedEvents: number;
+        completedFromGoogle?: number;
       }>;
     },
     onSuccess: async (result) => {
@@ -199,7 +200,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
       toast({
         title: "Google Calendar Synced",
-        description: `Synced ${result.syncedTasks} task${result.syncedTasks === 1 ? "" : "s"}. Pushed ${result.pushedEvents} event${result.pushedEvents === 1 ? "" : "s"}, pulled ${result.pulledChanges} change${result.pulledChanges === 1 ? "" : "s"}.`,
+        description: `Synced ${result.syncedTasks} task${result.syncedTasks === 1 ? "" : "s"}. Pushed ${result.pushedEvents} event${result.pushedEvents === 1 ? "" : "s"}, pulled ${result.pulledChanges} change${result.pulledChanges === 1 ? "" : "s"}, completed ${result.completedFromGoogle ?? 0} from Google.`,
       });
     },
     onError: (error: any) => {
