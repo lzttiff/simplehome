@@ -80,6 +80,11 @@ Planned validation:
 - run targeted suites repeatedly
 - keep memory profile (`NODE_OPTIONS=--max-old-space-size=4096`) for reproducibility
 
+Progress update:
+
+- Repeated targeted runs were executed to validate deterministic pass behavior.
+- Added follow-up warning hygiene work to reduce noisy output during verification.
+
 Status: In progress
 
 ### Phase 4: Ongoing quality guardrails
@@ -100,3 +105,5 @@ Status: Planned
 ## Change log
 
 - 2026-04-17: Created this plan and completed Phases 1 and 2 foundation/migration for task-card and dashboard suites.
+- 2026-04-17: Committed Phase 1-2 work in `test: phase 1-2 reliability foundation for client suites`.
+- 2026-04-17: Began next phase warning-noise reduction (`use-toast` mock in task-card tests, dashboard log suppression in dashboard tests).

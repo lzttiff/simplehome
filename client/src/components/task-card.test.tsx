@@ -36,8 +36,18 @@ jest.mock('@/components/ui/calendar', () => ({
   ),
 }));
 
+jest.mock('@/hooks/use-toast', () => ({
+  useToast: () => ({
+    toast: jest.fn(),
+  }),
+}));
+
 describe('TaskCard Component', () => {
+  let consoleLogSpy: jest.SpyInstance;
+
   beforeEach(() => {
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
     mockJsonFetch({
       '/api/auth/me': null,
       '/api/tasks': { success: true },
@@ -57,6 +67,7 @@ describe('TaskCard Component', () => {
   });
 
   afterEach(() => {
+    consoleLogSpy.mockRestore();
     jest.restoreAllMocks();
   });
 

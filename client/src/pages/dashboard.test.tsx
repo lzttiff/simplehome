@@ -38,6 +38,8 @@ jest.mock('@/components/export-schedule-modal', () => {
 });
 
 describe('Dashboard Filtering', () => {
+  let consoleLogSpy: jest.SpyInstance;
+
   const getDateInput = () => screen.queryByPlaceholderText(/all/i) ?? screen.getByRole('spinbutton');
 
   const getCategoryCheckbox = (categoryLabel: string) => {
@@ -53,6 +55,8 @@ describe('Dashboard Filtering', () => {
   };
 
   beforeEach(() => {
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
     mockJsonFetch({
       '/api/auth/me': null,
       '/api/tasks': [
@@ -64,6 +68,7 @@ describe('Dashboard Filtering', () => {
   });
 
   afterEach(() => {
+    consoleLogSpy.mockRestore();
     jest.restoreAllMocks();
   });
 
