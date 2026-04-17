@@ -43,7 +43,7 @@ const GOOGLE_SCOPES = [
 
 const GOOGLE_SYNC_PROVIDER = "google";
 const GOOGLE_SYNC_MODE = "direct";
-const GOOGLE_CALENDAR_NAME = "HomeGuard Maintenance";
+const GOOGLE_CALENDAR_NAME = "SimpleHome Maintenance";
 
 function getGoogleClientId(): string | null {
   return process.env.GOOGLE_CLIENT_ID?.trim() || null;
@@ -174,12 +174,12 @@ function buildEventPayload(task: MaintenanceTask, kind: SyncKind, dateOnly: stri
     transparency: "transparent",
     extendedProperties: {
       private: {
-        homeguardTaskId: task.id,
-        homeguardMaintenanceType: kind,
+        simplehomeTaskId: task.id,
+        simplehomeMaintenanceType: kind,
       },
     },
     source: {
-      title: "HomeGuard",
+      title: "SimpleHome",
       url: process.env.PUBLIC_BASE_URL?.trim() || undefined,
     },
   };
@@ -238,7 +238,7 @@ async function ensureCalendar(
   const created = await calendar.calendars.insert({
     requestBody: {
       summary: GOOGLE_CALENDAR_NAME,
-      description: "Two-way synced maintenance schedule from HomeGuard.",
+      description: "Two-way synced maintenance schedule from SimpleHome.",
       timeZone: timezone,
     },
   });

@@ -1,6 +1,6 @@
 # Overview
 
-HomeGuard is a comprehensive home maintenance management application built as a full-stack TypeScript application. The system helps property owners track, manage, and schedule maintenance tasks through an intelligent dashboard interface. It features AI-powered task generation based on property assessments, multiple property templates, and an interactive questionnaire system to create personalized maintenance schedules.
+SimpleHome is a comprehensive home maintenance management application built as a full-stack TypeScript application. The system helps property owners track, manage, and schedule maintenance tasks through an intelligent dashboard interface. It features AI-powered task generation based on property assessments, multiple property templates, and an interactive questionnaire system to create personalized maintenance schedules.
 
 # User Preferences
 

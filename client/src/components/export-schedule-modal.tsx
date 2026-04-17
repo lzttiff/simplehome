@@ -324,10 +324,10 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     const icsContent = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//HomeGuard//Maintenance Schedule//EN",
+      "PRODID:-//SimpleHome//Maintenance Schedule//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
-      "X-WR-CALNAME:HomeGuard Maintenance Schedule",
+      "X-WR-CALNAME:SimpleHome Maintenance Schedule",
       "X-WR-TIMEZONE:UTC",
     ];
 
@@ -349,7 +349,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
           const minorTasks = task.minorTasks ? JSON.parse(task.minorTasks) : [];
           const description = Array.isArray(minorTasks) && minorTasks.length > 0 ? minorTasks.join("\\n") : task.description || "Regular minor maintenance";
-          const eventId = `${task.id}-minor@homeguard.app`;
+          const eventId = `${task.id}-minor@simplehome.app`;
           eventIds.minor = eventId;
 
           icsContent.push(
@@ -373,7 +373,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
           const majorTasks = task.majorTasks ? JSON.parse(task.majorTasks) : [];
           const description = Array.isArray(majorTasks) && majorTasks.length > 0 ? majorTasks.join("\\n") : task.description || "Regular major maintenance";
-          const eventId = `${task.id}-major@homeguard.app`;
+          const eventId = `${task.id}-major@simplehome.app`;
           eventIds.major = eventId;
 
           icsContent.push(
@@ -403,7 +403,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "homeguard-maintenance-schedule.ics");
+    link.setAttribute("download", "simplehome-maintenance-schedule.ics");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -625,7 +625,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
             <div>
               <h3 className="text-sm font-semibold">Google Two-Way Sync</h3>
               <p className="text-xs text-gray-700 mt-1">
-                Sync selected tasks into a dedicated HomeGuard Google calendar. Running sync again also pulls Google date edits back into HomeGuard.
+                Sync selected tasks into a dedicated SimpleHome Google calendar. Running sync again also pulls Google date edits back into SimpleHome.
               </p>
             </div>
 
@@ -682,7 +682,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
             )}
           </div>
 
-          <Button onClick={exportToGoogleCalendar} className="w-full justify-start" variant="outline" title="Subscribe selected tasks in Google Calendar via HomeGuard feed">
+          <Button onClick={exportToGoogleCalendar} className="w-full justify-start" variant="outline" title="Subscribe selected tasks in Google Calendar via SimpleHome feed">
             <Calendar className="w-4 h-4 mr-3" />
             Subscribe in Google Calendar (Selected)
           </Button>
@@ -720,7 +720,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
             </div>
           )}
 
-          <Button onClick={exportToAppleCalendarSubscription} className="w-full justify-start" variant="outline" title="Subscribe selected tasks in Apple Calendar via HomeGuard feed">
+          <Button onClick={exportToAppleCalendarSubscription} className="w-full justify-start" variant="outline" title="Subscribe selected tasks in Apple Calendar via SimpleHome feed">
             <Calendar className="w-4 h-4 mr-3" />
             Subscribe in Apple Calendar (Selected)
           </Button>
@@ -844,7 +844,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
             <div className="text-xs text-gray-500 mt-3 p-2 bg-blue-50 rounded space-y-2">
               <p className="flex items-center gap-1">
                 <ExternalLink className="w-3 h-3" />
-                Open your calendar application and search for HomeGuard or the task name to inspect synced events.
+                Open your calendar application and search for SimpleHome or the task name to inspect synced events.
               </p>
               <p className="text-amber-600">
                 Clearing records here does not delete events from Google Calendar or Apple Calendar. Remove those events in the calendar app if you no longer want them.
@@ -855,7 +855,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
         <div className="text-xs text-gray-500 mt-2 space-y-1">
           <p>Google two-way sync requires server-side OAuth credentials and a public HTTPS callback URL.</p>
-          <p>Google and Apple subscription feeds remain one-way from HomeGuard into the calendar app.</p>
+          <p>Google and Apple subscription feeds remain one-way from SimpleHome into the calendar app.</p>
           <p>ICS file exports are compatible with most calendar applications.</p>
           <p>For subscription feeds, make sure PUBLIC_BASE_URL is set to a publicly reachable HTTPS domain.</p>
         </div>

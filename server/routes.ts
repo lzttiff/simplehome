@@ -810,12 +810,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const configuredBase = process.env.PUBLIC_BASE_URL?.trim();
       const baseUrl = configuredBase && configuredBase.length > 0 ? configuredBase.replace(/\/$/, "") : inferredBase;
       const feedUrlToken = `${baseUrl}/api/calendar/google/feed/${token}`;
-      const feedUrlTokenIcs = `${baseUrl}/api/calendar/google/feed/${token}/homeguard.ics`;
+      const feedUrlTokenIcs = `${baseUrl}/api/calendar/google/feed/${token}/simplehome.ics`;
       // Use short-id URLs as primary links for better Google compatibility.
       const feedUrl = `${baseUrl}/api/calendar/google/subscriptions/${shortFeedId}`;
       const feedUrlIcs = `${baseUrl}/api/calendar/google/subscriptions/${shortFeedId}.ics`;
       const feedUrlShort = `${baseUrl}/api/calendar/google/feed/s/${shortFeedId}`;
-      const feedUrlShortIcs = `${baseUrl}/api/calendar/google/feed/s/${shortFeedId}/homeguard.ics`;
+      const feedUrlShortIcs = `${baseUrl}/api/calendar/google/feed/s/${shortFeedId}/simplehome.ics`;
       // Use .ics URL for Google prefill. Some Google flows validate extension-based feeds more reliably.
       const googleSubscribeUrl = `https://calendar.google.com/calendar/u/0/r/settings/addbyurl?cid=${encodeURIComponent(feedUrlIcs)}`;
       const googleSubscribeUrlFallback = "https://calendar.google.com/calendar/u/0/r/settings/addbyurl";
@@ -873,10 +873,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const ics: string[] = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//HomeGuard//Google Subscription Feed//EN",
+      "PRODID:-//SimpleHome//Google Subscription Feed//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
-      "X-WR-CALNAME:HomeGuard Maintenance Schedule",
+      "X-WR-CALNAME:SimpleHome Maintenance Schedule",
       `X-WR-TIMEZONE:${parsed.tz || "UTC"}`,
     ];
 
@@ -903,7 +903,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           Array.isArray(minorTasks) && minorTasks.length > 0
             ? minorTasks.join("\\n")
             : task.description || "Regular minor maintenance";
-        const uid = `${task.id}-minor@homeguard.app`;
+        const uid = `${task.id}-minor@simplehome.app`;
         ics.push(
           "BEGIN:VEVENT",
           `UID:${uid}`,
@@ -929,7 +929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           Array.isArray(majorTasks) && majorTasks.length > 0
             ? majorTasks.join("\\n")
             : task.description || "Regular major maintenance";
-        const uid = `${task.id}-major@homeguard.app`;
+        const uid = `${task.id}-major@simplehome.app`;
         ics.push(
           "BEGIN:VEVENT",
           `UID:${uid}`,
@@ -947,8 +947,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     ics.push("END:VCALENDAR");
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-    res.setHeader("X-HomeGuard-Event-Count", String(eventCount));
-    res.setHeader("X-HomeGuard-Token-Items", String(parsed.items.length));
+    res.setHeader("X-SimpleHome-Event-Count", String(eventCount));
+    res.setHeader("X-SimpleHome-Token-Items", String(parsed.items.length));
     res.setHeader("Cache-Control", "no-store");
     logWithLevel(
       "INFO",
@@ -1030,16 +1030,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const ics: string[] = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//HomeGuard//Google Diagnostic Feed//EN",
+      "PRODID:-//SimpleHome//Google Diagnostic Feed//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
-      "X-WR-CALNAME:HomeGuard Diagnostic Calendar",
+      "X-WR-CALNAME:SimpleHome Diagnostic Calendar",
       "X-WR-TIMEZONE:UTC",
       "BEGIN:VEVENT",
-      "UID:homeguard-diagnostic@homeguard.app",
+      "UID:simplehome-diagnostic@simplehome.app",
       `DTSTAMP:${formatICSDate(now)}`,
       `DTSTART;VALUE=DATE:${formatICSDate(tomorrow, true)}`,
-      "SUMMARY:HomeGuard Diagnostic Event",
+      "SUMMARY:SimpleHome Diagnostic Event",
       "DESCRIPTION:If this appears in Google Calendar, host reachability is working.",
       "STATUS:CONFIRMED",
       "END:VEVENT",
@@ -1125,11 +1125,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const configuredBase = process.env.PUBLIC_BASE_URL?.trim();
       const baseUrl = configuredBase && configuredBase.length > 0 ? configuredBase.replace(/\/$/, "") : inferredBase;
       const feedUrlToken = `${baseUrl}/api/calendar/apple/feed/${token}`;
-      const feedUrlTokenIcs = `${baseUrl}/api/calendar/apple/feed/${token}/homeguard.ics`;
+      const feedUrlTokenIcs = `${baseUrl}/api/calendar/apple/feed/${token}/simplehome.ics`;
       const feedUrl = `${baseUrl}/api/calendar/apple/subscriptions/${shortFeedId}`;
       const feedUrlIcs = `${baseUrl}/api/calendar/apple/subscriptions/${shortFeedId}.ics`;
       const feedUrlShort = `${baseUrl}/api/calendar/apple/feed/s/${shortFeedId}`;
-      const feedUrlShortIcs = `${baseUrl}/api/calendar/apple/feed/s/${shortFeedId}/homeguard.ics`;
+      const feedUrlShortIcs = `${baseUrl}/api/calendar/apple/feed/s/${shortFeedId}/simplehome.ics`;
       const isLikelyPrivateUrl = isLikelyPrivateHost(new URL(feedUrl).hostname);
 
       logWithLevel(
@@ -1234,16 +1234,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const ics: string[] = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//HomeGuard//Apple Diagnostic Feed//EN",
+      "PRODID:-//SimpleHome//Apple Diagnostic Feed//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
-      "X-WR-CALNAME:HomeGuard Diagnostic Calendar",
+      "X-WR-CALNAME:SimpleHome Diagnostic Calendar",
       "X-WR-TIMEZONE:UTC",
       "BEGIN:VEVENT",
-      "UID:homeguard-diagnostic-apple@homeguard.app",
+      "UID:simplehome-diagnostic-apple@simplehome.app",
       `DTSTAMP:${formatICSDate(now)}`,
       `DTSTART;VALUE=DATE:${formatICSDate(tomorrow, true)}`,
-      "SUMMARY:HomeGuard Diagnostic Event",
+      "SUMMARY:SimpleHome Diagnostic Event",
       "DESCRIPTION:If this appears in Apple Calendar, host reachability is working.",
       "STATUS:CONFIRMED",
       "END:VEVENT",

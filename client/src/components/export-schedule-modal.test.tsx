@@ -148,7 +148,7 @@ describe('ExportScheduleModal Google sync', () => {
             configured: true,
             connected: true,
             accountEmail: 'owner@example.com',
-            calendarId: 'homeguard@example.com',
+            calendarId: 'simplehome@example.com',
             lastSyncedAt: '2026-03-20T12:00:00.000Z',
           }),
         } as Response;
