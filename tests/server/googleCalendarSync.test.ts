@@ -1,5 +1,9 @@
 import type { MaintenanceTask } from '../../shared/schema';
-import { buildCalendarTaskDescription, deriveDoneCompletionDates } from '../../server/services/googleCalendarSync';
+import {
+  buildCalendarTaskDescription,
+  deriveDoneCompletionDates,
+  deriveRescheduleBacklogState,
+} from '../../server/services/googleCalendarSync';
 
 function createTask(overrides: Partial<MaintenanceTask> = {}): MaintenanceTask {
   return {
@@ -102,5 +106,55 @@ describe('buildCalendarTaskDescription', () => {
     expect(output).toContain('Type: Major maintenance');
     expect(output).toContain('Notes:');
     expect(output).toContain('Inspect all detectors and replace as needed.');
+  });
+});
+
+describe('deriveRescheduleBacklogState', () => {
+  test('marks backlog true when rescheduling an overdue task', () => {
+    const out = deriveRescheduleBacklogState({
+      currentDateOnly: '2026-04-01',
+      googleDateOnly: '2026-04-20',
+      existingBacklog: false,
+      existingOverdueSince: null,
+      todayDateOnly: '2026-04-17',
+    });
+
+    expect(out).toEqual({
+      rescheduled: true,
+      backlog: true,
+      overdueSince: '2026-04-01',
+    });
+  });
+
+  test('clears backlog when rescheduling a non-overdue task', () => {
+    const out = deriveRescheduleBacklogState({
+      currentDateOnly: '2026-04-25',
+      googleDateOnly: '2026-05-01',
+      existingBacklog: true,
+      existingOverdueSince: '2026-04-10',
+      todayDateOnly: '2026-04-17',
+    });
+
+    expect(out).toEqual({
+      rescheduled: true,
+      backlog: false,
+      overdueSince: null,
+    });
+  });
+
+  test('returns no reschedule when date is unchanged', () => {
+    const out = deriveRescheduleBacklogState({
+      currentDateOnly: '2026-04-25',
+      googleDateOnly: '2026-04-25',
+      existingBacklog: true,
+      existingOverdueSince: '2026-04-10',
+      todayDateOnly: '2026-04-17',
+    });
+
+    expect(out).toEqual({
+      rescheduled: false,
+      backlog: true,
+      overdueSince: '2026-04-10',
+    });
   });
 });

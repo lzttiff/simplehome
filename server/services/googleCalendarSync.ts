@@ -44,6 +44,7 @@ type SyncOutcome = {
   createdEvents: number;
   updatedEvents: number;
   completedFromGoogle: number;
+  rescheduledFromGoogle: number;
   lastSyncedAt: string;
   calendarId: string;
 };
@@ -203,6 +204,112 @@ export function deriveDoneCompletionDates(
   return {
     completedDateOnly,
     nextDateOnly,
+  };
+}
+
+function getTodayDateOnly(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getTaskOverdueBacklog(task: MaintenanceTask): { minor: boolean; major: boolean } {
+  if (!task.overdueBacklog) {
+    return { minor: false, major: false };
+  }
+
+  try {
+    const parsed = JSON.parse(task.overdueBacklog) as { minor?: boolean; major?: boolean };
+    if (!parsed || typeof parsed !== "object") {
+      return { minor: false, major: false };
+    }
+
+    return {
+      minor: !!parsed.minor,
+      major: !!parsed.major,
+    };
+  } catch {
+    return { minor: false, major: false };
+  }
+}
+
+function getTaskOverdueSince(task: MaintenanceTask): { minor: string | null; major: string | null } {
+  if (!task.overdueSince) {
+    return { minor: null, major: null };
+  }
+
+  try {
+    const parsed = JSON.parse(task.overdueSince) as { minor?: string | null; major?: string | null };
+    if (!parsed || typeof parsed !== "object") {
+      return { minor: null, major: null };
+    }
+
+    return {
+      minor: normalizeDateOnly(parsed.minor ?? null),
+      major: normalizeDateOnly(parsed.major ?? null),
+    };
+  } catch {
+    return { minor: null, major: null };
+  }
+}
+
+function setTaskOverdueBacklog(
+  task: MaintenanceTask,
+  next: { minor?: boolean; major?: boolean },
+): string {
+  const current = getTaskOverdueBacklog(task);
+  return JSON.stringify({
+    minor: next.minor === undefined ? current.minor : !!next.minor,
+    major: next.major === undefined ? current.major : !!next.major,
+  });
+}
+
+function setTaskOverdueSince(
+  task: MaintenanceTask,
+  next: { minor?: string | null; major?: string | null },
+): string {
+  const current = getTaskOverdueSince(task);
+  return JSON.stringify({
+    minor: next.minor === undefined ? current.minor : normalizeDateOnly(next.minor),
+    major: next.major === undefined ? current.major : normalizeDateOnly(next.major),
+  });
+}
+
+export function deriveRescheduleBacklogState(args: {
+  currentDateOnly: string | null;
+  googleDateOnly: string | null;
+  existingBacklog: boolean;
+  existingOverdueSince: string | null;
+  todayDateOnly?: string;
+}): {
+  rescheduled: boolean;
+  backlog: boolean;
+  overdueSince: string | null;
+} {
+  const currentDateOnly = normalizeDateOnly(args.currentDateOnly);
+  const googleDateOnly = normalizeDateOnly(args.googleDateOnly);
+  const existingOverdueSince = normalizeDateOnly(args.existingOverdueSince);
+  const todayDateOnly = normalizeDateOnly(args.todayDateOnly) ?? getTodayDateOnly();
+
+  if (!googleDateOnly || googleDateOnly === currentDateOnly) {
+    return {
+      rescheduled: false,
+      backlog: !!args.existingBacklog,
+      overdueSince: existingOverdueSince,
+    };
+  }
+
+  const wasOverdueBeforeReschedule = !!currentDateOnly && currentDateOnly < todayDateOnly;
+  if (wasOverdueBeforeReschedule) {
+    return {
+      rescheduled: true,
+      backlog: true,
+      overdueSince: existingOverdueSince ?? currentDateOnly,
+    };
+  }
+
+  return {
+    rescheduled: true,
+    backlog: false,
+    overdueSince: null,
   };
 }
 
@@ -529,15 +636,32 @@ async function syncTaskEvent(
   createdEvents: number;
   updatedEvents: number;
   completedFromGoogle: number;
+  rescheduledFromGoogle: number;
 }> {
   if (!selectionIncluded) {
-    return { task, pushedEvents: 0, pulledChanges: 0, createdEvents: 0, updatedEvents: 0, completedFromGoogle: 0 };
+    return {
+      task,
+      pushedEvents: 0,
+      pulledChanges: 0,
+      createdEvents: 0,
+      updatedEvents: 0,
+      completedFromGoogle: 0,
+      rescheduledFromGoogle: 0,
+    };
   }
 
   const currentSchedule = getTaskSchedule(task);
   const currentDateOnly = normalizeDateOnly(currentSchedule[kind] ?? null);
   if (!currentDateOnly) {
-    return { task, pushedEvents: 0, pulledChanges: 0, createdEvents: 0, updatedEvents: 0, completedFromGoogle: 0 };
+    return {
+      task,
+      pushedEvents: 0,
+      pulledChanges: 0,
+      createdEvents: 0,
+      updatedEvents: 0,
+      completedFromGoogle: 0,
+      rescheduledFromGoogle: 0,
+    };
   }
 
   const exportRecord = getGoogleSyncExport(task);
@@ -568,6 +692,7 @@ async function syncTaskEvent(
   let createdEvents = 0;
   let updatedEvents = 0;
   let completedFromGoogle = 0;
+  let rescheduledFromGoogle = 0;
 
   const googleDateOnly = normalizeDateOnly(event?.start?.date ?? event?.start?.dateTime ?? null);
   const localChanged = !!syncedDateOnly && currentDateOnly !== syncedDateOnly;
@@ -595,6 +720,8 @@ async function syncTaskEvent(
           ...nextTask,
           lastMaintenanceDate: setTaskLastMaintenance(nextTask, { [kind]: completion.completedDateOnly }),
           nextMaintenanceDate: setTaskSchedule(nextTask, { [kind]: completion.nextDateOnly }),
+          overdueBacklog: setTaskOverdueBacklog(nextTask, { [kind]: false }),
+          overdueSince: setTaskOverdueSince(nextTask, { [kind]: null }),
         };
         pulledChanges++;
       }
@@ -618,23 +745,49 @@ async function syncTaskEvent(
 
   if (event && googleDateOnly) {
     if (!localChanged && googleChanged) {
+      const currentOverdueBacklog = getTaskOverdueBacklog(nextTask);
+      const currentOverdueSince = getTaskOverdueSince(nextTask);
+      const transition = deriveRescheduleBacklogState({
+        currentDateOnly,
+        googleDateOnly,
+        existingBacklog: currentOverdueBacklog[kind],
+        existingOverdueSince: currentOverdueSince[kind],
+      });
       resolvedDateOnly = googleDateOnly;
       nextTask = {
         ...nextTask,
         nextMaintenanceDate: setTaskSchedule(nextTask, { [kind]: googleDateOnly }),
+        overdueBacklog: setTaskOverdueBacklog(nextTask, { [kind]: transition.backlog }),
+        overdueSince: setTaskOverdueSince(nextTask, { [kind]: transition.overdueSince }),
       };
       pulledChanges++;
+      if (transition.rescheduled) {
+        rescheduledFromGoogle++;
+      }
     } else if (localChanged && googleChanged) {
       const googleUpdatedAt = event.updated ? new Date(event.updated).getTime() : 0;
       const taskUpdatedAt = nextTask.updatedAt ? new Date(nextTask.updatedAt).getTime() : 0;
 
       if (googleUpdatedAt > taskUpdatedAt) {
+        const currentOverdueBacklog = getTaskOverdueBacklog(nextTask);
+        const currentOverdueSince = getTaskOverdueSince(nextTask);
+        const transition = deriveRescheduleBacklogState({
+          currentDateOnly,
+          googleDateOnly,
+          existingBacklog: currentOverdueBacklog[kind],
+          existingOverdueSince: currentOverdueSince[kind],
+        });
         resolvedDateOnly = googleDateOnly;
         nextTask = {
           ...nextTask,
           nextMaintenanceDate: setTaskSchedule(nextTask, { [kind]: googleDateOnly }),
+          overdueBacklog: setTaskOverdueBacklog(nextTask, { [kind]: transition.backlog }),
+          overdueSince: setTaskOverdueSince(nextTask, { [kind]: transition.overdueSince }),
         };
         pulledChanges++;
+        if (transition.rescheduled) {
+          rescheduledFromGoogle++;
+        }
       }
     }
   }
@@ -682,6 +835,7 @@ async function syncTaskEvent(
     createdEvents,
     updatedEvents,
     completedFromGoogle,
+    rescheduledFromGoogle,
   };
 }
 
@@ -890,6 +1044,7 @@ export async function runGoogleCalendarTwoWaySync(
   let createdEvents = 0;
   let updatedEvents = 0;
   let completedFromGoogle = 0;
+  let rescheduledFromGoogle = 0;
 
   for (const selection of activeSelections) {
     const task = await storage.getMaintenanceTask(selection.taskId, userId);
@@ -914,14 +1069,18 @@ export async function runGoogleCalendarTwoWaySync(
         totalChanges > 0 ||
         nextTask.calendarExports !== task.calendarExports ||
         nextTask.nextMaintenanceDate !== task.nextMaintenanceDate ||
-        nextTask.lastMaintenanceDate !== task.lastMaintenanceDate
+        nextTask.lastMaintenanceDate !== task.lastMaintenanceDate ||
+        nextTask.overdueBacklog !== task.overdueBacklog ||
+        nextTask.overdueSince !== task.overdueSince
       ) {
       await storage.updateMaintenanceTask(
         task.id,
         {
           calendarExports: nextTask.calendarExports ?? null,
           nextMaintenanceDate: nextTask.nextMaintenanceDate ?? null,
-            lastMaintenanceDate: nextTask.lastMaintenanceDate ?? null,
+          lastMaintenanceDate: nextTask.lastMaintenanceDate ?? null,
+          overdueBacklog: nextTask.overdueBacklog ?? null,
+          overdueSince: nextTask.overdueSince ?? null,
         },
         userId,
       );
@@ -936,6 +1095,7 @@ export async function runGoogleCalendarTwoWaySync(
     createdEvents += minorResult.createdEvents + majorResult.createdEvents;
     updatedEvents += minorResult.updatedEvents + majorResult.updatedEvents;
     completedFromGoogle += minorResult.completedFromGoogle + majorResult.completedFromGoogle;
+    rescheduledFromGoogle += minorResult.rescheduledFromGoogle + majorResult.rescheduledFromGoogle;
   }
 
   const lastSyncedAt = new Date();
@@ -951,6 +1111,7 @@ export async function runGoogleCalendarTwoWaySync(
     createdEvents,
     updatedEvents,
     completedFromGoogle,
+    rescheduledFromGoogle,
     lastSyncedAt: lastSyncedAt.toISOString(),
     calendarId,
   };

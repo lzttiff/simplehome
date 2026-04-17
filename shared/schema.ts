@@ -238,6 +238,8 @@ export interface MaintenanceTask {
   status: string; // pending, completed, overdue
   lastMaintenanceDate: string | null; // JSON: {minor: "YYYY-MM-DD"|null, major: "YYYY-MM-DD"|null}
   nextMaintenanceDate: string | null; // JSON: {minor: "YYYY-MM-DD"|null, major: "YYYY-MM-DD"|null}
+  overdueBacklog?: string | null; // JSON: {minor: boolean, major: boolean}
+  overdueSince?: string | null; // JSON: {minor: "YYYY-MM-DD"|null, major: "YYYY-MM-DD"|null}
   isTemplate: boolean | null;
   isAiGenerated: boolean | null;
   templateId: string | null;
@@ -268,6 +270,8 @@ export interface InsertMaintenanceTask {
   status?: string;
   lastMaintenanceDate?: string | null;
   nextMaintenanceDate?: string | null;
+  overdueBacklog?: string | null;
+  overdueSince?: string | null;
   isTemplate?: boolean | null;
   isAiGenerated?: boolean | null;
   templateId?: string | null;
@@ -313,6 +317,8 @@ export const insertMaintenanceTaskSchema = z.object({
   status: z.string().optional(),
   lastMaintenanceDate: z.string().nullable().optional(),
   nextMaintenanceDate: z.string().nullable().optional(),
+  overdueBacklog: z.string().nullable().optional(),
+  overdueSince: z.string().nullable().optional(),
   isTemplate: z.boolean().nullable().optional(),
   isAiGenerated: z.boolean().nullable().optional(),
   templateId: z.string().nullable().optional(),
