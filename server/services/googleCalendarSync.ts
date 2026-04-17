@@ -188,20 +188,60 @@ export function deriveDoneCompletionDates(
   };
 }
 
-function getTaskDescription(task: MaintenanceTask, kind: SyncKind): string {
-  const raw = kind === "minor" ? task.minorTasks : task.majorTasks;
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.join("\n");
-      }
-    } catch {
-      // Fall back to the task description below.
-    }
+function parseTaskSteps(raw: string | null): string[] {
+  if (!raw) {
+    return [];
   }
 
-  return task.description || `Scheduled ${kind} maintenance`;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+export function buildCalendarTaskDescription(task: MaintenanceTask, kind: SyncKind): string {
+  const lines: string[] = [];
+  const maintenanceLabel = kind === "minor" ? "Minor" : "Major";
+  const steps = parseTaskSteps(kind === "minor" ? task.minorTasks : task.majorTasks);
+
+  lines.push(`Task: ${task.title}`);
+  lines.push(`Type: ${maintenanceLabel} maintenance`);
+
+  if (task.category) {
+    lines.push(`Category: ${task.category}`);
+  }
+  if (task.priority) {
+    lines.push(`Priority: ${task.priority}`);
+  }
+  if (task.location) {
+    lines.push(`Location: ${task.location}`);
+  }
+
+  lines.push("");
+
+  if (steps.length > 0) {
+    lines.push("Checklist:");
+    for (const step of steps) {
+      lines.push(`- ${step}`);
+    }
+    return lines.join("\n");
+  }
+
+  lines.push("Notes:");
+  lines.push(task.description?.trim() || `Scheduled ${kind} maintenance`);
+  return lines.join("\n");
+}
+
+function getTaskDescription(task: MaintenanceTask, kind: SyncKind): string {
+  return buildCalendarTaskDescription(task, kind);
 }
 
 function getEventSummary(task: MaintenanceTask, kind: SyncKind): string {
@@ -232,6 +272,7 @@ function parseDoneCandidate(event: calendar_v3.Schema$Event): DoneCandidate | nu
   };
 }
 
+
 async function loadDoneCandidates(
   calendar: calendar_v3.Calendar,
   calendarId: string,
@@ -240,7 +281,7 @@ async function loadDoneCandidates(
   let pageToken: string | undefined = undefined;
 
   do {
-    const response = await calendar.events.list({
+    const response: { data: calendar_v3.Schema$Events } = await calendar.events.list({
       calendarId,
       q: "[DONE]",
       singleEvents: true,
@@ -248,7 +289,7 @@ async function loadDoneCandidates(
       maxResults: 250,
       orderBy: "updated",
       pageToken,
-    });
+    }) as { data: calendar_v3.Schema$Events };
 
     const items = response.data.items ?? [];
     for (const item of items) {

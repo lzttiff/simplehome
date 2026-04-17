@@ -42,6 +42,7 @@ import { fileURLToPath } from "url";
 import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
 import {
+  buildCalendarTaskDescription,
   createGoogleCalendarAuthorizationUrl,
   deleteGoogleCalendarEventsForTask,
   disconnectGoogleCalendar,
@@ -898,11 +899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
         const eventDateOnly = compareDateOnly(dateOnly, todayDateOnly) < 0 ? todayDateOnly : dateOnly;
-        const minorTasks = task.minorTasks ? JSON.parse(task.minorTasks) : [];
-        const description =
-          Array.isArray(minorTasks) && minorTasks.length > 0
-            ? minorTasks.join("\\n")
-            : task.description || "Regular minor maintenance";
+        const description = buildCalendarTaskDescription(task, "minor");
         const uid = `${task.id}-minor@simplehome.app`;
         ics.push(
           "BEGIN:VEVENT",
@@ -924,11 +921,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
         const eventDateOnly = compareDateOnly(dateOnly, todayDateOnly) < 0 ? todayDateOnly : dateOnly;
-        const majorTasks = task.majorTasks ? JSON.parse(task.majorTasks) : [];
-        const description =
-          Array.isArray(majorTasks) && majorTasks.length > 0
-            ? majorTasks.join("\\n")
-            : task.description || "Regular major maintenance";
+        const description = buildCalendarTaskDescription(task, "major");
         const uid = `${task.id}-major@simplehome.app`;
         ics.push(
           "BEGIN:VEVENT",

@@ -1,5 +1,5 @@
 import type { MaintenanceTask } from '../../shared/schema';
-import { deriveDoneCompletionDates } from '../../server/services/googleCalendarSync';
+import { buildCalendarTaskDescription, deriveDoneCompletionDates } from '../../server/services/googleCalendarSync';
 
 function createTask(overrides: Partial<MaintenanceTask> = {}): MaintenanceTask {
   return {
@@ -68,5 +68,39 @@ describe('deriveDoneCompletionDates', () => {
     const out = deriveDoneCompletionDates(task, 'minor', 'not-a-date');
 
     expect(out).toBeNull();
+  });
+});
+
+describe('buildCalendarTaskDescription', () => {
+  test('renders readable checklist details when task steps are present', () => {
+    const task = createTask({
+      minorTasks: JSON.stringify(['Replace battery', 'Test alarm']),
+      location: 'Main Hall',
+      priority: 'High',
+    });
+
+    const output = buildCalendarTaskDescription(task, 'minor');
+
+    expect(output).toContain('Task: Smoke Detectors');
+    expect(output).toContain('Type: Minor maintenance');
+    expect(output).toContain('Category: Safety & Fire');
+    expect(output).toContain('Priority: High');
+    expect(output).toContain('Location: Main Hall');
+    expect(output).toContain('Checklist:');
+    expect(output).toContain('- Replace battery');
+    expect(output).toContain('- Test alarm');
+  });
+
+  test('falls back to notes section when no steps exist', () => {
+    const task = createTask({
+      majorTasks: null,
+      description: 'Inspect all detectors and replace as needed.',
+    });
+
+    const output = buildCalendarTaskDescription(task, 'major');
+
+    expect(output).toContain('Type: Major maintenance');
+    expect(output).toContain('Notes:');
+    expect(output).toContain('Inspect all detectors and replace as needed.');
   });
 });
