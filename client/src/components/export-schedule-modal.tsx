@@ -756,27 +756,29 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
                   />
                   Keep out-of-scope events (planned behavior; currently informational)
                 </label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Button
                     type="button"
                     onClick={() => syncActiveScopeMutation.mutate()}
-                    className="flex-1 justify-start"
+                    className="justify-start whitespace-normal text-left"
                     variant="outline"
                     disabled={syncActiveScopeMutation.isPending || activeScopeCount === 0}
                   >
-                    <RefreshCw className="w-4 h-4 mr-3" />
+                    <RefreshCw className="w-4 h-4 mr-3 shrink-0" />
                     {syncActiveScopeMutation.isPending ? "Syncing..." : "Sync Active Scope"}
                   </Button>
                   <Button
                     type="button"
                     onClick={() => updateScopeMutation.mutate()}
-                    className="flex-1 justify-start"
+                    className="justify-start whitespace-normal text-left"
                     variant="outline"
                     disabled={updateScopeMutation.isPending || selectedScopeCount === 0}
                   >
-                    <RefreshCw className="w-4 h-4 mr-3" />
+                    <RefreshCw className="w-4 h-4 mr-3 shrink-0" />
                     {updateScopeMutation.isPending ? "Updating Scope..." : "Update Scope from Current View"}
                   </Button>
+                </div>
+                <div className="flex justify-start">
                   <Button
                     type="button"
                     onClick={() => disconnectGoogleMutation.mutate()}
