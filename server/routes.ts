@@ -36,6 +36,7 @@ import { AISuggestion } from "@shared/aiSuggestion";
 import { generateMaintenanceTasks, generateQuickSuggestions } from "./services/openai";
 import { generateGeminiContent } from "./services/gemini";
 import { z } from "zod";
+import { ZodError } from "zod";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -710,10 +711,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               includeMajor: z.boolean().default(true),
             }),
           )
-          .min(1),
+          .default([]),
       });
 
-      const { selections } = bodySchema.parse(req.body);
+      const { selections } = bodySchema.parse(req.body ?? {});
       const outcome = await runGoogleCalendarTwoWaySync(
         req,
         selections
@@ -726,6 +727,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       res.json(outcome);
     } catch (error: any) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ message: "Invalid sync request payload", issues: error.issues });
+      }
       const status = error?.message?.includes("not connected") ? 409 : 500;
       res.status(status).json({ message: error?.message || "Google Calendar sync failed" });
     }
