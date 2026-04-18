@@ -52,6 +52,7 @@ export default function Dashboard() {
   const [dateFilter, setDateFilter] = useState<number | null>(null); // null = all, 0 = past due only, positive = past due + days
   const [includeMinor, setIncludeMinor] = useState(true);
   const [includeMajor, setIncludeMajor] = useState(true);
+  const [deferredOnly, setDeferredOnly] = useState(false);
 
   const fetchWithBackoff = async (url: string, init: RequestInit, maxAttempts = 3): Promise<Response> => {
     let lastError: unknown;
@@ -357,10 +358,44 @@ export default function Dashboard() {
     return false;
   };
 
+  const parseOverdueBacklog = (raw: string | null | undefined): { minor: boolean; major: boolean } => {
+    if (!raw) {
+      return { minor: false, major: false };
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as { minor?: boolean; major?: boolean };
+      return {
+        minor: !!parsed?.minor,
+        major: !!parsed?.major,
+      };
+    } catch {
+      return { minor: false, major: false };
+    }
+  };
+
+  const isTypeOverdue = (
+    maintenanceDate: string | null | undefined,
+    backlogFlag: boolean,
+    todayDateOnly: string,
+  ): boolean => {
+    if (backlogFlag) {
+      return true;
+    }
+
+    const dateOnly = typeof maintenanceDate === "string" ? maintenanceDate : null;
+    if (!dateOnly) {
+      return false;
+    }
+
+    return compareDateOnly(dateOnly, todayDateOnly) < 0;
+  };
+
   // Calculate which maintenance types to show for each task
   interface TaskWithFilters extends MaintenanceTask {
     showMinor: boolean;
     showMajor: boolean;
+    hasDeferredBacklog: boolean;
   }
 
   const filteredTasks: TaskWithFilters[] = tasks
@@ -373,6 +408,8 @@ export default function Dashboard() {
       // For each task, determine which maintenance types to show
       let showMinor = false;
       let showMajor = false;
+      const todayDateOnly = toDateOnlyFromLocalDate(new Date());
+      const backlog = parseOverdueBacklog(task.overdueBacklog);
 
       try {
         const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : null;
@@ -383,8 +420,12 @@ export default function Dashboard() {
             // No date filter - show if it exists
             showMinor = !!nextMaintenance?.minor;
           } else {
-            // Date filter active - check if minor passes
-            showMinor = passesDateFilter(nextMaintenance?.minor);
+            // dateFilter=0: include overdue-by-date OR deferred backlog.
+            if (dateFilter === 0) {
+              showMinor = isTypeOverdue(nextMaintenance?.minor ?? null, backlog.minor, todayDateOnly);
+            } else {
+              showMinor = passesDateFilter(nextMaintenance?.minor ?? null);
+            }
           }
         }
 
@@ -394,8 +435,12 @@ export default function Dashboard() {
             // No date filter - show if it exists
             showMajor = !!nextMaintenance?.major;
           } else {
-            // Date filter active - check if major passes
-            showMajor = passesDateFilter(nextMaintenance?.major);
+            // dateFilter=0: include overdue-by-date OR deferred backlog.
+            if (dateFilter === 0) {
+              showMajor = isTypeOverdue(nextMaintenance?.major ?? null, backlog.major, todayDateOnly);
+            } else {
+              showMajor = passesDateFilter(nextMaintenance?.major ?? null);
+            }
           }
         }
 
@@ -414,11 +459,20 @@ export default function Dashboard() {
         ...task,
         showMinor,
         showMajor,
+        hasDeferredBacklog: backlog.minor || backlog.major,
       };
     })
     .filter(task => {
       // Only show tasks where at least one maintenance type passes the filters
-      return task.showMinor || task.showMajor;
+      if (!(task.showMinor || task.showMajor)) {
+        return false;
+      }
+
+      if (deferredOnly) {
+        return task.hasDeferredBacklog;
+      }
+
+      return true;
     });
 
   // Remove old filtering logic
@@ -693,6 +747,13 @@ export default function Dashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <CardTitle className="text-lg">Items / Tasks</CardTitle>
                   <div className="flex gap-2">
+                    <label className="flex items-center gap-2 px-2 text-sm text-gray-600 whitespace-nowrap">
+                      <Checkbox
+                        checked={deferredOnly}
+                        onCheckedChange={(value) => setDeferredOnly(!!value)}
+                      />
+                      Deferred only
+                    </label>
                     <div className="flex items-center gap-2">
                       <label htmlFor="dateRange" className="text-sm text-gray-600 whitespace-nowrap">Due within:</label>
                       <input

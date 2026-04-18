@@ -1425,6 +1425,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pending: allTasks.filter(t => t.status === 'pending').length,
         pastDue: allTasks.filter(t => {
           if (t.status === 'completed') return false;
+
+          const parseBacklog = (raw: string | null | undefined): { minor: boolean; major: boolean } => {
+            if (!raw) {
+              return { minor: false, major: false };
+            }
+            try {
+              const parsed = JSON.parse(raw) as { minor?: boolean; major?: boolean };
+              return {
+                minor: !!parsed?.minor,
+                major: !!parsed?.major,
+              };
+            } catch {
+              return { minor: false, major: false };
+            }
+          };
+
+          const backlog = parseBacklog(t.overdueBacklog);
+          if (backlog.minor || backlog.major) {
+            return true;
+          }
+
           if (!t.nextMaintenanceDate) return false;
           
           try {

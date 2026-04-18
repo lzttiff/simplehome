@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addMonthsToDateOnly,
+  compareDateOnly,
   MaintenanceTask,
   normalizeCalendarExports,
   normalizeDateOnly,
   parseMaintenanceSchedule,
   serializeMaintenanceSchedule,
+  toDateOnlyFromLocalDate,
   User,
 } from "@shared/schema";
 import { Card } from "@/components/ui/card";
@@ -319,6 +321,35 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
   const calendarExports = getCalendarExports();
   const hasCalendarExport = calendarExports.length > 0;
 
+  const parseOverdueBacklog = (raw: string | null | undefined): { minor: boolean; major: boolean } => {
+    if (!raw) {
+      return { minor: false, major: false };
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as { minor?: boolean; major?: boolean };
+      return {
+        minor: !!parsed?.minor,
+        major: !!parsed?.major,
+      };
+    } catch {
+      return { minor: false, major: false };
+    }
+  };
+
+  const nextMaintenance = parseMaintenanceSchedule(task.nextMaintenanceDate);
+  const overdueBacklog = parseOverdueBacklog(task.overdueBacklog);
+  const todayDateOnly = toDateOnlyFromLocalDate(new Date());
+
+  const isMinorOverdue =
+    overdueBacklog.minor ||
+    (!!nextMaintenance.minor && compareDateOnly(nextMaintenance.minor, todayDateOnly) < 0);
+  const isMajorOverdue =
+    overdueBacklog.major ||
+    (!!nextMaintenance.major && compareDateOnly(nextMaintenance.major, todayDateOnly) < 0);
+  const isTaskOverdue = isMinorOverdue || isMajorOverdue;
+  const hasDeferredBacklog = overdueBacklog.minor || overdueBacklog.major;
+
   return (
     <Card className="p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
@@ -349,6 +380,26 @@ export default function TaskCard({ task, showMinor = true, showMajor = true }: T
               >
                 <CalendarIcon className="w-3 h-3 mr-1" />
                 {calendarExports.map((record) => record.provider === 'google' ? 'G' : 'A').join('/')}
+              </Badge>
+            )}
+            {isTaskOverdue && (
+              <Badge variant="secondary" className="text-xs bg-red-100 text-red-700">
+                Overdue
+              </Badge>
+            )}
+            {hasDeferredBacklog && (
+              <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">
+                Deferred
+              </Badge>
+            )}
+            {isMinorOverdue && (
+              <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                Minor Due
+              </Badge>
+            )}
+            {isMajorOverdue && (
+              <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-700">
+                Major Due
               </Badge>
             )}
           </div>
