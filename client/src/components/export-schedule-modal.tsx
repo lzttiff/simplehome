@@ -256,8 +256,8 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       if (currentScopeCount > selections.length) {
         const accepted = window.confirm(
           keepOutOfScopeEvents
-            ? "This reduces active scope. Keep-out-of-scope behavior is planned in a future phase; for now, out-of-scope events may still be removed during sync. Continue updating scope?"
-            : "This reduces active scope. Out-of-scope events may be removed from Google on subsequent sync. Continue updating scope?",
+            ? "This reduces active scope. Keep-out-of-scope behavior is planned in a future phase; currently, out-of-scope events are removed immediately. Continue updating scope?"
+            : "This reduces active scope. Out-of-scope events will be removed from Google immediately. Continue updating scope?",
         );
         if (!accepted) {
           throw new Error("Scope update cancelled.");
@@ -265,7 +265,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       }
 
       const response = await apiRequest("PUT", "/api/calendar/google/sync/scope", { selections });
-      return response.json() as Promise<{ count: number }>;
+      return response.json() as Promise<{ count: number; removedEvents?: number }>;
     },
     onSuccess: async (result) => {
       await Promise.all([
@@ -273,9 +273,13 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/sync/status"] }),
       ]);
 
+      const removedEvents = result.removedEvents ?? 0;
       toast({
         title: "Sync Scope Updated",
-        description: `Active Google sync scope now includes ${result.count} task${result.count === 1 ? "" : "s"}.`,
+        description:
+          removedEvents > 0
+            ? `Active Google sync scope now includes ${result.count} task${result.count === 1 ? "" : "s"}. Removed ${removedEvents} out-of-scope event${removedEvents === 1 ? "" : "s"} from Google.`
+            : `Active Google sync scope now includes ${result.count} task${result.count === 1 ? "" : "s"}.`,
       });
     },
     onError: (error: any) => {

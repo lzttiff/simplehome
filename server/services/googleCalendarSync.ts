@@ -54,6 +54,17 @@ type SyncScopeOutcome = {
   initializedFromRequest: boolean;
 };
 
+type ScopeRemoval = {
+  taskId: string;
+  kind: SyncKind;
+};
+
+type ManagedEventReference = {
+  taskId: string;
+  kind: SyncKind;
+  eventId: string;
+};
+
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/userinfo.email",
@@ -496,6 +507,232 @@ function buildEventPayload(task: MaintenanceTask, kind: SyncKind, dateOnly: stri
   };
 }
 
+function computeScopeRemovals(
+  previousSelections: GoogleSyncSelection[],
+  nextSelections: GoogleSyncSelection[],
+): ScopeRemoval[] {
+  const previousByTaskId = new Map(previousSelections.map((selection) => [selection.taskId, selection]));
+  const nextByTaskId = new Map(nextSelections.map((selection) => [selection.taskId, selection]));
+  const removals: ScopeRemoval[] = [];
+
+  for (const [taskId, previousSelection] of previousByTaskId.entries()) {
+    const nextSelection = nextByTaskId.get(taskId);
+    if (previousSelection.includeMinor && !nextSelection?.includeMinor) {
+      removals.push({ taskId, kind: "minor" });
+    }
+    if (previousSelection.includeMajor && !nextSelection?.includeMajor) {
+      removals.push({ taskId, kind: "major" });
+    }
+  }
+
+  return removals;
+}
+
+function detachGoogleSyncExportKind(task: MaintenanceTask, kind: SyncKind): string | null {
+  const records = normalizeCalendarExports(task.calendarExports).map((record) => {
+    if (!(record.provider === GOOGLE_SYNC_PROVIDER && record.syncMode === GOOGLE_SYNC_MODE)) {
+      return record;
+    }
+
+    const nextEventIds = { ...(record.eventIds ?? {}) };
+    delete nextEventIds[kind];
+
+    const nextEventLinks = { ...(record.eventLinks ?? {}) };
+    delete nextEventLinks[kind];
+
+    const nextSyncedDates = { ...(record.syncedDates ?? {}) };
+    delete nextSyncedDates[kind];
+
+    const nextSelected = { ...(record.selected ?? {}) };
+    nextSelected[kind] = false;
+
+    return {
+      ...record,
+      eventIds: nextEventIds,
+      eventLinks: Object.keys(nextEventLinks).length > 0 ? nextEventLinks : undefined,
+      syncedDates: Object.keys(nextSyncedDates).length > 0 ? nextSyncedDates : undefined,
+      selected: nextSelected,
+      lastSyncedAt: new Date().toISOString(),
+    };
+  });
+
+  return serializeCalendarExports(records);
+}
+
+function buildSelectionIndex(selections: GoogleSyncSelection[]): Map<string, { minor: boolean; major: boolean }> {
+  const index = new Map<string, { minor: boolean; major: boolean }>();
+  for (const selection of selections) {
+    index.set(selection.taskId, {
+      minor: !!selection.includeMinor,
+      major: !!selection.includeMajor,
+    });
+  }
+  return index;
+}
+
+function parseManagedEventReference(event: calendar_v3.Schema$Event): ManagedEventReference | null {
+  if (!event.id || event.status === "cancelled") {
+    return null;
+  }
+
+  const props = event.extendedProperties?.private ?? {};
+  const taskId = props.simplehomeTaskId ?? props.homeguardTaskId;
+  const rawKind = props.simplehomeMaintenanceType ?? props.homeguardMaintenanceType;
+
+  if (!taskId || (rawKind !== "minor" && rawKind !== "major")) {
+    return null;
+  }
+
+  return {
+    taskId,
+    kind: rawKind,
+    eventId: event.id,
+  };
+}
+
+async function detachTaskExportsForKinds(
+  userId: string,
+  refs: Array<{ taskId: string; kind: SyncKind }>,
+): Promise<void> {
+  if (refs.length === 0) {
+    return;
+  }
+
+  const refsByTaskId = new Map<string, Set<SyncKind>>();
+  for (const ref of refs) {
+    const kinds = refsByTaskId.get(ref.taskId) ?? new Set<SyncKind>();
+    kinds.add(ref.kind);
+    refsByTaskId.set(ref.taskId, kinds);
+  }
+
+  for (const [taskId, kinds] of refsByTaskId.entries()) {
+    const task = await storage.getMaintenanceTask(taskId, userId);
+    if (!task) {
+      continue;
+    }
+
+    let nextCalendarExports = task.calendarExports;
+    for (const kind of kinds.values()) {
+      const next = detachGoogleSyncExportKind({ ...task, calendarExports: nextCalendarExports }, kind);
+      nextCalendarExports = next;
+    }
+
+    if (nextCalendarExports !== task.calendarExports) {
+      await storage.updateMaintenanceTask(task.id, { calendarExports: nextCalendarExports }, userId);
+    }
+  }
+}
+
+async function reconcileOutOfScopeGoogleEvents(args: {
+  req: express.Request;
+  userId: string;
+  calendarId: string;
+  activeSelections: GoogleSyncSelection[];
+}): Promise<number> {
+  const { req, userId, calendarId, activeSelections } = args;
+  const selectionIndex = buildSelectionIndex(activeSelections);
+  const { calendar } = await getAuthorizedCalendar(req, userId);
+
+  let removedEvents = 0;
+  let pageToken: string | undefined;
+  const detachedRefs: Array<{ taskId: string; kind: SyncKind }> = [];
+
+  do {
+    const response = await calendar.events.list({
+      calendarId,
+      singleEvents: true,
+      showDeleted: false,
+      maxResults: 250,
+      orderBy: "updated",
+      pageToken,
+    });
+
+    const items = response.data.items ?? [];
+    for (const item of items) {
+      const ref = parseManagedEventReference(item);
+      if (!ref) {
+        continue;
+      }
+
+      const scoped = selectionIndex.get(ref.taskId);
+      const shouldKeep = ref.kind === "minor" ? !!scoped?.minor : !!scoped?.major;
+      if (shouldKeep) {
+        continue;
+      }
+
+      try {
+        await calendar.events.delete({ calendarId, eventId: ref.eventId });
+        removedEvents++;
+        detachedRefs.push({ taskId: ref.taskId, kind: ref.kind });
+      } catch (error: any) {
+        if (error?.code !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    pageToken = response.data.nextPageToken ?? undefined;
+  } while (pageToken);
+
+  await detachTaskExportsForKinds(userId, detachedRefs);
+  return removedEvents;
+}
+
+async function removeOutOfScopeGoogleEvents(args: {
+  req: express.Request;
+  userId: string;
+  calendarId: string;
+  removals: ScopeRemoval[];
+}): Promise<number> {
+  const { req, userId, calendarId, removals } = args;
+  if (removals.length === 0) {
+    return 0;
+  }
+
+  const { calendar } = await getAuthorizedCalendar(req, userId);
+  let removedEvents = 0;
+  const detachedRefs: Array<{ taskId: string; kind: SyncKind }> = [];
+
+  for (const removal of removals) {
+    const task = await storage.getMaintenanceTask(removal.taskId, userId);
+    if (!task) {
+      continue;
+    }
+
+    const exportRecord = getGoogleSyncExport(task);
+    const eventId = exportRecord?.eventIds?.[removal.kind];
+
+    if (eventId) {
+      try {
+        await calendar.events.delete({ calendarId, eventId });
+        removedEvents++;
+        detachedRefs.push({ taskId: task.id, kind: removal.kind });
+      } catch (error: any) {
+        if (error?.code !== 404) {
+          throw error;
+        }
+      }
+    } else {
+      const fallbackEvent = await findEventByTaskAndKind(calendar, calendarId, task.id, removal.kind);
+      if (fallbackEvent?.id) {
+        try {
+          await calendar.events.delete({ calendarId, eventId: fallbackEvent.id });
+          removedEvents++;
+          detachedRefs.push({ taskId: task.id, kind: removal.kind });
+        } catch (error: any) {
+          if (error?.code !== 404) {
+            throw error;
+          }
+        }
+      }
+    }
+  }
+
+  await detachTaskExportsForKinds(userId, detachedRefs);
+
+  return removedEvents;
+}
+
 async function getAuthorizedCalendar(req: express.Request, userId: string) {
   const connection = await storage.getGoogleCalendarConnection(userId);
   if (!connection || (!connection.refreshToken && !connection.accessToken)) {
@@ -914,7 +1151,13 @@ export async function getGoogleCalendarSyncScope(req: express.Request): Promise<
 export async function setGoogleCalendarSyncScope(
   req: express.Request,
   selections: GoogleSyncSelection[],
-): Promise<{ selections: GoogleSyncSelection[]; count: number; syncScopeVersion: number; syncScopeUpdatedAt: string | null }> {
+): Promise<{
+  selections: GoogleSyncSelection[];
+  count: number;
+  syncScopeVersion: number;
+  syncScopeUpdatedAt: string | null;
+  removedEvents: number;
+}> {
   const userId = (req.user as { id?: string } | undefined)?.id;
   if (!userId) {
     throw new Error("Not authenticated");
@@ -925,12 +1168,36 @@ export async function setGoogleCalendarSyncScope(
     throw new Error("Select at least one task to include in sync scope.");
   }
 
+  const previous = normalizeSelections(await storage.getGoogleCalendarSyncScope(userId));
+  const removals = computeScopeRemovals(previous, normalized);
+
   const connection = await storage.setGoogleCalendarSyncScope(userId, normalized);
+
+  let removedEvents = 0;
+  if (removals.length > 0 && connection.calendarId) {
+    removedEvents = await removeOutOfScopeGoogleEvents({
+      req,
+      userId,
+      calendarId: connection.calendarId,
+      removals,
+    });
+  }
+
+  if (connection.calendarId) {
+    removedEvents += await reconcileOutOfScopeGoogleEvents({
+      req,
+      userId,
+      calendarId: connection.calendarId,
+      activeSelections: normalized,
+    });
+  }
+
   return {
     selections: normalizeSelections(connection.activeSyncSelections),
     count: connection.activeSyncSelections.length,
     syncScopeVersion: connection.syncScopeVersion,
     syncScopeUpdatedAt: connection.syncScopeUpdatedAt ? connection.syncScopeUpdatedAt.toISOString() : null,
+    removedEvents,
   };
 }
 
