@@ -15,6 +15,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar, Download, ExternalLink, RefreshCw, X } from "lucide-react";
 
@@ -44,6 +54,13 @@ interface GoogleCalendarSyncScope {
   count: number;
 }
 
+interface DisconnectGoogleCalendarResponse {
+  disconnected: boolean;
+  calendarDeleteRequested: boolean;
+  calendarDeleted: boolean;
+  calendarDeleteMessage: string | null;
+}
+
 type CalendarProvider = "google" | "apple";
 type CalendarSyncMode = "subscription" | "direct" | "file";
 
@@ -70,6 +87,8 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   const [googleAddByUrlPage, setGoogleAddByUrlPage] = useState("https://calendar.google.com/calendar/u/0/r/settings/addbyurl");
   const [appleFeedUrl, setAppleFeedUrl] = useState("");
   const [keepOutOfScopeEvents, setKeepOutOfScopeEvents] = useState(false);
+  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
+  const [disconnectDeleteCalendar, setDisconnectDeleteCalendar] = useState(false);
 
   const googleSyncStatusQuery = useQuery<GoogleCalendarSyncStatus>({
     queryKey: ["/api/calendar/google/sync/status"],
@@ -113,11 +132,33 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   });
 
   const disconnectGoogleMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/calendar/google/disconnect", {});
+    mutationFn: async ({ deleteCalendar }: { deleteCalendar: boolean }) => {
+      const response = await apiRequest("POST", "/api/calendar/google/disconnect", { deleteCalendar });
+      return response.json() as Promise<DisconnectGoogleCalendarResponse>;
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/sync/status"] });
+      setDisconnectDialogOpen(false);
+
+      if (result.calendarDeleteRequested && result.calendarDeleted) {
+        toast({
+          title: "Google Calendar Disconnected",
+          description: "Two-way sync is disabled and the managed SimpleHome calendar was deleted.",
+        });
+        return;
+      }
+
+      if (result.calendarDeleteRequested && !result.calendarDeleted) {
+        toast({
+          title: "Disconnected, Calendar Kept",
+          description:
+            result.calendarDeleteMessage ||
+            "Two-way sync is disabled, but the calendar could not be deleted automatically.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "Google Calendar Disconnected",
         description: "Two-way sync has been disabled for this account.",
@@ -785,7 +826,10 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
                 <div className="flex justify-start">
                   <Button
                     type="button"
-                    onClick={() => disconnectGoogleMutation.mutate()}
+                    onClick={() => {
+                      setDisconnectDeleteCalendar(false);
+                      setDisconnectDialogOpen(true);
+                    }}
                     variant="ghost"
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     disabled={disconnectGoogleMutation.isPending}
@@ -797,6 +841,58 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
               </div>
             )}
           </div>
+
+          <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Disconnect Google Calendar?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Choose whether to only disconnect sync or also delete the managed SimpleHome calendar.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2 text-sm">
+                <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="disconnect-mode"
+                    checked={!disconnectDeleteCalendar}
+                    onChange={() => setDisconnectDeleteCalendar(false)}
+                  />
+                  <span>
+                    <span className="font-medium">Disconnect only</span>
+                    <br />
+                    Keep the existing Google calendar and events.
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="disconnect-mode"
+                    checked={disconnectDeleteCalendar}
+                    onChange={() => setDisconnectDeleteCalendar(true)}
+                  />
+                  <span>
+                    <span className="font-medium">Disconnect and delete app calendar</span>
+                    <br />
+                    Deletes the managed SimpleHome calendar if it is safe to delete.
+                  </span>
+                </label>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={disconnectGoogleMutation.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(event) => {
+                    event.preventDefault();
+                    disconnectGoogleMutation.mutate({ deleteCalendar: disconnectDeleteCalendar });
+                  }}
+                  disabled={disconnectGoogleMutation.isPending}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {disconnectGoogleMutation.isPending ? "Disconnecting..." : "Confirm Disconnect"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <Button onClick={exportToGoogleCalendar} className="w-full justify-start" variant="outline" title="Subscribe selected tasks in Google Calendar via SimpleHome feed">
             <Calendar className="w-4 h-4 mr-3" />

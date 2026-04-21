@@ -54,6 +54,17 @@ type SyncScopeOutcome = {
   initializedFromRequest: boolean;
 };
 
+type DisconnectGoogleCalendarOptions = {
+  deleteCalendar?: boolean;
+};
+
+type DisconnectGoogleCalendarOutcome = {
+  disconnected: true;
+  calendarDeleteRequested: boolean;
+  calendarDeleted: boolean;
+  calendarDeleteMessage: string | null;
+};
+
 type ScopeRemoval = {
   taskId: string;
   kind: SyncKind;
@@ -1256,7 +1267,10 @@ export async function handleGoogleCalendarOAuthCallback(req: express.Request): P
   return returnPath;
 }
 
-export async function disconnectGoogleCalendar(req: express.Request): Promise<void> {
+export async function disconnectGoogleCalendar(
+  req: express.Request,
+  options: DisconnectGoogleCalendarOptions = {},
+): Promise<DisconnectGoogleCalendarOutcome> {
   const userId = (req.user as { id?: string } | undefined)?.id;
   if (!userId) {
     throw new Error("Not authenticated");
@@ -1264,7 +1278,45 @@ export async function disconnectGoogleCalendar(req: express.Request): Promise<vo
 
   const connection = await storage.getGoogleCalendarConnection(userId);
   if (!connection) {
-    return;
+    return {
+      disconnected: true,
+      calendarDeleteRequested: !!options.deleteCalendar,
+      calendarDeleted: false,
+      calendarDeleteMessage: null,
+    };
+  }
+
+  let calendarDeleted = false;
+  let calendarDeleteMessage: string | null = null;
+  const shouldDeleteCalendar = !!options.deleteCalendar;
+
+  if (shouldDeleteCalendar) {
+    if (!connection.calendarId) {
+      calendarDeleteMessage = "No app calendar was recorded for this connection.";
+    } else if (connection.calendarId === "primary") {
+      calendarDeleteMessage = "Refused to delete primary Google calendar.";
+    } else {
+      try {
+        const { calendar } = await getAuthorizedCalendar(req, userId);
+        const metadata = await calendar.calendars.get({ calendarId: connection.calendarId });
+        const summary = (metadata.data.summary || "").trim();
+        const isSimpleHomeCalendar = summary === GOOGLE_CALENDAR_NAME;
+
+        if (!isSimpleHomeCalendar) {
+          calendarDeleteMessage = "Connected calendar is not the managed SimpleHome calendar, so it was not deleted.";
+        } else {
+          await calendar.calendars.delete({ calendarId: connection.calendarId });
+          calendarDeleted = true;
+        }
+      } catch (error: any) {
+        if (error?.code === 404) {
+          // Calendar is already gone, so treat deletion as successful.
+          calendarDeleted = true;
+        } else {
+          calendarDeleteMessage = "Unable to delete Google calendar. You can remove it manually in Google Calendar settings.";
+        }
+      }
+    }
   }
 
   try {
@@ -1279,6 +1331,13 @@ export async function disconnectGoogleCalendar(req: express.Request): Promise<vo
   }
 
   await storage.deleteGoogleCalendarConnection(userId);
+
+  return {
+    disconnected: true,
+    calendarDeleteRequested: shouldDeleteCalendar,
+    calendarDeleted,
+    calendarDeleteMessage,
+  };
 }
 
 export async function runGoogleCalendarTwoWaySync(

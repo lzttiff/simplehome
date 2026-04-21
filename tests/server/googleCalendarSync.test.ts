@@ -1,9 +1,55 @@
 import type { MaintenanceTask } from '../../shared/schema';
 import {
   buildCalendarTaskDescription,
+  disconnectGoogleCalendar,
   deriveDoneCompletionDates,
   deriveRescheduleBacklogState,
 } from '../../server/services/googleCalendarSync';
+import { storage } from '../../server/storage';
+import { google } from 'googleapis';
+
+var calendarGetImpl: any;
+var calendarDeleteImpl: any;
+var revokeCredentialsImpl: any;
+
+jest.mock('../../server/storage', () => ({
+  storage: {
+    getGoogleCalendarConnection: jest.fn(),
+    upsertGoogleCalendarConnection: jest.fn(),
+    deleteGoogleCalendarConnection: jest.fn(),
+  },
+}));
+
+jest.mock('googleapis', () => ({
+  google: {
+    __mock: {
+      oauthClient: {
+        setCredentials: jest.fn(),
+        revokeCredentials: jest.fn((...args: any[]) => revokeCredentialsImpl(...args)),
+        on: jest.fn(),
+      },
+      calendarApi: {
+        calendars: {
+          get: jest.fn((...args: any[]) => calendarGetImpl(...args)),
+          delete: jest.fn((...args: any[]) => calendarDeleteImpl(...args)),
+        },
+      },
+    },
+    auth: {
+      OAuth2: jest.fn(function () {
+        return (google as any).__mock.oauthClient;
+      }),
+    },
+    calendar: jest.fn(function () {
+      return (google as any).__mock.calendarApi;
+    }),
+    oauth2: jest.fn(() => ({
+      userinfo: {
+        get: jest.fn(),
+      },
+    })),
+  },
+}));
 
 function createTask(overrides: Partial<MaintenanceTask> = {}): MaintenanceTask {
   return {
@@ -156,5 +202,104 @@ describe('deriveRescheduleBacklogState', () => {
       backlog: true,
       overdueSince: '2026-04-10',
     });
+  });
+});
+
+describe('disconnectGoogleCalendar', () => {
+  const previousClientId = process.env.GOOGLE_CLIENT_ID;
+  const previousClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  const requestStub = {
+    user: { id: 'user-1' },
+    protocol: 'https',
+    headers: {},
+    get: jest.fn(() => 'example.com'),
+  } as any;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.GOOGLE_CLIENT_ID = 'test-client-id';
+    process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
+
+    const storageMock = storage as any;
+    const googleMock = (google as any).__mock;
+
+    calendarGetImpl = async () => ({
+      data: { summary: 'SimpleHome Maintenance' },
+    });
+    calendarDeleteImpl = async () => ({});
+    revokeCredentialsImpl = async () => undefined;
+
+    storageMock.deleteGoogleCalendarConnection.mockResolvedValue(true);
+    storageMock.getGoogleCalendarConnection.mockResolvedValue({
+      userId: 'user-1',
+      email: 'user@example.com',
+      calendarId: 'simplehome-calendar-id',
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      scope: null,
+      tokenType: null,
+      expiryDate: null,
+      connectedAt: new Date(),
+      lastSyncedAt: null,
+      activeSyncSelections: [],
+      syncScopeVersion: 1,
+      syncScopeUpdatedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    googleMock.calendarApi.calendars.get.mockImplementation((...args: any[]) => calendarGetImpl(...args));
+    googleMock.calendarApi.calendars.delete.mockImplementation((...args: any[]) => calendarDeleteImpl(...args));
+    googleMock.oauthClient.revokeCredentials.mockImplementation((...args: any[]) => revokeCredentialsImpl(...args));
+  });
+
+  afterAll(() => {
+    process.env.GOOGLE_CLIENT_ID = previousClientId;
+    process.env.GOOGLE_CLIENT_SECRET = previousClientSecret;
+  });
+
+  test('deletes managed calendar when requested and safe', async () => {
+    const storageMock = storage as any;
+    const googleMock = (google as any).__mock;
+    const out = await disconnectGoogleCalendar(requestStub, { deleteCalendar: true });
+
+    expect(googleMock.calendarApi.calendars.get).toHaveBeenCalledWith({ calendarId: 'simplehome-calendar-id' });
+    expect(googleMock.calendarApi.calendars.delete).toHaveBeenCalledWith({ calendarId: 'simplehome-calendar-id' });
+    expect(storageMock.deleteGoogleCalendarConnection).toHaveBeenCalledWith('user-1');
+    expect(out).toEqual({
+      disconnected: true,
+      calendarDeleteRequested: true,
+      calendarDeleted: true,
+      calendarDeleteMessage: null,
+    });
+  });
+
+  test('keeps calendar when it is not the managed SimpleHome calendar', async () => {
+    const storageMock = storage as any;
+    const googleMock = (google as any).__mock;
+    calendarGetImpl = async () => ({ data: { summary: 'Family Calendar' } });
+
+    const out = await disconnectGoogleCalendar(requestStub, { deleteCalendar: true });
+
+    expect(googleMock.calendarApi.calendars.delete).not.toHaveBeenCalled();
+    expect(storageMock.deleteGoogleCalendarConnection).toHaveBeenCalledWith('user-1');
+    expect(out.calendarDeleteRequested).toBe(true);
+    expect(out.calendarDeleted).toBe(false);
+    expect(out.calendarDeleteMessage).toContain('not the managed SimpleHome calendar');
+  });
+
+  test('disconnect still succeeds when calendar deletion fails', async () => {
+    const storageMock = storage as any;
+    calendarGetImpl = async () => {
+      throw { code: 500 };
+    };
+
+    const out = await disconnectGoogleCalendar(requestStub, { deleteCalendar: true });
+
+    expect(storageMock.deleteGoogleCalendarConnection).toHaveBeenCalledWith('user-1');
+    expect(out.calendarDeleteRequested).toBe(true);
+    expect(out.calendarDeleted).toBe(false);
+    expect(out.calendarDeleteMessage).toContain('Unable to delete Google calendar');
   });
 });

@@ -777,8 +777,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/calendar/google/disconnect", requireAuth, async (req, res) => {
     try {
-      await disconnectGoogleCalendar(req);
-      res.json({ ok: true });
+      const bodySchema = z.object({
+        deleteCalendar: z.boolean().optional(),
+      });
+
+      const { deleteCalendar } = bodySchema.parse(req.body ?? {});
+      const outcome = await disconnectGoogleCalendar(req, { deleteCalendar: !!deleteCalendar });
+      res.json(outcome);
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Failed to disconnect Google Calendar" });
     }

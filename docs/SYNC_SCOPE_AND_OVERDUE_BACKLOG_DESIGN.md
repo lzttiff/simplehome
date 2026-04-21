@@ -1,8 +1,8 @@
 # SimpleHome Design: Persistent Sync Scope and Overdue Backlog Semantics
 
 ## Status
-- Draft design (implementation not started in this document)
-- Goal: define behavior before coding
+- Design and implementation tracking document
+- Phase 5 implemented on 2026-04-21
 
 ## Problem Statement
 Current sync behavior is selection/filter-driven per run. Users expect a stable sync scope after connecting Google Calendar. Also, date edits (reschedule) and completion should be distinguished:
@@ -206,6 +206,18 @@ Deliverable:
 
 Deliverable:
 - Better lifecycle management for connected calendars.
+
+Implementation notes (2026-04-21):
+- UI now prompts users to choose between `Disconnect only` and `Disconnect and delete app calendar`.
+- Backend disconnect API accepts `deleteCalendar` and returns explicit outcome fields:
+  - `calendarDeleteRequested`
+  - `calendarDeleted`
+  - `calendarDeleteMessage`
+- Calendar deletion is safeguarded:
+  - Refuses `primary` calendar id.
+  - Deletes only when connected calendar matches the managed `SimpleHome Maintenance` calendar.
+  - Treats missing calendar (`404`) as already removed.
+  - Disconnect still succeeds even when deletion fails, with recovery messaging.
 
 ## Test Matrix (Minimum)
 1. Complete overdue item -> backlog clears.
