@@ -744,9 +744,9 @@ export default function Dashboard() {
             {/* Tasks Section */}
             <Card>
               <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex flex-col gap-3">
                   <CardTitle className="text-lg">Items / Tasks</CardTitle>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <label className="flex items-center gap-2 px-2 text-sm text-gray-600 whitespace-nowrap">
                       <Checkbox
                         checked={deferredOnly}
