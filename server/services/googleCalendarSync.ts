@@ -870,6 +870,53 @@ async function findEventByTaskAndKind(
   return findWithTaskIdProperty(`homeguardTaskId=${taskId}`, "homeguardMaintenanceType");
 }
 
+async function removeManagedEventsFromCalendar(
+  calendar: calendar_v3.Calendar,
+  calendarId: string,
+): Promise<{ removed: number; failed: number }> {
+  let removed = 0;
+  let failed = 0;
+  let pageToken: string | undefined;
+
+  do {
+    const response = await calendar.events.list({
+      calendarId,
+      showDeleted: false,
+      singleEvents: false,
+      maxResults: 2500,
+      pageToken,
+    });
+
+    const items = response.data.items ?? [];
+    for (const item of items) {
+      if (!item.id || item.status === "cancelled") {
+        continue;
+      }
+
+      const props = item.extendedProperties?.private ?? {};
+      const sourceTitle = (item.source?.title || "").trim();
+      const isManaged = !!(props.simplehomeTaskId || props.homeguardTaskId || sourceTitle === "SimpleHome");
+      if (!isManaged) {
+        continue;
+      }
+
+      try {
+        await calendar.events.delete({ calendarId, eventId: item.id });
+        removed += 1;
+      } catch (error: any) {
+        if (error?.code === 404 || error?.code === 410) {
+          continue;
+        }
+        failed += 1;
+      }
+    }
+
+    pageToken = response.data.nextPageToken ?? undefined;
+  } while (pageToken);
+
+  return { removed, failed };
+}
+
 async function syncTaskEvent(
   calendar: calendar_v3.Calendar,
   calendarId: string,
@@ -1262,6 +1309,17 @@ export async function handleGoogleCalendarOAuthCallback(req: express.Request): P
     connectedAt: new Date(),
   });
 
+  // Ensure the managed calendar exists immediately after (re)connect so users
+  // can see it without waiting for the first sync run.
+  try {
+    const userRecord = await storage.getUserById(userId);
+    const userTimezone = userRecord?.timezone || "UTC";
+    await ensureCalendar(req, userId, userTimezone);
+  } catch (error) {
+    // Do not fail OAuth completion if calendar pre-creation fails.
+    logWithLevel("WARN", `[Google Sync] Unable to pre-create managed calendar after OAuth callback for user ${userId}`);
+  }
+
   const returnPath = sessionState.returnPath || "/";
   delete (req.session as any).googleCalendarOAuth;
   return returnPath;
@@ -1296,25 +1354,31 @@ export async function disconnectGoogleCalendar(
     } else if (connection.calendarId === "primary") {
       calendarDeleteMessage = "Refused to delete primary Google calendar.";
     } else {
+      const calendarId = connection.calendarId;
       try {
         const { calendar } = await getAuthorizedCalendar(req, userId);
-        const metadata = await calendar.calendars.get({ calendarId: connection.calendarId });
-        const summary = (metadata.data.summary || "").trim();
-        const isSimpleHomeCalendar = summary === GOOGLE_CALENDAR_NAME;
-
-        if (!isSimpleHomeCalendar) {
-          calendarDeleteMessage = "Connected calendar is not the managed SimpleHome calendar, so it was not deleted.";
-        } else {
-          await calendar.calendars.delete({ calendarId: connection.calendarId });
+        try {
+          await calendar.calendars.delete({ calendarId });
           calendarDeleted = true;
+        } catch (deleteError: any) {
+          if (deleteError?.code === 404) {
+            // Calendar is already gone, so treat deletion as successful.
+            calendarDeleted = true;
+          } else {
+            const cleanup = await removeManagedEventsFromCalendar(calendar, calendarId);
+            if (cleanup.removed > 0 && cleanup.failed > 0) {
+              calendarDeleteMessage = `Calendar could not be deleted automatically. Removed ${cleanup.removed} managed event(s), but ${cleanup.failed} event(s) could not be removed.`;
+            } else if (cleanup.removed > 0) {
+              calendarDeleteMessage = `Calendar could not be deleted automatically, but ${cleanup.removed} managed event(s) were removed.`;
+            } else if (cleanup.failed > 0) {
+              calendarDeleteMessage = `Calendar could not be deleted automatically, and ${cleanup.failed} managed event(s) could not be removed.`;
+            } else {
+              calendarDeleteMessage = "Unable to delete Google calendar. You can remove it manually in Google Calendar settings.";
+            }
+          }
         }
       } catch (error: any) {
-        if (error?.code === 404) {
-          // Calendar is already gone, so treat deletion as successful.
-          calendarDeleted = true;
-        } else {
-          calendarDeleteMessage = "Unable to delete Google calendar. You can remove it manually in Google Calendar settings.";
-        }
+        calendarDeleteMessage = "Unable to delete Google calendar. You can remove it manually in Google Calendar settings.";
       }
     }
   }

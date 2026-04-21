@@ -305,22 +305,32 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         }
       }
 
-      const response = await apiRequest("PUT", "/api/calendar/google/sync/scope", { selections });
-      return response.json() as Promise<{ count: number; removedEvents?: number }>;
+      const scopeResponse = await apiRequest("PUT", "/api/calendar/google/sync/scope", { selections });
+      const scopeResult = (await scopeResponse.json()) as { count: number; removedEvents?: number };
+
+      const syncResponse = await apiRequest("POST", "/api/calendar/google/sync", { selections: [] });
+      const syncResult = (await syncResponse.json()) as {
+        syncedTasks: number;
+        pushedEvents: number;
+        pulledChanges: number;
+      };
+
+      return { scopeResult, syncResult };
     },
-    onSuccess: async (result) => {
+    onSuccess: async ({ scopeResult, syncResult }) => {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/tasks"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/sync/scope"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/sync/status"] }),
       ]);
 
-      const removedEvents = result.removedEvents ?? 0;
+      const removedEvents = scopeResult.removedEvents ?? 0;
       toast({
-        title: "Sync Scope Updated",
+        title: "Scope Updated and Synced",
         description:
           removedEvents > 0
-            ? `Active Google sync scope now includes ${result.count} task${result.count === 1 ? "" : "s"}. Removed ${removedEvents} out-of-scope event${removedEvents === 1 ? "" : "s"} from Google.`
-            : `Active Google sync scope now includes ${result.count} task${result.count === 1 ? "" : "s"}.`,
+            ? `Active scope now includes ${scopeResult.count} task${scopeResult.count === 1 ? "" : "s"}. Removed ${removedEvents} out-of-scope event${removedEvents === 1 ? "" : "s"}, then synced ${syncResult.syncedTasks} task${syncResult.syncedTasks === 1 ? "" : "s"} and pushed ${syncResult.pushedEvents} event${syncResult.pushedEvents === 1 ? "" : "s"}.`
+            : `Active scope now includes ${scopeResult.count} task${scopeResult.count === 1 ? "" : "s"}. Synced ${syncResult.syncedTasks} task${syncResult.syncedTasks === 1 ? "" : "s"} and pushed ${syncResult.pushedEvents} event${syncResult.pushedEvents === 1 ? "" : "s"}.`,
       });
     },
     onError: (error: any) => {
