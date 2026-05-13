@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, Download, ExternalLink, RefreshCw, X } from "lucide-react";
 
 interface ExportScheduleModalProps {
@@ -647,6 +648,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   const [keepOutOfScopeEvents, setKeepOutOfScopeEvents] = useState(false);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
   const [disconnectDeleteCalendar, setDisconnectDeleteCalendar] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("select-items");
 
   const googleSyncStatusQuery = useQuery<GoogleCalendarSyncStatus>({
     queryKey: ["/api/calendar/google/sync/status"],
@@ -782,6 +784,13 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       return unchanged ? prev : next;
     });
   }, [isOpen, tasksWithDates]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab("select-items");
+      setSelectedProvider(null);
+    }
+  }, [isOpen]);
 
   const selectedTasks = tasksWithDates.filter((task) => selectedTaskIds[task.id]);
 
@@ -1287,147 +1296,168 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Export Schedule</DialogTitle>
           <DialogDescription>
-            Choose a provider and mode to export or sync your maintenance schedule.
+            Organize your maintenance schedule by selecting items, choosing a provider, and reviewing history.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-4">
-          {/* Provider Selector */}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={() => setSelectedProvider("google")}
-              variant={selectedProvider === "google" ? "default" : "outline"}
-              className="flex-1 justify-center"
-            >
-              Google
-            </Button>
-            <Button
-              type="button"
-              onClick={() => setSelectedProvider("apple")}
-              variant={selectedProvider === "apple" ? "default" : "outline"}
-              className="flex-1 justify-center"
-            >
-              Apple
-            </Button>
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="select-items">Select Items</TabsTrigger>
+            <TabsTrigger value="export-options">Export Options</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="help">Help</TabsTrigger>
+          </TabsList>
 
-          {/* Scope Picker - Always Visible */}
-          <ExportScopePicker
-            tasksWithDates={tasksWithDates}
-            selectedTaskIds={selectedTaskIds}
-            onToggleTask={toggleTaskSelection}
-            onToggleSelectAll={toggleSelectAll}
-          />
+          {/* Tab 1: Select Items */}
+          <TabsContent value="select-items" className="space-y-3 py-4">
+            <ExportScopePicker
+              tasksWithDates={tasksWithDates}
+              selectedTaskIds={selectedTaskIds}
+              onToggleTask={toggleTaskSelection}
+              onToggleSelectAll={toggleSelectAll}
+            />
+            <SelectionSummary tasksWithDates={tasksWithDates} selectedTaskIds={selectedTaskIds} />
+          </TabsContent>
 
-          {/* Selection Summary - Persistent Feedback */}
-          <SelectionSummary tasksWithDates={tasksWithDates} selectedTaskIds={selectedTaskIds} />
+          {/* Tab 2: Export Options */}
+          <TabsContent value="export-options" className="space-y-3 py-4">
+            {/* Provider Selector */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={() => setSelectedProvider("google")}
+                variant={selectedProvider === "google" ? "default" : "outline"}
+                className="flex-1 justify-center"
+              >
+                Google
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setSelectedProvider("apple")}
+                variant={selectedProvider === "apple" ? "default" : "outline"}
+                className="flex-1 justify-center"
+              >
+                Apple
+              </Button>
+            </div>
 
-          {/* Provider-Specific Panel */}
-          {selectedProvider === "google" && (
-            <>
-              <GoogleExportPanel
+            {/* Google Provider Panel */}
+            {selectedProvider === "google" && (
+              <>
+                <GoogleExportPanel
+                  tasksWithDates={tasksWithDates}
+                  googleSyncStatus={googleStatus}
+                  googleSyncStatusQuery={googleSyncStatusQuery}
+                  googleSyncScopeQuery={googleSyncScopeQuery}
+                  buildSelections={buildSelections}
+                  connectGoogleMutation={connectGoogleMutation}
+                  syncActiveScopeMutation={syncActiveScopeMutation}
+                  updateScopeMutation={updateScopeMutation}
+                  disconnectGoogleMutation={disconnectGoogleMutation}
+                  keepOutOfScopeEvents={keepOutOfScopeEvents}
+                  onToggleKeepOutOfScope={setKeepOutOfScopeEvents}
+                  onOpenDisconnectDialog={() => {
+                    setDisconnectDeleteCalendar(false);
+                    setDisconnectDialogOpen(true);
+                  }}
+                  googleFeedUrl={googleFeedUrl}
+                  googleAddByUrlPage={googleAddByUrlPage}
+                  onExportToGoogleCalendar={exportToGoogleCalendar}
+                  onGenerateICSFile={generateICSFile}
+                  toast={toast}
+                />
+                <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Disconnect Google Calendar?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Choose whether to only disconnect sync or also delete the managed SimpleHome calendar.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-2 text-sm">
+                      <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="disconnect-mode"
+                          checked={!disconnectDeleteCalendar}
+                          onChange={() => setDisconnectDeleteCalendar(false)}
+                        />
+                        <span>
+                          <span className="font-medium">Disconnect only</span>
+                          <br />
+                          Keep the existing Google calendar and events.
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="disconnect-mode"
+                          checked={disconnectDeleteCalendar}
+                          onChange={() => setDisconnectDeleteCalendar(true)}
+                        />
+                        <span>
+                          <span className="font-medium">Disconnect and delete app calendar</span>
+                          <br />
+                          Deletes the managed SimpleHome calendar if it is safe to delete.
+                        </span>
+                      </label>
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={disconnectGoogleMutation.isPending}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(event) => {
+                          event.preventDefault();
+                          disconnectGoogleMutation.mutate({ deleteCalendar: disconnectDeleteCalendar });
+                        }}
+                        disabled={disconnectGoogleMutation.isPending}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        {disconnectGoogleMutation.isPending ? "Disconnecting..." : "Confirm Disconnect"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+
+            {/* Apple Provider Panel */}
+            {selectedProvider === "apple" && (
+              <AppleExportPanel
                 tasksWithDates={tasksWithDates}
-                googleSyncStatus={googleStatus}
-                googleSyncStatusQuery={googleSyncStatusQuery}
-                googleSyncScopeQuery={googleSyncScopeQuery}
+                appleFeedUrl={appleFeedUrl}
                 buildSelections={buildSelections}
-                connectGoogleMutation={connectGoogleMutation}
-                syncActiveScopeMutation={syncActiveScopeMutation}
-                updateScopeMutation={updateScopeMutation}
-                disconnectGoogleMutation={disconnectGoogleMutation}
-                keepOutOfScopeEvents={keepOutOfScopeEvents}
-                onToggleKeepOutOfScope={setKeepOutOfScopeEvents}
-                onOpenDisconnectDialog={() => {
-                  setDisconnectDeleteCalendar(false);
-                  setDisconnectDialogOpen(true);
-                }}
-                googleFeedUrl={googleFeedUrl}
-                googleAddByUrlPage={googleAddByUrlPage}
-                onExportToGoogleCalendar={exportToGoogleCalendar}
-                onGenerateICSFile={generateICSFile}
+                onExportToAppleCalendarSubscription={exportToAppleCalendarSubscription}
+                onExportToAppleCalendar={exportToAppleCalendar}
                 toast={toast}
               />
-              <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Disconnect Google Calendar?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Choose whether to only disconnect sync or also delete the managed SimpleHome calendar.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <div className="space-y-2 text-sm">
-                    <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="disconnect-mode"
-                        checked={!disconnectDeleteCalendar}
-                        onChange={() => setDisconnectDeleteCalendar(false)}
-                      />
-                      <span>
-                        <span className="font-medium">Disconnect only</span>
-                        <br />
-                        Keep the existing Google calendar and events.
-                      </span>
-                    </label>
-                    <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="disconnect-mode"
-                        checked={disconnectDeleteCalendar}
-                        onChange={() => setDisconnectDeleteCalendar(true)}
-                      />
-                      <span>
-                        <span className="font-medium">Disconnect and delete app calendar</span>
-                        <br />
-                        Deletes the managed SimpleHome calendar if it is safe to delete.
-                      </span>
-                    </label>
-                  </div>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={disconnectGoogleMutation.isPending}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={(event) => {
-                        event.preventDefault();
-                        disconnectGoogleMutation.mutate({ deleteCalendar: disconnectDeleteCalendar });
-                      }}
-                      disabled={disconnectGoogleMutation.isPending}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      {disconnectGoogleMutation.isPending ? "Disconnecting..." : "Confirm Disconnect"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
-          )}
+            )}
 
-          {selectedProvider === "apple" && (
-            <AppleExportPanel
-              tasksWithDates={tasksWithDates}
-              appleFeedUrl={appleFeedUrl}
-              buildSelections={buildSelections}
-              onExportToAppleCalendarSubscription={exportToAppleCalendarSubscription}
-              onExportToAppleCalendar={exportToAppleCalendar}
-              toast={toast}
+            {!selectedProvider && (
+              <div className="text-center py-8 text-gray-500">
+                <p>Choose a provider above to see export options.</p>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Tab 3: History */}
+          <TabsContent value="history" className="space-y-3 py-4">
+            <ExportTrackingSection
+              tasksWithExports={tasksWithExports}
+              getCalendarExportsForTask={getCalendarExportsForTask}
+              hasCalendarExport={hasCalendarExport}
+              onClearExports={clearCalendarExports}
             />
-          )}
+          </TabsContent>
 
-          {/* Export Tracking Section */}
-          <ExportTrackingSection
-            tasksWithExports={tasksWithExports}
-            getCalendarExportsForTask={getCalendarExportsForTask}
-            hasCalendarExport={hasCalendarExport}
-            onClearExports={clearCalendarExports}
-          />
-
-          {/* Footer Help */}
-          <ExportFooterHelp />
-        </div>
+          {/* Tab 4: Help */}
+          <TabsContent value="help" className="space-y-3 py-4">
+            <ExportFooterHelp />
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
