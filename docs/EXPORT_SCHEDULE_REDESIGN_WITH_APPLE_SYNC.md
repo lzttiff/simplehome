@@ -98,15 +98,16 @@ Requirements:
   - AppleExportPanel refactored: Keep In Sync (warning, placeholder), Subscribe (default), Download File (default)
   - All export functionality consolidated into intuitive cards with unified styling
 
-### Step 3: Standardize scope handling 🔄
+### Step 3: Standardize scope handling ✅
 - Reuse the current task selection state (already implemented via `buildSelections()`)
 - Create SelectionSummary component showing selected task count and names
 - Place SelectionSummary below ExportScopePicker for persistent visibility across provider switches
 - Reduce redundancy by consolidating selection feedback
-- **In Progress**:
-  - SelectionSummary component creation
-  - Placement: below ExportScopePicker, above provider selector
-  - Cleanups: remove duplicate count display from GoogleExportPanel sync status
+- **Completed**:
+  - SelectionSummary component displays selected count and task list
+  - Positioned below ExportScopePicker, visible for both Google and Apple providers
+  - Selection state unified and reused across both providers
+  - Blue styling differentiates selection summary from task picker
 
 ### Step 4: Add Apple sync hooks later
 - Add Apple-specific panel placeholders if the backend is not ready yet.
