@@ -98,10 +98,15 @@ Requirements:
   - AppleExportPanel refactored: Keep In Sync (warning, placeholder), Subscribe (default), Download File (default)
   - All export functionality consolidated into intuitive cards with unified styling
 
-### Step 3: Standardize scope handling
-- Reuse the current task selection state.
-- Make the selection summary persistent.
-- Prepare the scope section for Apple direct sync.
+### Step 3: Standardize scope handling 🔄
+- Reuse the current task selection state (already implemented via `buildSelections()`)
+- Create SelectionSummary component showing selected task count and names
+- Place SelectionSummary below ExportScopePicker for persistent visibility across provider switches
+- Reduce redundancy by consolidating selection feedback
+- **In Progress**:
+  - SelectionSummary component creation
+  - Placement: below ExportScopePicker, above provider selector
+  - Cleanups: remove duplicate count display from GoogleExportPanel sync status
 
 ### Step 4: Add Apple sync hooks later
 - Add Apple-specific panel placeholders if the backend is not ready yet.
@@ -111,13 +116,14 @@ Requirements:
 Current implementation:
 - ExportScheduleModal (main shell)
 - ExportScopePicker (task selection, always visible)
+- SelectionSummary (persistent selection feedback, below scope picker)
 - ExportCard (reusable card component for each export option)
 - GoogleExportPanel (three cards: two-way sync, one-way subscription, file download)
 - AppleExportPanel (three cards: two-way sync placeholder, one-way subscription, file download)
 - ExportTrackingSection (export history and clear controls)
 - ExportFooterHelp (reference text)
 
-Each panel uses the ExportCard component for consistent visual hierarchy and organization.
+Each panel uses the ExportCard component for consistent visual hierarchy and organization. Selection state is unified and reused across both providers.
 
 ## Rollout Plan
 1. Ship the redesign with existing Google and Apple one-way flows intact.

@@ -119,6 +119,41 @@ function ExportScopePicker({
   );
 }
 
+// ========== Selection Summary Component ==========
+interface SelectionSummaryProps {
+  tasksWithDates: MaintenanceTask[];
+  selectedTaskIds: Record<string, boolean>;
+}
+
+function SelectionSummary({ tasksWithDates, selectedTaskIds }: SelectionSummaryProps) {
+  const selectedCount = Object.values(selectedTaskIds).filter(Boolean).length;
+  const selectedTasks = tasksWithDates.filter((task) => selectedTaskIds[task.id]);
+
+  if (tasksWithDates.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="border rounded-md p-3 space-y-2 bg-blue-50/60 border-blue-200">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-blue-900">
+          Selection: {selectedCount} of {tasksWithDates.length} items
+        </h3>
+        {selectedCount === 0 && <span className="text-xs text-blue-700 font-medium">No items selected</span>}
+      </div>
+      {selectedCount > 0 && (
+        <div className="max-h-28 overflow-y-auto space-y-1">
+          {selectedTasks.map((task) => (
+            <div key={task.id} className="text-xs text-blue-800 bg-white/70 rounded px-2 py-1">
+              {task.title}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ========== Export Card Component ==========
 interface ExportCardProps {
   title: string;
@@ -1288,6 +1323,9 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
             onToggleTask={toggleTaskSelection}
             onToggleSelectAll={toggleSelectAll}
           />
+
+          {/* Selection Summary - Persistent Feedback */}
+          <SelectionSummary tasksWithDates={tasksWithDates} selectedTaskIds={selectedTaskIds} />
 
           {/* Provider-Specific Panel */}
           {selectedProvider === "google" && (
