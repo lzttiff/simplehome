@@ -400,87 +400,94 @@ function AppleExportPanel({
 }: AppleExportPanelProps) {
   return (
     <div className="space-y-3">
-      {/* Apple Two-Way Sync Section - Placeholder for now */}
-      <div className="border rounded-md p-3 space-y-3 bg-green-50/60">
-        <div>
-          <h3 className="text-sm font-semibold">Apple Two-Way Sync</h3>
-          <p className="text-xs text-gray-700 mt-1">
-            Coming soon. Apple two-way sync with two-way date synchronization is planned for a future release.
-          </p>
+      {/* Apple Two-Way Sync Card */}
+      <ExportCard
+        title="Keep In Sync (Two-Way)"
+        description="Sync selected tasks into a dedicated Apple calendar. Changes sync both directions."
+        icon="🔄"
+        variant="warning"
+      >
+        <div className="text-xs text-amber-800 bg-white/70 border border-amber-200 rounded p-2">
+          <p className="font-medium">Coming soon</p>
+          <p className="mt-1">Apple two-way sync with two-way date synchronization is planned for a future release.</p>
         </div>
-      </div>
+      </ExportCard>
 
-      {/* Apple Subscription */}
-      <Button
-        onClick={onExportToAppleCalendarSubscription}
-        className="w-full justify-start"
-        variant="outline"
-        title="Subscribe selected tasks in Apple Calendar via SimpleHome feed"
+      {/* Apple Subscription Card */}
+      <ExportCard
+        title="Subscribe (One-Way)"
+        description="Get a live feed URL that you can subscribe to in Apple Calendar. Updates flow from SimpleHome only."
+        icon="📬"
+        variant="default"
       >
-        <Calendar className="w-4 h-4 mr-3" />
-        Subscribe in Apple Calendar (Selected)
-      </Button>
+        <Button
+          onClick={onExportToAppleCalendarSubscription}
+          className="w-full justify-start"
+          variant="outline"
+          size="sm"
+          title="Subscribe selected tasks in Apple Calendar via SimpleHome feed"
+        >
+          <Calendar className="w-4 h-4 mr-3" />
+          Create Feed
+        </Button>
 
-      {appleFeedUrl && (
-        <div className="border rounded-md p-3 space-y-2 bg-green-50/50">
-          <p className="text-xs text-gray-700 font-medium">Apple Calendar Subscription Ready</p>
-          <input value={appleFeedUrl} readOnly className="w-full text-xs rounded border bg-white px-2 py-1" aria-label="Apple calendar feed URL" />
-          <div className="text-xs text-gray-600 bg-white p-2 rounded border border-dashed">
-            <p className="font-medium mb-1">How to subscribe:</p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>Feed URL is already copied to clipboard</li>
-              <li>Open Apple Calendar on Mac or iOS</li>
-              <li>Go to File {">"} Add Calendar {">"} Subscribe... (Mac) or tap + {">"} Add Subscription (iOS)</li>
-              <li>Paste the feed URL</li>
-              <li>Choose a calendar and click Subscribe</li>
-            </ol>
+        {appleFeedUrl && (
+          <div className="space-y-2 pt-2">
+            <input value={appleFeedUrl} readOnly className="w-full text-xs rounded border bg-white px-2 py-1" aria-label="Apple calendar feed URL" />
+            <div className="text-xs text-gray-600 bg-white p-2 rounded border border-dashed space-y-1">
+              <p className="font-medium">How to subscribe:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Feed URL is ready below</li>
+                <li>Open Apple Calendar on Mac or iOS</li>
+                <li>Go to File {">"} Add Calendar {">"} Subscribe... (Mac) or tap + {">"} Add Subscription (iOS)</li>
+                <li>Paste the feed URL</li>
+                <li>Choose a calendar and click Subscribe</li>
+              </ol>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="flex-1"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(appleFeedUrl);
+                    toast({ title: "Copied", description: "Feed URL copied to clipboard." });
+                  } catch {
+                    toast({
+                      title: "Copy Failed",
+                      description: "Clipboard access failed. Select and copy the URL manually.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                Copy URL
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="flex-1"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(appleFeedUrl);
-                  toast({ title: "Copied", description: "Feed URL copied to clipboard." });
-                } catch {
-                  toast({
-                    title: "Copy Failed",
-                    description: "Clipboard access failed. Select and copy the URL manually.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              Copy Feed URL
-            </Button>
-          </div>
-        </div>
-      )}
+        )}
+      </ExportCard>
 
-      {/* Apple File Export */}
-      <Button
-        onClick={onExportToAppleCalendar}
-        className="w-full justify-start"
-        variant="outline"
-        title="Export to Apple Calendar (downloads ICS file)"
+      {/* Apple File Export Card */}
+      <ExportCard
+        title="Download File"
+        description="Download as ICS file for manual import or one-time use."
+        icon="⬇️"
+        variant="default"
       >
-        <Calendar className="w-4 h-4 mr-3" />
-        Export to Apple Calendar (File)
-      </Button>
-
-      {/* Generic ICS Download */}
-      <Button
-        onClick={() => onExportToAppleCalendar()}
-        className="w-full justify-start"
-        variant="outline"
-        title="Download ICS file for any calendar application"
-      >
-        <Download className="w-4 h-4 mr-3" />
-        Download ICS File
-      </Button>
+        <Button
+          onClick={() => onExportToAppleCalendar()}
+          className="w-full justify-start"
+          variant="outline"
+          size="sm"
+          title="Download ICS file for any calendar application"
+        >
+          <Download className="w-4 h-4 mr-3" />
+          Download ICS File
+        </Button>
+      </ExportCard>
     </div>
   );
 }

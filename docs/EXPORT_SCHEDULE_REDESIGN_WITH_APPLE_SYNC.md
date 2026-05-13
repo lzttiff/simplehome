@@ -92,7 +92,11 @@ Requirements:
 - Each card is self-contained with its own controls and status.
 - Move instructions and secondary actions inside cards (not floating).
 - Reduce the amount of always-visible text by using card structure.
-- **Completed**: ExportCard component, card-based layout for both Google and Apple panels
+- **Completed**: 
+  - ExportCard component with variants (default, warning, success, error)
+  - GoogleExportPanel refactored: Keep In Sync (warning), Subscribe (default), Download File (default)
+  - AppleExportPanel refactored: Keep In Sync (warning, placeholder), Subscribe (default), Download File (default)
+  - All export functionality consolidated into intuitive cards with unified styling
 
 ### Step 3: Standardize scope handling
 - Reuse the current task selection state.
