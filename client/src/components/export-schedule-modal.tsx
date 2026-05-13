@@ -79,9 +79,472 @@ function formatICSDate(date: Date, dateOnly: boolean = false): string {
   return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
 }
 
+type ExportProvider = "google" | "apple";
+
+// ========== Scope Picker Component ==========
+interface ExportScopePickerProps {
+  tasksWithDates: MaintenanceTask[];
+  selectedTaskIds: Record<string, boolean>;
+  onToggleTask: (taskId: string) => void;
+  onToggleSelectAll: () => void;
+}
+
+function ExportScopePicker({
+  tasksWithDates,
+  selectedTaskIds,
+  onToggleTask,
+  onToggleSelectAll,
+}: ExportScopePickerProps) {
+  if (tasksWithDates.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="border rounded-md p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Select Schedule Items ({tasksWithDates.length})</h3>
+        <Button type="button" variant="ghost" size="sm" onClick={onToggleSelectAll} className="h-7 px-2 text-xs">
+          {tasksWithDates.every((task) => selectedTaskIds[task.id]) ? "Clear All" : "Select All"}
+        </Button>
+      </div>
+      <div className="max-h-36 overflow-y-auto space-y-1">
+        {tasksWithDates.map((task) => (
+          <label key={task.id} className="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" checked={!!selectedTaskIds[task.id]} onChange={() => onToggleTask(task.id)} />
+            <span className="truncate">{task.title}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ========== Google Export Panel Component ==========
+interface GoogleExportPanelProps {
+  tasksWithDates: MaintenanceTask[];
+  selectedTaskIds: Record<string, boolean>;
+  googleSyncStatus: GoogleCalendarSyncStatus | undefined;
+  googleSyncScopeQuery: any;
+  googleSyncStatusQuery: any;
+  buildSelections: () => Array<{ taskId: string; includeMinor: boolean; includeMajor: boolean }>;
+  connectGoogleMutation: any;
+  syncActiveScopeMutation: any;
+  updateScopeMutation: any;
+  disconnectGoogleMutation: any;
+  keepOutOfScopeEvents: boolean;
+  onToggleKeepOutOfScope: (value: boolean) => void;
+  onOpenDisconnectDialog: () => void;
+  googleFeedUrl: string;
+  googleAddByUrlPage: string;
+  onExportToGoogleCalendar: () => Promise<void>;
+  onGenerateICSFile: (provider: CalendarProvider | "generic") => Promise<void>;
+  toast: any;
+}
+
+function GoogleExportPanel({
+  tasksWithDates,
+  googleSyncStatus,
+  googleSyncStatusQuery,
+  googleSyncScopeQuery,
+  buildSelections,
+  connectGoogleMutation,
+  syncActiveScopeMutation,
+  updateScopeMutation,
+  disconnectGoogleMutation,
+  keepOutOfScopeEvents,
+  onToggleKeepOutOfScope,
+  onOpenDisconnectDialog,
+  googleFeedUrl,
+  googleAddByUrlPage,
+  onExportToGoogleCalendar,
+  onGenerateICSFile,
+  toast,
+}: GoogleExportPanelProps) {
+  const activeScopeCount = googleSyncScopeQuery.data?.count ?? googleSyncStatus?.activeScopeCount ?? 0;
+  const selectedScopeCount = buildSelections().length;
+  const googleStatusErrorMessage = useMemo(() => {
+    const error = googleSyncStatusQuery.error;
+    if (!error) {
+      return "Unable to load Google Calendar sync status.";
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.startsWith("401:")) {
+      return "Your session is not authenticated. Sign in again, then reopen this modal.";
+    }
+    return message;
+  }, [googleSyncStatusQuery.error]);
+
+  return (
+    <div className="space-y-3">
+      {/* Google Two-Way Sync Section */}
+      <div className="border rounded-md p-3 space-y-3 bg-amber-50/60">
+        <div>
+          <h3 className="text-sm font-semibold">Google Two-Way Sync</h3>
+          <p className="text-xs text-gray-700 mt-1">
+            Sync selected tasks into a dedicated SimpleHome Google calendar. Running sync again also pulls Google date edits back into SimpleHome.
+          </p>
+        </div>
+
+        {googleSyncStatusQuery.isLoading ? (
+          <p className="text-xs text-gray-600">Loading Google Calendar sync status...</p>
+        ) : googleSyncStatusQuery.isError ? (
+          <div className="text-xs text-red-800 bg-white/70 border border-red-200 rounded p-2 space-y-1">
+            <p className="font-medium">Could not read Google sync status.</p>
+            <p>{googleStatusErrorMessage}</p>
+          </div>
+        ) : !googleSyncStatus?.configured ? (
+          <div className="text-xs text-amber-800 bg-white/70 border border-amber-200 rounded p-2 space-y-1">
+            <p className="font-medium">Google Calendar sync is not configured on the server.</p>
+            <p>Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, and make sure PUBLIC_BASE_URL points to a reachable HTTPS URL.</p>
+          </div>
+        ) : !googleSyncStatus.connected ? (
+          <Button
+            type="button"
+            onClick={() => connectGoogleMutation.mutate()}
+            className="w-full justify-start"
+            variant="outline"
+          >
+            <Calendar className="w-4 h-4 mr-3" />
+            {connectGoogleMutation.isPending ? "Opening Google OAuth..." : "Connect Google Calendar"}
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <div className="text-xs text-gray-700 bg-white/70 border rounded p-2 space-y-1">
+              <p>
+                Connected as <span className="font-medium">{googleSyncStatus.accountEmail || "Google account"}</span>
+              </p>
+              <p>
+                Last synced: {googleSyncStatus.lastSyncedAt ? new Date(googleSyncStatus.lastSyncedAt).toLocaleString() : "Never"}
+              </p>
+              <p>
+                Active sync scope: <span className="font-medium">{activeScopeCount}</span> task{activeScopeCount === 1 ? "" : "s"}
+              </p>
+              <p>
+                Current selection: <span className="font-medium">{selectedScopeCount}</span> task{selectedScopeCount === 1 ? "" : "s"}
+              </p>
+              {googleSyncStatus.syncScopeUpdatedAt ? (
+                <p>
+                  Scope updated: {new Date(googleSyncStatus.syncScopeUpdatedAt).toLocaleString()}
+                </p>
+              ) : null}
+            </div>
+            <label className="flex items-center gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={keepOutOfScopeEvents}
+                onChange={(event) => onToggleKeepOutOfScope(event.target.checked)}
+              />
+              Keep out-of-scope events (planned behavior; currently informational)
+            </label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                onClick={() => syncActiveScopeMutation.mutate()}
+                className="justify-start whitespace-normal text-left"
+                variant="outline"
+                disabled={syncActiveScopeMutation.isPending || activeScopeCount === 0}
+              >
+                <RefreshCw className="w-4 h-4 mr-3 shrink-0" />
+                {syncActiveScopeMutation.isPending ? "Syncing..." : "Sync Active Scope"}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => updateScopeMutation.mutate()}
+                className="justify-start whitespace-normal text-left"
+                variant="outline"
+                disabled={updateScopeMutation.isPending || selectedScopeCount === 0}
+              >
+                <RefreshCw className="w-4 h-4 mr-3 shrink-0" />
+                {updateScopeMutation.isPending ? "Updating Scope..." : "Update Scope from Current View"}
+              </Button>
+            </div>
+            <div className="flex justify-start">
+              <Button
+                type="button"
+                onClick={onOpenDisconnectDialog}
+                variant="ghost"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                disabled={disconnectGoogleMutation.isPending}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Disconnect
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Google Subscription and File Export */}
+      <Button
+        onClick={onExportToGoogleCalendar}
+        className="w-full justify-start"
+        variant="outline"
+        title="Subscribe selected tasks in Google Calendar via SimpleHome feed"
+      >
+        <Calendar className="w-4 h-4 mr-3" />
+        Subscribe in Google Calendar (Selected)
+      </Button>
+
+      {googleFeedUrl && (
+        <div className="border rounded-md p-3 space-y-2 bg-blue-50/50">
+          <p className="text-xs text-gray-700">Step 1: Copy this feed URL. Step 2: Open Google Add by URL and paste it.</p>
+          <input value={googleFeedUrl} readOnly className="w-full text-xs rounded border bg-white px-2 py-1" aria-label="Google calendar feed URL" />
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(googleFeedUrl);
+                  toast({ title: "Copied", description: "Feed URL copied to clipboard." });
+                } catch {
+                  toast({
+                    title: "Copy Failed",
+                    description: "Clipboard access failed. Select and copy the URL manually.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Copy Feed URL
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              onClick={() => window.open(googleAddByUrlPage, "_blank", "noopener,noreferrer")}
+            >
+              <ExternalLink className="w-3 h-3 mr-1" />
+              Open Google Page
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========== Apple Export Panel Component ==========
+interface AppleExportPanelProps {
+  tasksWithDates: MaintenanceTask[];
+  appleFeedUrl: string;
+  buildSelections: () => Array<{ taskId: string; includeMinor: boolean; includeMajor: boolean }>;
+  onExportToAppleCalendarSubscription: () => Promise<void>;
+  onExportToAppleCalendar: () => Promise<void>;
+  toast: any;
+}
+
+function AppleExportPanel({
+  tasksWithDates,
+  appleFeedUrl,
+  buildSelections,
+  onExportToAppleCalendarSubscription,
+  onExportToAppleCalendar,
+  toast,
+}: AppleExportPanelProps) {
+  return (
+    <div className="space-y-3">
+      {/* Apple Two-Way Sync Section - Placeholder for now */}
+      <div className="border rounded-md p-3 space-y-3 bg-green-50/60">
+        <div>
+          <h3 className="text-sm font-semibold">Apple Two-Way Sync</h3>
+          <p className="text-xs text-gray-700 mt-1">
+            Coming soon. Apple two-way sync with two-way date synchronization is planned for a future release.
+          </p>
+        </div>
+      </div>
+
+      {/* Apple Subscription */}
+      <Button
+        onClick={onExportToAppleCalendarSubscription}
+        className="w-full justify-start"
+        variant="outline"
+        title="Subscribe selected tasks in Apple Calendar via SimpleHome feed"
+      >
+        <Calendar className="w-4 h-4 mr-3" />
+        Subscribe in Apple Calendar (Selected)
+      </Button>
+
+      {appleFeedUrl && (
+        <div className="border rounded-md p-3 space-y-2 bg-green-50/50">
+          <p className="text-xs text-gray-700 font-medium">Apple Calendar Subscription Ready</p>
+          <input value={appleFeedUrl} readOnly className="w-full text-xs rounded border bg-white px-2 py-1" aria-label="Apple calendar feed URL" />
+          <div className="text-xs text-gray-600 bg-white p-2 rounded border border-dashed">
+            <p className="font-medium mb-1">How to subscribe:</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Feed URL is already copied to clipboard</li>
+              <li>Open Apple Calendar on Mac or iOS</li>
+              <li>Go to File {">"} Add Calendar {">"} Subscribe... (Mac) or tap + {">"} Add Subscription (iOS)</li>
+              <li>Paste the feed URL</li>
+              <li>Choose a calendar and click Subscribe</li>
+            </ol>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(appleFeedUrl);
+                  toast({ title: "Copied", description: "Feed URL copied to clipboard." });
+                } catch {
+                  toast({
+                    title: "Copy Failed",
+                    description: "Clipboard access failed. Select and copy the URL manually.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Copy Feed URL
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Apple File Export */}
+      <Button
+        onClick={onExportToAppleCalendar}
+        className="w-full justify-start"
+        variant="outline"
+        title="Export to Apple Calendar (downloads ICS file)"
+      >
+        <Calendar className="w-4 h-4 mr-3" />
+        Export to Apple Calendar (File)
+      </Button>
+
+      {/* Generic ICS Download */}
+      <Button
+        onClick={() => onExportToAppleCalendar()}
+        className="w-full justify-start"
+        variant="outline"
+        title="Download ICS file for any calendar application"
+      >
+        <Download className="w-4 h-4 mr-3" />
+        Download ICS File
+      </Button>
+    </div>
+  );
+}
+
+// ========== Export Tracking Section Component ==========
+interface ExportTrackingSectionProps {
+  tasksWithExports: MaintenanceTask[];
+  getCalendarExportsForTask: (task: MaintenanceTask) => CalendarExportRecord[];
+  hasCalendarExport: (task: MaintenanceTask, provider?: CalendarProvider) => boolean;
+  onClearExports: (provider?: CalendarProvider) => Promise<void>;
+}
+
+function ExportTrackingSection({
+  tasksWithExports,
+  getCalendarExportsForTask,
+  hasCalendarExport,
+  onClearExports,
+}: ExportTrackingSectionProps) {
+  if (tasksWithExports.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="border-t pt-4 mt-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">Exported Tasks ({tasksWithExports.length})</h3>
+          <div className="flex gap-2">
+            {tasksWithExports.some((task) => hasCalendarExport(task, "google")) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onClearExports("google")}
+                className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                title="Clear all Google Calendar export records"
+              >
+                <X className="w-3 h-3 mr-1" />
+                Clear Google
+              </Button>
+            )}
+            {tasksWithExports.some((task) => hasCalendarExport(task, "apple")) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onClearExports("apple")}
+                className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                title="Clear all Apple Calendar export records"
+              >
+                <X className="w-3 h-3 mr-1" />
+                Clear Apple
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onClearExports()}
+              className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+              title="Clear all calendar export records"
+            >
+              <X className="w-3 h-3 mr-1" />
+              Clear All
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-2 max-h-48 overflow-y-auto">
+          {tasksWithExports.map((task) => {
+            const records = getCalendarExportsForTask(task);
+            return (
+              <div key={task.id} className="text-xs bg-gray-50 p-2 rounded border">
+                <div className="font-medium text-gray-900">{task.title}</div>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {records.map((record, index) => (
+                    <div key={`${task.id}-${record.provider}-${record.syncMode || "subscription"}-${index}`} className="flex items-center gap-1">
+                      <span className="text-gray-600 capitalize">
+                        {record.provider}
+                        {record.syncMode === "direct" ? " sync" : record.syncMode === "file" ? " file" : " sub"}:
+                      </span>
+                      <span className="text-gray-500">{new Date(record.lastSyncedAt).toLocaleDateString()}</span>
+                      {record.eventIds.minor && <span className="text-blue-600 text-[10px] ml-1">Minor ✓</span>}
+                      {record.eventIds.major && <span className="text-purple-600 text-[10px]">Major ✓</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="text-xs text-gray-500 mt-3 p-2 bg-blue-50 rounded space-y-2">
+        <p className="flex items-center gap-1">
+          <ExternalLink className="w-3 h-3" />
+          Open your calendar application and search for SimpleHome or the task name to inspect synced events.
+        </p>
+        <p className="text-amber-600">
+          Clearing records here does not delete events from Google Calendar or Apple Calendar. Remove those events in the calendar app if you no longer want them.
+        </p>
+      </div>
+    </>
+  );
+}
+
+// ========== Export Footer Help Component ==========
+function ExportFooterHelp() {
+  return (
+    <div className="text-xs text-gray-500 mt-2 space-y-1">
+      <p>Google two-way sync requires server-side OAuth credentials and a public HTTPS callback URL.</p>
+      <p>Google and Apple subscription feeds remain one-way from SimpleHome into the calendar app.</p>
+      <p>ICS file exports are compatible with most calendar applications.</p>
+      <p>For subscription feeds, make sure PUBLIC_BASE_URL is set to a publicly reachable HTTPS domain.</p>
+    </div>
+  );
+}
+
 export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportScheduleModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [selectedProvider, setSelectedProvider] = useState<ExportProvider | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Record<string, boolean>>({});
   const [googleFeedUrl, setGoogleFeedUrl] = useState("");
   const [googleAddByUrlPage, setGoogleAddByUrlPage] = useState("https://calendar.google.com/calendar/u/0/r/settings/addbyurl");
@@ -733,353 +1196,139 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         <DialogHeader>
           <DialogTitle>Export Schedule</DialogTitle>
           <DialogDescription>
-            Export via subscriptions and files, or connect Google Calendar for two-way sync.
+            Choose a provider and mode to export or sync your maintenance schedule.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-4">
-          {tasksWithDates.length > 0 && (
-            <div className="border rounded-md p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Select Schedule Items ({tasksWithDates.length})</h3>
-                <Button type="button" variant="ghost" size="sm" onClick={toggleSelectAll} className="h-7 px-2 text-xs">
-                  {tasksWithDates.every((task) => selectedTaskIds[task.id]) ? "Clear All" : "Select All"}
-                </Button>
-              </div>
-              <div className="max-h-36 overflow-y-auto space-y-1">
-                {tasksWithDates.map((task) => (
-                  <label key={task.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input type="checkbox" checked={!!selectedTaskIds[task.id]} onChange={() => toggleTaskSelection(task.id)} />
-                    <span className="truncate">{task.title}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="border rounded-md p-3 space-y-3 bg-amber-50/60">
-            <div>
-              <h3 className="text-sm font-semibold">Google Two-Way Sync</h3>
-              <p className="text-xs text-gray-700 mt-1">
-                Sync selected tasks into a dedicated SimpleHome Google calendar. Running sync again also pulls Google date edits back into SimpleHome.
-              </p>
-            </div>
-
-            {googleSyncStatusQuery.isLoading ? (
-              <p className="text-xs text-gray-600">Loading Google Calendar sync status...</p>
-            ) : googleSyncStatusQuery.isError ? (
-              <div className="text-xs text-red-800 bg-white/70 border border-red-200 rounded p-2 space-y-1">
-                <p className="font-medium">Could not read Google sync status.</p>
-                <p>{googleStatusErrorMessage}</p>
-              </div>
-            ) : !googleStatus?.configured ? (
-              <div className="text-xs text-amber-800 bg-white/70 border border-amber-200 rounded p-2 space-y-1">
-                <p className="font-medium">Google Calendar sync is not configured on the server.</p>
-                <p>Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, and make sure PUBLIC_BASE_URL points to a reachable HTTPS URL.</p>
-              </div>
-            ) : !googleStatus.connected ? (
-              <Button type="button" onClick={() => connectGoogleMutation.mutate()} className="w-full justify-start" variant="outline">
-                <Calendar className="w-4 h-4 mr-3" />
-                {connectGoogleMutation.isPending ? "Opening Google OAuth..." : "Connect Google Calendar"}
-              </Button>
-            ) : (
-              <div className="space-y-2">
-                <div className="text-xs text-gray-700 bg-white/70 border rounded p-2 space-y-1">
-                  <p>
-                    Connected as <span className="font-medium">{googleStatus.accountEmail || "Google account"}</span>
-                  </p>
-                  <p>
-                    Last synced: {googleStatus.lastSyncedAt ? new Date(googleStatus.lastSyncedAt).toLocaleString() : "Never"}
-                  </p>
-                  <p>
-                    Active sync scope: <span className="font-medium">{activeScopeCount}</span> task{activeScopeCount === 1 ? "" : "s"}
-                  </p>
-                  <p>
-                    Current selection: <span className="font-medium">{selectedScopeCount}</span> task{selectedScopeCount === 1 ? "" : "s"}
-                  </p>
-                  {googleStatus.syncScopeUpdatedAt ? (
-                    <p>
-                      Scope updated: {new Date(googleStatus.syncScopeUpdatedAt).toLocaleString()}
-                    </p>
-                  ) : null}
-                </div>
-                <label className="flex items-center gap-2 text-xs text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={keepOutOfScopeEvents}
-                    onChange={(event) => setKeepOutOfScopeEvents(event.target.checked)}
-                  />
-                  Keep out-of-scope events (planned behavior; currently informational)
-                </label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Button
-                    type="button"
-                    onClick={() => syncActiveScopeMutation.mutate()}
-                    className="justify-start whitespace-normal text-left"
-                    variant="outline"
-                    disabled={syncActiveScopeMutation.isPending || activeScopeCount === 0}
-                  >
-                    <RefreshCw className="w-4 h-4 mr-3 shrink-0" />
-                    {syncActiveScopeMutation.isPending ? "Syncing..." : "Sync Active Scope"}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => updateScopeMutation.mutate()}
-                    className="justify-start whitespace-normal text-left"
-                    variant="outline"
-                    disabled={updateScopeMutation.isPending || selectedScopeCount === 0}
-                  >
-                    <RefreshCw className="w-4 h-4 mr-3 shrink-0" />
-                    {updateScopeMutation.isPending ? "Updating Scope..." : "Update Scope from Current View"}
-                  </Button>
-                </div>
-                <div className="flex justify-start">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setDisconnectDeleteCalendar(false);
-                      setDisconnectDialogOpen(true);
-                    }}
-                    variant="ghost"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    disabled={disconnectGoogleMutation.isPending}
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Disconnect
-                  </Button>
-                </div>
-              </div>
-            )}
+          {/* Provider Selector */}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => setSelectedProvider("google")}
+              variant={selectedProvider === "google" ? "default" : "outline"}
+              className="flex-1 justify-center"
+            >
+              Google
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setSelectedProvider("apple")}
+              variant={selectedProvider === "apple" ? "default" : "outline"}
+              className="flex-1 justify-center"
+            >
+              Apple
+            </Button>
           </div>
 
-          <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Disconnect Google Calendar?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Choose whether to only disconnect sync or also delete the managed SimpleHome calendar.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="space-y-2 text-sm">
-                <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="disconnect-mode"
-                    checked={!disconnectDeleteCalendar}
-                    onChange={() => setDisconnectDeleteCalendar(false)}
-                  />
-                  <span>
-                    <span className="font-medium">Disconnect only</span>
-                    <br />
-                    Keep the existing Google calendar and events.
-                  </span>
-                </label>
-                <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="disconnect-mode"
-                    checked={disconnectDeleteCalendar}
-                    onChange={() => setDisconnectDeleteCalendar(true)}
-                  />
-                  <span>
-                    <span className="font-medium">Disconnect and delete app calendar</span>
-                    <br />
-                    Deletes the managed SimpleHome calendar if it is safe to delete.
-                  </span>
-                </label>
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={disconnectGoogleMutation.isPending}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={(event) => {
-                    event.preventDefault();
-                    disconnectGoogleMutation.mutate({ deleteCalendar: disconnectDeleteCalendar });
-                  }}
-                  disabled={disconnectGoogleMutation.isPending}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  {disconnectGoogleMutation.isPending ? "Disconnecting..." : "Confirm Disconnect"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {/* Scope Picker - Always Visible */}
+          <ExportScopePicker
+            tasksWithDates={tasksWithDates}
+            selectedTaskIds={selectedTaskIds}
+            onToggleTask={toggleTaskSelection}
+            onToggleSelectAll={toggleSelectAll}
+          />
 
-          <Button onClick={exportToGoogleCalendar} className="w-full justify-start" variant="outline" title="Subscribe selected tasks in Google Calendar via SimpleHome feed">
-            <Calendar className="w-4 h-4 mr-3" />
-            Subscribe in Google Calendar (Selected)
-          </Button>
-
-          {googleFeedUrl && (
-            <div className="border rounded-md p-3 space-y-2 bg-blue-50/50">
-              <p className="text-xs text-gray-700">Step 1: Copy this feed URL. Step 2: Open Google Add by URL and paste it.</p>
-              <input value={googleFeedUrl} readOnly className="w-full text-xs rounded border bg-white px-2 py-1" aria-label="Google calendar feed URL" />
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(googleFeedUrl);
-                      toast({ title: "Copied", description: "Feed URL copied to clipboard." });
-                    } catch {
-                      toast({
-                        title: "Copy Failed",
-                        description: "Clipboard access failed. Select and copy the URL manually.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                >
-                  Copy Feed URL
-                </Button>
-                <Button type="button" size="sm" variant="outline" className="flex-1" onClick={() => window.open(googleAddByUrlPage, "_blank", "noopener,noreferrer")}>
-                  <ExternalLink className="w-3 h-3 mr-1" />
-                  Open Google Page
-                </Button>
-              </div>
-            </div>
+          {/* Provider-Specific Panel */}
+          {selectedProvider === "google" && (
+            <>
+              <GoogleExportPanel
+                tasksWithDates={tasksWithDates}
+                googleSyncStatus={googleStatus}
+                googleSyncStatusQuery={googleSyncStatusQuery}
+                googleSyncScopeQuery={googleSyncScopeQuery}
+                buildSelections={buildSelections}
+                connectGoogleMutation={connectGoogleMutation}
+                syncActiveScopeMutation={syncActiveScopeMutation}
+                updateScopeMutation={updateScopeMutation}
+                disconnectGoogleMutation={disconnectGoogleMutation}
+                keepOutOfScopeEvents={keepOutOfScopeEvents}
+                onToggleKeepOutOfScope={setKeepOutOfScopeEvents}
+                onOpenDisconnectDialog={() => {
+                  setDisconnectDeleteCalendar(false);
+                  setDisconnectDialogOpen(true);
+                }}
+                googleFeedUrl={googleFeedUrl}
+                googleAddByUrlPage={googleAddByUrlPage}
+                onExportToGoogleCalendar={exportToGoogleCalendar}
+                onGenerateICSFile={generateICSFile}
+                toast={toast}
+              />
+              <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Disconnect Google Calendar?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Choose whether to only disconnect sync or also delete the managed SimpleHome calendar.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="space-y-2 text-sm">
+                    <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="disconnect-mode"
+                        checked={!disconnectDeleteCalendar}
+                        onChange={() => setDisconnectDeleteCalendar(false)}
+                      />
+                      <span>
+                        <span className="font-medium">Disconnect only</span>
+                        <br />
+                        Keep the existing Google calendar and events.
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="disconnect-mode"
+                        checked={disconnectDeleteCalendar}
+                        onChange={() => setDisconnectDeleteCalendar(true)}
+                      />
+                      <span>
+                        <span className="font-medium">Disconnect and delete app calendar</span>
+                        <br />
+                        Deletes the managed SimpleHome calendar if it is safe to delete.
+                      </span>
+                    </label>
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={disconnectGoogleMutation.isPending}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(event) => {
+                        event.preventDefault();
+                        disconnectGoogleMutation.mutate({ deleteCalendar: disconnectDeleteCalendar });
+                      }}
+                      disabled={disconnectGoogleMutation.isPending}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {disconnectGoogleMutation.isPending ? "Disconnecting..." : "Confirm Disconnect"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
           )}
 
-          <Button onClick={exportToAppleCalendarSubscription} className="w-full justify-start" variant="outline" title="Subscribe selected tasks in Apple Calendar via SimpleHome feed">
-            <Calendar className="w-4 h-4 mr-3" />
-            Subscribe in Apple Calendar (Selected)
-          </Button>
-
-          {appleFeedUrl && (
-            <div className="border rounded-md p-3 space-y-2 bg-green-50/50">
-              <p className="text-xs text-gray-700 font-medium">Apple Calendar Subscription Ready</p>
-              <input value={appleFeedUrl} readOnly className="w-full text-xs rounded border bg-white px-2 py-1" aria-label="Apple calendar feed URL" />
-              <div className="text-xs text-gray-600 bg-white p-2 rounded border border-dashed">
-                <p className="font-medium mb-1">How to subscribe:</p>
-                <ol className="list-decimal list-inside space-y-1">
-                  <li>Feed URL is already copied to clipboard</li>
-                  <li>Open Apple Calendar on Mac or iOS</li>
-                  <li>Go to File {">"} Add Calendar {">"} Subscribe... (Mac) or tap + {">"} Add Subscription (iOS)</li>
-                  <li>Paste the feed URL</li>
-                  <li>Choose a calendar and click Subscribe</li>
-                </ol>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(appleFeedUrl);
-                      toast({ title: "Copied", description: "Feed URL copied to clipboard." });
-                    } catch {
-                      toast({
-                        title: "Copy Failed",
-                        description: "Clipboard access failed. Select and copy the URL manually.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                >
-                  Copy Feed URL
-                </Button>
-              </div>
-            </div>
+          {selectedProvider === "apple" && (
+            <AppleExportPanel
+              tasksWithDates={tasksWithDates}
+              appleFeedUrl={appleFeedUrl}
+              buildSelections={buildSelections}
+              onExportToAppleCalendarSubscription={exportToAppleCalendarSubscription}
+              onExportToAppleCalendar={exportToAppleCalendar}
+              toast={toast}
+            />
           )}
 
-          <Button onClick={exportToAppleCalendar} className="w-full justify-start" variant="outline" title="Export to Apple Calendar (downloads ICS file)">
-            <Calendar className="w-4 h-4 mr-3" />
-            Export to Apple Calendar (File)
-          </Button>
+          {/* Export Tracking Section */}
+          <ExportTrackingSection
+            tasksWithExports={tasksWithExports}
+            getCalendarExportsForTask={getCalendarExportsForTask}
+            hasCalendarExport={hasCalendarExport}
+            onClearExports={clearCalendarExports}
+          />
 
-          <Button onClick={() => void generateICSFile("generic")} className="w-full justify-start" variant="outline" title="Download ICS file for any calendar application">
-            <Download className="w-4 h-4 mr-3" />
-            Download ICS File
-          </Button>
-        </div>
-
-        {tasksWithExports.length > 0 && (
-          <>
-            <div className="border-t pt-4 mt-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold">Exported Tasks ({tasksWithExports.length})</h3>
-                <div className="flex gap-2">
-                  {tasksWithExports.some((task) => hasCalendarExport(task, "google")) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void clearCalendarExports("google")}
-                      className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                      title="Clear all Google Calendar export records"
-                    >
-                      <X className="w-3 h-3 mr-1" />
-                      Clear Google
-                    </Button>
-                  )}
-                  {tasksWithExports.some((task) => hasCalendarExport(task, "apple")) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void clearCalendarExports("apple")}
-                      className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                      title="Clear all Apple Calendar export records"
-                    >
-                      <X className="w-3 h-3 mr-1" />
-                      Clear Apple
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void clearCalendarExports()}
-                    className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                    title="Clear all calendar export records"
-                  >
-                    <X className="w-3 h-3 mr-1" />
-                    Clear All
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {tasksWithExports.map((task) => {
-                  const records = getCalendarExportsForTask(task);
-                  return (
-                    <div key={task.id} className="text-xs bg-gray-50 p-2 rounded border">
-                      <div className="font-medium text-gray-900">{task.title}</div>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {records.map((record, index) => (
-                          <div key={`${task.id}-${record.provider}-${record.syncMode || "subscription"}-${index}`} className="flex items-center gap-1">
-                            <span className="text-gray-600 capitalize">
-                              {record.provider}
-                              {record.syncMode === "direct" ? " sync" : record.syncMode === "file" ? " file" : " sub"}:
-                            </span>
-                            <span className="text-gray-500">{new Date(record.lastSyncedAt).toLocaleDateString()}</span>
-                            {record.eventIds.minor && <span className="text-blue-600 text-[10px] ml-1">Minor ✓</span>}
-                            {record.eventIds.major && <span className="text-purple-600 text-[10px]">Major ✓</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="text-xs text-gray-500 mt-3 p-2 bg-blue-50 rounded space-y-2">
-              <p className="flex items-center gap-1">
-                <ExternalLink className="w-3 h-3" />
-                Open your calendar application and search for SimpleHome or the task name to inspect synced events.
-              </p>
-              <p className="text-amber-600">
-                Clearing records here does not delete events from Google Calendar or Apple Calendar. Remove those events in the calendar app if you no longer want them.
-              </p>
-            </div>
-          </>
-        )}
-
-        <div className="text-xs text-gray-500 mt-2 space-y-1">
-          <p>Google two-way sync requires server-side OAuth credentials and a public HTTPS callback URL.</p>
-          <p>Google and Apple subscription feeds remain one-way from SimpleHome into the calendar app.</p>
-          <p>ICS file exports are compatible with most calendar applications.</p>
-          <p>For subscription feeds, make sure PUBLIC_BASE_URL is set to a publicly reachable HTTPS domain.</p>
+          {/* Footer Help */}
+          <ExportFooterHelp />
         </div>
       </DialogContent>
     </Dialog>

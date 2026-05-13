@@ -1,5 +1,10 @@
 # Apple Calendar Two-Way Sync Plan
 
+## Recommended Order
+Do the export modal redesign first, with Apple two-way sync as a first-class constraint, then implement Apple sync behind the reorganized UI.
+
+Use the companion document [EXPORT_SCHEDULE_REDESIGN_WITH_APPLE_SYNC.md](EXPORT_SCHEDULE_REDESIGN_WITH_APPLE_SYNC.md) as the UI and sequencing guide for that first step.
+
 ## Goal
 Add Apple Calendar two-way sync with behavior parity to existing Google two-way sync, while keeping current Apple subscription and file export flows.
 
