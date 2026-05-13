@@ -133,9 +133,25 @@ Requirements:
   - Each tab remains compact and scrollable
   - Reset to "Select Items" tab when modal opens
 
-### Step 5: Add Apple sync hooks
-- Add Apple-specific panel placeholders if the backend is not ready yet.
-- Keep the layout stable so Apple sync can be plugged in without another redesign.
+### Step 5: Add Apple sync hooks ✅
+- Add Apple-specific interface definitions (AppleCalendarSyncStatus, AppleCalendarSyncScope)
+- Add stub queries and mutations that show "coming soon" placeholders
+- Refactor AppleExportPanel "Keep In Sync" card to match Google UI pattern
+- Display connection status, scope counts, and sync controls
+- **Completed**:
+  - AppleCalendarSyncStatus and AppleCalendarSyncScope interfaces defined
+  - appleSyncStatusQuery and appleSyncScopeQuery hooks created (stub implementations)
+  - Stub mutations show "coming soon" toasts (connectAppleMutation, syncActiveScopeAppleMutation, updateScopeAppleMutation, disconnectAppleMutation)
+  - AppleExportPanel "Keep In Sync" card now displays:
+    * Loading state
+    * Error handling
+    * "Not configured" message
+    * Connect button when disconnected
+    * Connection status with account email, last sync time, scope info
+    * Sync Now and Update Scope buttons when connected
+    * Disconnect button
+  - UI mirrors GoogleExportPanel for consistency
+  - Ready for real backend implementation to replace stub mutations
 
 ## Suggested Component Breakdown
 Current implementation (Pre-Tab):
@@ -176,6 +192,44 @@ Each tab contains logically grouped content for a specific workflow step.
 - Apple subscription and file exports remain available.
 - The layout already has a clear place for Apple two-way sync controls.
 - Each tab stays compact within typical window bounds (no excessive vertical overflow).
+
+## Redesign Completion Summary
+
+All five implementation steps have been completed:
+
+✅ **Step 1: Modal Shell Restructuring**
+- Component extraction (7 focused components)
+- Preserved all existing Google sync behavior
+
+✅ **Step 2: Intent-Based Card Organization**
+- ExportCard component with variants (default, warning, success, error)
+- GoogleExportPanel refactored into 3 cards
+- AppleExportPanel refactored into 3 cards
+- Unified styling across both providers
+
+✅ **Step 3: Standardized Scope Handling**
+- SelectionSummary component for persistent feedback
+- Shared task selection state across providers via buildSelections()
+- Blue-styled selection display below task picker
+
+✅ **Step 4: Tab-Based Organization**
+- Four tabs: "Select Items", "Export Options", "History", "Help"
+- Modal width increased (sm:max-w-md → sm:max-w-3xl)
+- Each tab stays compact within typical window bounds
+- Solves visual density and overflow issues
+
+✅ **Step 5: Apple Sync Hooks**
+- Interface definitions for Apple sync status and scope
+- Stub queries and mutations (ready for backend implementation)
+- AppleExportPanel "Keep In Sync" card with connection UI
+- Mirrors GoogleExportPanel structure for consistency
+
+**Key Achievements:**
+- Modal now organized by user workflow intent (Select → Export → Review → Learn)
+- Visual density reduced while preserving all functionality
+- Ready for Apple two-way sync backend implementation
+- All existing Google behavior preserved
+- Professional, scalable architecture for future enhancements
 
 ## Related Files
 - [client/src/components/export-schedule-modal.tsx](../client/src/components/export-schedule-modal.tsx)
