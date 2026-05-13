@@ -62,6 +62,33 @@ interface DisconnectGoogleCalendarResponse {
   calendarDeleteMessage: string | null;
 }
 
+interface AppleCalendarSyncStatus {
+  configured: boolean;
+  connected: boolean;
+  accountEmail: string | null;
+  calendarId: string | null;
+  lastSyncedAt: string | null;
+  activeScopeCount?: number;
+  syncScopeVersion?: number;
+  syncScopeUpdatedAt?: string | null;
+}
+
+interface AppleCalendarSyncScope {
+  selections: Array<{
+    taskId: string;
+    includeMinor: boolean;
+    includeMajor: boolean;
+  }>;
+  count: number;
+}
+
+interface DisconnectAppleCalendarResponse {
+  disconnected: boolean;
+  calendarDeleteRequested: boolean;
+  calendarDeleted: boolean;
+  calendarDeleteMessage: string | null;
+}
+
 type CalendarProvider = "google" | "apple";
 type CalendarSyncMode = "subscription" | "direct" | "file";
 
@@ -419,21 +446,40 @@ function GoogleExportPanel({
 // ========== Apple Export Panel Component ==========
 interface AppleExportPanelProps {
   tasksWithDates: MaintenanceTask[];
-  appleFeedUrl: string;
+  appleSyncStatus: AppleCalendarSyncStatus | undefined;
+  appleSyncStatusQuery: any;
+  appleSyncScopeQuery: any;
   buildSelections: () => Array<{ taskId: string; includeMinor: boolean; includeMajor: boolean }>;
+  connectAppleMutation: any;
+  syncActiveScopeAppleMutation: any;
+  updateScopeAppleMutation: any;
+  disconnectAppleMutation: any;
+  appleFeedUrl: string;
   onExportToAppleCalendarSubscription: () => Promise<void>;
   onExportToAppleCalendar: () => Promise<void>;
+  onOpenDisconnectDialog: () => void;
   toast: any;
 }
 
 function AppleExportPanel({
   tasksWithDates,
-  appleFeedUrl,
+  appleSyncStatus,
+  appleSyncStatusQuery,
+  appleSyncScopeQuery,
   buildSelections,
+  connectAppleMutation,
+  syncActiveScopeAppleMutation,
+  updateScopeAppleMutation,
+  disconnectAppleMutation,
+  appleFeedUrl,
   onExportToAppleCalendarSubscription,
   onExportToAppleCalendar,
+  onOpenDisconnectDialog,
   toast,
 }: AppleExportPanelProps) {
+  const activeScopeCount = appleSyncScopeQuery.data?.count ?? appleSyncStatus?.activeScopeCount ?? 0;
+  const selectedScopeCount = buildSelections().length;
+
   return (
     <div className="space-y-3">
       {/* Apple Two-Way Sync Card */}
@@ -443,10 +489,77 @@ function AppleExportPanel({
         icon="🔄"
         variant="warning"
       >
-        <div className="text-xs text-amber-800 bg-white/70 border border-amber-200 rounded p-2">
-          <p className="font-medium">Coming soon</p>
-          <p className="mt-1">Apple two-way sync with two-way date synchronization is planned for a future release.</p>
-        </div>
+        {appleSyncStatusQuery.isLoading ? (
+          <p className="text-xs text-gray-600">Loading Apple Calendar sync status...</p>
+        ) : appleSyncStatusQuery.isError ? (
+          <div className="text-xs text-red-800 bg-white/70 border border-red-200 rounded p-2 space-y-1">
+            <p className="font-medium">Could not read Apple sync status.</p>
+            <p>{appleSyncStatusQuery.error?.message || "Unable to load Apple Calendar sync status."}</p>
+          </div>
+        ) : !appleSyncStatus?.configured ? (
+          <div className="text-xs text-amber-800 bg-white/70 border border-amber-200 rounded p-2 space-y-1">
+            <p className="font-medium">Apple Calendar sync is not configured on the server.</p>
+            <p>This feature is coming in a future release.</p>
+          </div>
+        ) : !appleSyncStatus.connected ? (
+          <Button
+            type="button"
+            onClick={() => connectAppleMutation.mutate()}
+            className="w-full justify-start"
+            variant="outline"
+            size="sm"
+          >
+            <Calendar className="w-4 h-4 mr-3" />
+            {connectAppleMutation.isPending ? "Connecting Apple..." : "Connect Apple Calendar"}
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <div className="text-xs text-gray-700 bg-white/70 border rounded p-2 space-y-1">
+              <p>
+                Connected as <span className="font-medium">{appleSyncStatus.accountEmail || "Apple account"}</span>
+              </p>
+              <p>
+                Last synced: {appleSyncStatus.lastSyncedAt ? new Date(appleSyncStatus.lastSyncedAt).toLocaleString() : "Never"}
+              </p>
+              <p>
+                Active scope: <span className="font-medium">{activeScopeCount}</span> task{activeScopeCount === 1 ? "" : "s"} • Selection: <span className="font-medium">{selectedScopeCount}</span>
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                onClick={() => syncActiveScopeAppleMutation.mutate()}
+                size="sm"
+                variant="outline"
+                disabled={syncActiveScopeAppleMutation.isPending || activeScopeCount === 0}
+              >
+                <RefreshCw className="w-3 h-3 mr-2 shrink-0" />
+                {syncActiveScopeAppleMutation.isPending ? "Syncing..." : "Sync Now"}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => updateScopeAppleMutation.mutate()}
+                size="sm"
+                variant="outline"
+                disabled={updateScopeAppleMutation.isPending || selectedScopeCount === 0}
+              >
+                <RefreshCw className="w-3 h-3 mr-2 shrink-0" />
+                {updateScopeAppleMutation.isPending ? "Updating..." : "Update Scope"}
+              </Button>
+            </div>
+            <Button
+              type="button"
+              onClick={onOpenDisconnectDialog}
+              variant="ghost"
+              size="sm"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 w-full"
+              disabled={disconnectAppleMutation.isPending}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Disconnect
+            </Button>
+          </div>
+        )}
       </ExportCard>
 
       {/* Apple Subscription Card */}
@@ -662,6 +775,18 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     retry: false,
   });
 
+  const appleSyncStatusQuery = useQuery<AppleCalendarSyncStatus>({
+    queryKey: ["/api/calendar/apple/sync/status"],
+    enabled: isOpen,
+    retry: false,
+  });
+
+  const appleSyncScopeQuery = useQuery<AppleCalendarSyncScope>({
+    queryKey: ["/api/calendar/apple/sync/scope"],
+    enabled: isOpen && !!appleSyncStatusQuery.data?.configured && !!appleSyncStatusQuery.data?.connected,
+    retry: false,
+  });
+
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, calendarExports }: { taskId: string; calendarExports: string | null }) => {
       const response = await apiRequest("PATCH", `/api/tasks/${taskId}`, { calendarExports });
@@ -730,6 +855,53 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         description: error?.message || "Unable to disconnect Google Calendar.",
         variant: "destructive",
       });
+    },
+  });
+
+  const connectAppleMutation = useMutation({
+    mutationFn: async () => {
+      toast({
+        title: "Coming Soon",
+        description: "Apple two-way sync is coming in a future release.",
+        variant: "default",
+      });
+      throw new Error("Apple sync not yet available");
+    },
+    onError: () => {
+      // Error already shown in mutationFn
+    },
+  });
+
+  const syncActiveScopeAppleMutation = useMutation({
+    mutationFn: async () => {
+      toast({
+        title: "Coming Soon",
+        description: "Apple sync functionality will be available in a future release.",
+        variant: "default",
+      });
+      throw new Error("Apple sync not yet available");
+    },
+  });
+
+  const updateScopeAppleMutation = useMutation({
+    mutationFn: async () => {
+      toast({
+        title: "Coming Soon",
+        description: "Apple scope management will be available in a future release.",
+        variant: "default",
+      });
+      throw new Error("Apple sync not yet available");
+    },
+  });
+
+  const disconnectAppleMutation = useMutation({
+    mutationFn: async ({ deleteCalendar }: { deleteCalendar: boolean }) => {
+      toast({
+        title: "Coming Soon",
+        description: "Apple sync disconnect will be available in a future release.",
+        variant: "default",
+      });
+      throw new Error("Apple sync not yet available");
     },
   });
 
@@ -1278,6 +1450,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   };
 
   const googleStatus = googleSyncStatusQuery.data;
+  const appleSyncStatus = appleSyncStatusQuery.data;
   const activeScopeCount = googleSyncScopeQuery.data?.count ?? googleStatus?.activeScopeCount ?? 0;
   const selectedScopeCount = buildSelections().length;
   const googleStatusErrorMessage = useMemo(() => {
@@ -1428,10 +1601,21 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
             {selectedProvider === "apple" && (
               <AppleExportPanel
                 tasksWithDates={tasksWithDates}
-                appleFeedUrl={appleFeedUrl}
+                appleSyncStatus={appleSyncStatus}
+                appleSyncStatusQuery={appleSyncStatusQuery}
+                appleSyncScopeQuery={appleSyncScopeQuery}
                 buildSelections={buildSelections}
+                connectAppleMutation={connectAppleMutation}
+                syncActiveScopeAppleMutation={syncActiveScopeAppleMutation}
+                updateScopeAppleMutation={updateScopeAppleMutation}
+                disconnectAppleMutation={disconnectAppleMutation}
+                appleFeedUrl={appleFeedUrl}
                 onExportToAppleCalendarSubscription={exportToAppleCalendarSubscription}
                 onExportToAppleCalendar={exportToAppleCalendar}
+                onOpenDisconnectDialog={() => {
+                  setDisconnectDeleteCalendar(false);
+                  setDisconnectDialogOpen(true);
+                }}
                 toast={toast}
               />
             )}
