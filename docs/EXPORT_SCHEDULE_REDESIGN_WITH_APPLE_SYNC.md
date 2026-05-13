@@ -12,7 +12,7 @@ The current Export Schedule modal combines too many workflows in one vertical st
 - ICS file export
 - Task selection and export tracking
 
-That makes the modal feel crowded and makes it harder to add Apple two-way sync without making the layout worse.
+That makes the modal feel crowded and makes it harder to add Apple two-way sync without making the layout worse. Additionally, the card-based design (Steps 1-3) increased vertical height, causing content overflow beyond typical window bounds, especially when Google sync status information is present.
 
 ## Design Principles
 1. Organize by user intent, not by provider.
@@ -22,52 +22,60 @@ That makes the modal feel crowded and makes it harder to add Apple two-way sync 
 5. Avoid mixing setup, scope selection, and execution in the same visual block.
 
 ## Proposed Information Architecture
-### Top Level
-Split the modal into clear sections:
+### Tab-Based Organization
+To manage visual density and organize workflows cleanly, the modal uses a tab-based layout with four tabs:
+
+**Tab 1: "Select Items"**
+- Scope picker (checkboxes for task selection)
+- Select All / Clear All controls
+- Selection summary (count + task list)
+- Purpose: Choose which maintenance items to export
+
+**Tab 2: "Export Options"**
 - Provider selector (Google / Apple buttons)
-- Scope selector (task selection)
-- Provider panel with export option cards
-- Export tracking section (below fold)
-- Footer help text
+- Provider panel with three export cards:
+  - **Keep In Sync Card** (Two-Way): Connection status, sync controls, disconnect option. Variant: warning (amber background).
+  - **Subscribe Card** (One-Way): Feed URL generation and sharing. Variant: default (gray background).
+  - **Download File Card**: ICS export button. Variant: default (gray background).
+- Purpose: Choose how to export the selected items
 
-### Provider Selector
-Two buttons at the top: Google and Apple.
-User chooses which provider to use. Only one provider is active at a time.
+**Tab 3: "History"**
+- Export tracking section showing past exports per task
+- Clear all exports control
+- Purpose: Review and manage export history
 
-### Scope Selector
-Move task selection into a dedicated section with:
-- selected count summary
-- select all / clear all control
-- optional search or filter controls
-- collapsible minor/major inclusion details
+**Tab 4: "Help"**
+- Footer help text with instructions for each provider
+- Configuration requirements and tips
+- Purpose: Self-service reference documentation
 
-The scope section should be reusable for both Google and Apple direct sync.
-
-### Provider Panel
-Render only the selected provider's panel with card-based options:
-- **Keep In Sync Card** (Two-Way): Connection status, sync controls, and disconnect option. Variant: warning (amber background).
-- **Subscribe Card** (One-Way): Feed URL generation and sharing. Variant: default (gray background).
-- **Download File Card**: ICS export button. Variant: default (gray background).
-
-Each card includes:
-- Icon (emoji or small visual indicator)
-- Title (clear intent name)
-- Description (one-line explanation)
-- Self-contained controls and status display
-- Action buttons appropriate to that export mode
-
-This design makes each option visually distinct and easy to understand at a glance.
+### Benefits of Tab-Based Design
+- **Reduced vertical overflow**: Each tab stays compact within typical window bounds
+- **Progressive disclosure**: Users only see the tab they need
+- **Clear workflow**: Select → Export → Review → Learn
+- **Scalable for Apple sync**: Apple two-way sync backend can extend Tab 2 without crowding other tabs
+- **Information hierarchy**: Related controls grouped logically
 
 ## Recommended Layout Behavior
-1. Show the provider selector (Google/Apple) at the top.
-2. Show the scope picker below provider selector (always visible).
-3. Show only the selected provider's panel with three cards:
-   - Keep In Sync (Two-Way) - shows connection status and sync actions
-   - Subscribe (One-Way) - shows feed URL controls
-   - Download File - shows ICS export button
-4. Each card is visually distinct with an icon, title, description, and self-contained controls.
-5. Show export tracking section below the fold.
-6. Keep help text at the bottom.
+1. **Modal Size**: Wider dialog (`max-w-2xl` or `max-w-3xl`) with scrollable content area to accommodate tabs and content.
+2. **Tab Bar**: Four tabs at the top: "Select Items", "Export Options", "History", "Help".
+3. **Tab: Select Items**
+   - Always starts in this tab on modal open
+   - Shows scope picker with select all / clear all controls
+   - Shows selection summary (blue background) with selected count and task list
+4. **Tab: Export Options**
+   - Shows provider selector buttons (Google / Apple)
+   - Shows provider panel with three cards:
+     - Keep In Sync (Two-Way) with status and sync controls
+     - Subscribe (One-Way) with feed URL controls
+     - Download File with ICS export button
+   - Each card has icon, title, description, and self-contained controls
+5. **Tab: History**
+   - Shows export tracking section with past exports
+   - Clear all exports control
+6. **Tab: Help**
+   - Shows footer help text
+   - Configuration tips and instructions
 
 ## Apple Two-Way Sync Constraints for the Redesign
 The redesign must make room for Apple two-way sync even before the backend is finished.
@@ -109,22 +117,44 @@ Requirements:
   - Selection state unified and reused across both providers
   - Blue styling differentiates selection summary from task picker
 
-### Step 4: Add Apple sync hooks later
+### Step 4: Organize into tabs for visual density
+- Convert modal layout from single-page stack to tab-based organization
+- Create four tabs: "Select Items", "Export Options", "History", "Help"
+- Move ExportScopePicker and SelectionSummary to "Select Items" tab
+- Move GoogleExportPanel and AppleExportPanel to "Export Options" tab
+- Move ExportTrackingSection to "History" tab
+- Move ExportFooterHelp to "Help" tab
+- Increase modal width to accommodate tab bar and content comfortably
+- **In Progress**:
+  - Tab component integration
+  - Content reorganization across tabs
+  - Styling and spacing adjustments
+
+### Step 5: Add Apple sync hooks
 - Add Apple-specific panel placeholders if the backend is not ready yet.
 - Keep the layout stable so Apple sync can be plugged in without another redesign.
 
 ## Suggested Component Breakdown
-Current implementation:
+Current implementation (Pre-Tab):
 - ExportScheduleModal (main shell)
-- ExportScopePicker (task selection, always visible)
-- SelectionSummary (persistent selection feedback, below scope picker)
+- ExportScopePicker (task selection)
+- SelectionSummary (persistent selection feedback)
 - ExportCard (reusable card component for each export option)
 - GoogleExportPanel (three cards: two-way sync, one-way subscription, file download)
 - AppleExportPanel (three cards: two-way sync placeholder, one-way subscription, file download)
 - ExportTrackingSection (export history and clear controls)
 - ExportFooterHelp (reference text)
 
-Each panel uses the ExportCard component for consistent visual hierarchy and organization. Selection state is unified and reused across both providers.
+Post-Tab Implementation (Step 4):
+- ExportScheduleModal (main shell with tab bar)
+- ExportTabBar (navigation component)
+- SelectItemsTab (contains ExportScopePicker + SelectionSummary)
+- ExportOptionsTab (contains provider selector + GoogleExportPanel + AppleExportPanel)
+- HistoryTab (contains ExportTrackingSection)
+- HelpTab (contains ExportFooterHelp)
+- ExportCard, GoogleExportPanel, AppleExportPanel (reused, no changes)
+
+Each tab contains logically grouped content for a specific workflow step.
 
 ## Rollout Plan
 1. Ship the redesign with existing Google and Apple one-way flows intact.
@@ -133,11 +163,16 @@ Each panel uses the ExportCard component for consistent visual hierarchy and org
 4. Revisit any copy or spacing problems after Apple sync lands.
 
 ## Acceptance Criteria
-- The modal reads as a set of intentional workflows instead of one long stack.
+- The modal uses tab-based organization to manage visual density.
+- "Select Items" tab contains scope picker and selection summary.
+- "Export Options" tab contains provider selector and export cards.
+- "History" tab contains export tracking.
+- "Help" tab contains reference documentation.
+- The modal is wide enough to accommodate all content comfortably (no horizontal overflow).
 - Google behavior remains unchanged.
 - Apple subscription and file exports remain available.
 - The layout already has a clear place for Apple two-way sync controls.
-- The design reduces visual density without removing functionality.
+- Each tab stays compact within typical window bounds (no excessive vertical overflow).
 
 ## Related Files
 - [client/src/components/export-schedule-modal.tsx](../client/src/components/export-schedule-modal.tsx)
