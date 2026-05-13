@@ -117,7 +117,7 @@ Requirements:
   - Selection state unified and reused across both providers
   - Blue styling differentiates selection summary from task picker
 
-### Step 4: Organize into tabs for visual density
+### Step 4: Organize into tabs for visual density ✅
 - Convert modal layout from single-page stack to tab-based organization
 - Create four tabs: "Select Items", "Export Options", "History", "Help"
 - Move ExportScopePicker and SelectionSummary to "Select Items" tab
@@ -125,10 +125,13 @@ Requirements:
 - Move ExportTrackingSection to "History" tab
 - Move ExportFooterHelp to "Help" tab
 - Increase modal width to accommodate tab bar and content comfortably
-- **In Progress**:
-  - Tab component integration
-  - Content reorganization across tabs
-  - Styling and spacing adjustments
+- **Completed**:
+  - Tab component integration with activeTab state
+  - Content reorganized across all four tabs
+  - Modal width increased: sm:max-w-md → sm:max-w-3xl
+  - DialogContent has max-h-[90vh] with overflow-y-auto
+  - Each tab remains compact and scrollable
+  - Reset to "Select Items" tab when modal opens
 
 ### Step 5: Add Apple sync hooks
 - Add Apple-specific panel placeholders if the backend is not ready yet.
