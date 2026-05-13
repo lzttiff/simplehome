@@ -119,6 +119,43 @@ function ExportScopePicker({
   );
 }
 
+// ========== Export Card Component ==========
+interface ExportCardProps {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  variant?: "default" | "success" | "warning" | "error";
+}
+
+function ExportCard({
+  title,
+  description,
+  icon,
+  children,
+  variant = "default",
+}: ExportCardProps) {
+  const bgClass = {
+    default: "bg-gray-50/60 border-gray-200",
+    success: "bg-green-50/60 border-green-200",
+    warning: "bg-amber-50/60 border-amber-200",
+    error: "bg-red-50/60 border-red-200",
+  }[variant];
+
+  return (
+    <div className={`border rounded-md p-3 space-y-2 ${bgClass}`}>
+      <div className="flex items-start gap-2">
+        <div className="text-lg mt-0.5">{icon}</div>
+        <div className="flex-1">
+          <h4 className="text-sm font-semibold">{title}</h4>
+          <p className="text-xs text-gray-700">{description}</p>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // ========== Google Export Panel Component ==========
 interface GoogleExportPanelProps {
   tasksWithDates: MaintenanceTask[];
@@ -176,15 +213,13 @@ function GoogleExportPanel({
 
   return (
     <div className="space-y-3">
-      {/* Google Two-Way Sync Section */}
-      <div className="border rounded-md p-3 space-y-3 bg-amber-50/60">
-        <div>
-          <h3 className="text-sm font-semibold">Google Two-Way Sync</h3>
-          <p className="text-xs text-gray-700 mt-1">
-            Sync selected tasks into a dedicated SimpleHome Google calendar. Running sync again also pulls Google date edits back into SimpleHome.
-          </p>
-        </div>
-
+      {/* Google Two-Way Sync Card */}
+      <ExportCard
+        title="Keep In Sync (Two-Way)"
+        description="Sync selected tasks into a dedicated SimpleHome Google calendar. Changes sync both directions."
+        icon="🔄"
+        variant="warning"
+      >
         {googleSyncStatusQuery.isLoading ? (
           <p className="text-xs text-gray-600">Loading Google Calendar sync status...</p>
         ) : googleSyncStatusQuery.isError ? (
@@ -203,6 +238,7 @@ function GoogleExportPanel({
             onClick={() => connectGoogleMutation.mutate()}
             className="w-full justify-start"
             variant="outline"
+            size="sm"
           >
             <Calendar className="w-4 h-4 mr-3" />
             {connectGoogleMutation.isPending ? "Opening Google OAuth..." : "Connect Google Calendar"}
@@ -217,16 +253,8 @@ function GoogleExportPanel({
                 Last synced: {googleSyncStatus.lastSyncedAt ? new Date(googleSyncStatus.lastSyncedAt).toLocaleString() : "Never"}
               </p>
               <p>
-                Active sync scope: <span className="font-medium">{activeScopeCount}</span> task{activeScopeCount === 1 ? "" : "s"}
+                Active scope: <span className="font-medium">{activeScopeCount}</span> task{activeScopeCount === 1 ? "" : "s"} • Selection: <span className="font-medium">{selectedScopeCount}</span>
               </p>
-              <p>
-                Current selection: <span className="font-medium">{selectedScopeCount}</span> task{selectedScopeCount === 1 ? "" : "s"}
-              </p>
-              {googleSyncStatus.syncScopeUpdatedAt ? (
-                <p>
-                  Scope updated: {new Date(googleSyncStatus.syncScopeUpdatedAt).toLocaleString()}
-                </p>
-              ) : null}
             </div>
             <label className="flex items-center gap-2 text-xs text-gray-700">
               <input
@@ -234,95 +262,120 @@ function GoogleExportPanel({
                 checked={keepOutOfScopeEvents}
                 onChange={(event) => onToggleKeepOutOfScope(event.target.checked)}
               />
-              Keep out-of-scope events (planned behavior; currently informational)
+              Keep out-of-scope events (planned; currently informational)
             </label>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
                 onClick={() => syncActiveScopeMutation.mutate()}
-                className="justify-start whitespace-normal text-left"
+                size="sm"
                 variant="outline"
                 disabled={syncActiveScopeMutation.isPending || activeScopeCount === 0}
               >
-                <RefreshCw className="w-4 h-4 mr-3 shrink-0" />
-                {syncActiveScopeMutation.isPending ? "Syncing..." : "Sync Active Scope"}
+                <RefreshCw className="w-3 h-3 mr-2 shrink-0" />
+                {syncActiveScopeMutation.isPending ? "Syncing..." : "Sync Now"}
               </Button>
               <Button
                 type="button"
                 onClick={() => updateScopeMutation.mutate()}
-                className="justify-start whitespace-normal text-left"
+                size="sm"
                 variant="outline"
                 disabled={updateScopeMutation.isPending || selectedScopeCount === 0}
               >
-                <RefreshCw className="w-4 h-4 mr-3 shrink-0" />
-                {updateScopeMutation.isPending ? "Updating Scope..." : "Update Scope from Current View"}
+                <RefreshCw className="w-3 h-3 mr-2 shrink-0" />
+                {updateScopeMutation.isPending ? "Updating..." : "Update Scope"}
               </Button>
             </div>
-            <div className="flex justify-start">
+            <Button
+              type="button"
+              onClick={onOpenDisconnectDialog}
+              variant="ghost"
+              size="sm"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 w-full"
+              disabled={disconnectGoogleMutation.isPending}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Disconnect
+            </Button>
+          </div>
+        )}
+      </ExportCard>
+
+      {/* Google Subscription Card */}
+      <ExportCard
+        title="Subscribe (One-Way)"
+        description="Get a live feed URL that you can subscribe to in Google Calendar. Updates flow from SimpleHome only."
+        icon="📬"
+        variant="default"
+      >
+        <Button
+          onClick={onExportToGoogleCalendar}
+          className="w-full justify-start"
+          variant="outline"
+          size="sm"
+          title="Subscribe selected tasks in Google Calendar via SimpleHome feed"
+        >
+          <Calendar className="w-4 h-4 mr-3" />
+          Create Feed
+        </Button>
+
+        {googleFeedUrl && (
+          <div className="space-y-2 pt-2">
+            <input value={googleFeedUrl} readOnly className="w-full text-xs rounded border bg-white px-2 py-1" aria-label="Google calendar feed URL" />
+            <div className="flex gap-2">
               <Button
                 type="button"
-                onClick={onOpenDisconnectDialog}
-                variant="ghost"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                disabled={disconnectGoogleMutation.isPending}
+                size="sm"
+                variant="secondary"
+                className="flex-1"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(googleFeedUrl);
+                    toast({ title: "Copied", description: "Feed URL copied to clipboard." });
+                  } catch {
+                    toast({
+                      title: "Copy Failed",
+                      description: "Clipboard access failed. Select and copy manually.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
               >
-                <X className="w-4 h-4 mr-2" />
-                Disconnect
+                Copy URL
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                onClick={() => window.open(googleAddByUrlPage, "_blank", "noopener,noreferrer")}
+              >
+                <ExternalLink className="w-3 h-3 mr-1" />
+                Open Google
               </Button>
             </div>
           </div>
         )}
-      </div>
+      </ExportCard>
 
-      {/* Google Subscription and File Export */}
-      <Button
-        onClick={onExportToGoogleCalendar}
-        className="w-full justify-start"
-        variant="outline"
-        title="Subscribe selected tasks in Google Calendar via SimpleHome feed"
+      {/* Google File Export Card */}
+      <ExportCard
+        title="Download File"
+        description="Download as ICS file for manual import or one-time use."
+        icon="⬇️"
+        variant="default"
       >
-        <Calendar className="w-4 h-4 mr-3" />
-        Subscribe in Google Calendar (Selected)
-      </Button>
-
-      {googleFeedUrl && (
-        <div className="border rounded-md p-3 space-y-2 bg-blue-50/50">
-          <p className="text-xs text-gray-700">Step 1: Copy this feed URL. Step 2: Open Google Add by URL and paste it.</p>
-          <input value={googleFeedUrl} readOnly className="w-full text-xs rounded border bg-white px-2 py-1" aria-label="Google calendar feed URL" />
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="flex-1"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(googleFeedUrl);
-                  toast({ title: "Copied", description: "Feed URL copied to clipboard." });
-                } catch {
-                  toast({
-                    title: "Copy Failed",
-                    description: "Clipboard access failed. Select and copy the URL manually.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              Copy Feed URL
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="flex-1"
-              onClick={() => window.open(googleAddByUrlPage, "_blank", "noopener,noreferrer")}
-            >
-              <ExternalLink className="w-3 h-3 mr-1" />
-              Open Google Page
-            </Button>
-          </div>
-        </div>
-      )}
+        <Button
+          onClick={() => onGenerateICSFile("generic")}
+          className="w-full justify-start"
+          variant="outline"
+          size="sm"
+          title="Download ICS file for any calendar application"
+        >
+          <Download className="w-4 h-4 mr-3" />
+          Download ICS File
+        </Button>
+      </ExportCard>
     </div>
   );
 }

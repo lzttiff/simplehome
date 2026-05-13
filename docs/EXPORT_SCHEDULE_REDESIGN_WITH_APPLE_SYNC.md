@@ -23,19 +23,16 @@ That makes the modal feel crowded and makes it harder to add Apple two-way sync 
 
 ## Proposed Information Architecture
 ### Top Level
-Split the modal into four clear areas:
-- Goal selector
-- Scope selector
-- Provider panel
-- Summary / confirmation area
+Split the modal into clear sections:
+- Provider selector (Google / Apple buttons)
+- Scope selector (task selection)
+- Provider panel with export option cards
+- Export tracking section (below fold)
+- Footer help text
 
-### Goal Selector
-Present the user with three outcome-based options:
-- Keep in sync
-- Subscribe to updates
-- Download a file
-
-These are the main intents. Provider-specific details should come later.
+### Provider Selector
+Two buttons at the top: Google and Apple.
+User chooses which provider to use. Only one provider is active at a time.
 
 ### Scope Selector
 Move task selection into a dedicated section with:
@@ -47,29 +44,30 @@ Move task selection into a dedicated section with:
 The scope section should be reusable for both Google and Apple direct sync.
 
 ### Provider Panel
-Render only the panel that matches the chosen provider and mode:
-- Google one-way export options, including file export / ICS download
-- Google two-way sync options
-- Apple one-way export options, including file export / ICS download
-- Apple two-way sync options
+Render only the selected provider's panel with card-based options:
+- **Keep In Sync Card** (Two-Way): Connection status, sync controls, and disconnect option. Variant: warning (amber background).
+- **Subscribe Card** (One-Way): Feed URL generation and sharing. Variant: default (gray background).
+- **Download File Card**: ICS export button. Variant: default (gray background).
 
-Each provider panel should contain its own narrowed actions once the user chooses a mode. The user should not need to choose both providers.
+Each card includes:
+- Icon (emoji or small visual indicator)
+- Title (clear intent name)
+- Description (one-line explanation)
+- Self-contained controls and status display
+- Action buttons appropriate to that export mode
 
-### Summary / Confirmation Area
-Use a small confirmation strip or footer inside the active provider panel for the final action:
-- Sync now
-- Create feed
-- Download file / ICS
-- Disconnect
-
-This area should be visually subordinate to the provider panel, not a separate always-visible footer.
+This design makes each option visually distinct and easy to understand at a glance.
 
 ## Recommended Layout Behavior
-1. Show the goal selector first.
-2. Reveal only the relevant provider panel after selection.
-3. Keep task scope visible while the provider panel changes.
-4. Collapse helper text, diagnostics, and legacy notes by default.
-5. Keep the export history / tracking area below the fold or behind a disclosure control.
+1. Show the provider selector (Google/Apple) at the top.
+2. Show the scope picker below provider selector (always visible).
+3. Show only the selected provider's panel with three cards:
+   - Keep In Sync (Two-Way) - shows connection status and sync actions
+   - Subscribe (One-Way) - shows feed URL controls
+   - Download File - shows ICS export button
+4. Each card is visually distinct with an icon, title, description, and self-contained controls.
+5. Show export tracking section below the fold.
+6. Keep help text at the bottom.
 
 ## Apple Two-Way Sync Constraints for the Redesign
 The redesign must make room for Apple two-way sync even before the backend is finished.
@@ -82,15 +80,19 @@ Requirements:
 - Subscription and file export paths must remain available as fallback modes.
 
 ## Implementation Sequence
-### Step 1: Restructure the modal shell
+### Step 1: Restructure the modal shell ✅
 - Extract the current modal into smaller UI sections.
 - Keep data fetching and mutations unchanged.
 - Preserve current behavior while changing layout only.
+- **Completed**: ExportScopePicker, GoogleExportPanel, AppleExportPanel, ExportTrackingSection, ExportFooterHelp
 
-### Step 2: Introduce intent-based sections
-- Add a goal selector at the top.
-- Move instructions and secondary actions behind panels.
-- Reduce the amount of always-visible text.
+### Step 2: Introduce intent-based sections ✅
+- Add a provider selector (Google/Apple) at top of modal.
+- Organize each provider's options as distinct cards (one-way vs two-way sync, file export).
+- Each card is self-contained with its own controls and status.
+- Move instructions and secondary actions inside cards (not floating).
+- Reduce the amount of always-visible text by using card structure.
+- **Completed**: ExportCard component, card-based layout for both Google and Apple panels
 
 ### Step 3: Standardize scope handling
 - Reuse the current task selection state.
@@ -102,14 +104,16 @@ Requirements:
 - Keep the layout stable so Apple sync can be plugged in without another redesign.
 
 ## Suggested Component Breakdown
-Break the current modal into smaller parts:
-- ExportGoalSelector
-- ExportScopePicker
-- GoogleSyncPanel
-- AppleSyncPanel
-- SubscriptionPanel
-- FileExportPanel
-- ExportActionFooter
+Current implementation:
+- ExportScheduleModal (main shell)
+- ExportScopePicker (task selection, always visible)
+- ExportCard (reusable card component for each export option)
+- GoogleExportPanel (three cards: two-way sync, one-way subscription, file download)
+- AppleExportPanel (three cards: two-way sync placeholder, one-way subscription, file download)
+- ExportTrackingSection (export history and clear controls)
+- ExportFooterHelp (reference text)
+
+Each panel uses the ExportCard component for consistent visual hierarchy and organization.
 
 ## Rollout Plan
 1. Ship the redesign with existing Google and Apple one-way flows intact.
