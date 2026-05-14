@@ -168,7 +168,7 @@ Response:
 
 ## Phase 2: Two-Way Sync Core Logic
 ### Status
-🟡 **In Progress**: Endpoint flow/persistence are complete; CalDAV push/pull, conflict policy, and DONE marker parity are implemented. Recovery/idempotency hardening remains.
+✅ **Core Logic Complete**: Endpoint flow/persistence, CalDAV push/pull, conflict policy, DONE marker parity, and recovery/idempotency hardening are implemented.
 
 ### Outcomes
 - Manual Apple sync pushes local changes and pulls Apple changes.
@@ -195,7 +195,10 @@ Response:
 - ✅ Pull ingestion for remote date edits now updates local `nextMaintenanceDate` with backlog-state transitions.
 - ✅ Conflict policy finalized: timestamp-based arbitration (`LAST-MODIFIED`/`DTSTAMP` vs local `updatedAt`) with deterministic local tie-breaker.
 - ✅ DONE marker parity implemented: `[DONE]` in Apple event summary/description now completes current cycle, rolls next date, clears backlog fields, and recreates next-cycle event.
-- ⏳ Remaining: recovery/idempotency hardening.
+- ✅ Recovery/idempotency hardening implemented:
+  - bounded retry for transient DAV operations
+  - stale mapping recovery to canonical deterministic filename
+  - partial failure isolation (continue syncing remaining task/kind items)
 
 ### Phase 2 Execution Slices (tracking)
 #### Slice 2A: Push Transport Hardening
@@ -228,11 +231,11 @@ Response:
   - ✅ clear backlog fields consistently with Google behavior
 
 #### Slice 2E: Resilience and Recovery
-- Status: ⏳ Planned
+- Status: ✅ Complete
 - Scope:
-  - missing/deleted event remapping strategy
-  - partial failure handling and retry boundaries
-  - idempotent re-runs without duplicate event creation
+  - ✅ missing/deleted event remapping strategy
+  - ✅ partial failure handling and retry boundaries
+  - ✅ idempotent re-runs without duplicate event creation
 
 ### Exit Criteria
 - Push/pull parity verified against Google behavior on sample tasks.

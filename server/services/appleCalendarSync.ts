@@ -49,6 +49,7 @@ type AppleSyncOutcome = {
   updatedEvents: number;
   completedFromApple: number;
   rescheduledFromApple: number;
+  failedOperations?: number;
   lastSyncedAt: string;
   calendarId: string;
 };
@@ -69,6 +70,7 @@ type ScopeRemoval = {
   taskId: string;
   kind: SyncKind;
 };
+type SyncErrorCategory = "network" | "auth" | "provider" | "unknown";
 type AppleConflictWinner = "local" | "remote";
 type ResolveAppleConflictArgs = {
   localChanged: boolean;
@@ -365,22 +367,46 @@ async function upsertAppleCalendarObject(
   dateOnly: string,
   previousFilename?: string,
 ): Promise<{ filename: string; url: string; created: boolean; updated: boolean }> {
-  const filename = previousFilename || buildEventFilename(task.id, kind);
-  const url = buildCalendarObjectUrl(calendar, filename);
-  const objectUrls = [url];
-  const existingObjects = await client.fetchCalendarObjects({ calendar, objectUrls });
+  const canonicalFilename = buildEventFilename(task.id, kind);
+  let filename = previousFilename || canonicalFilename;
+  let url = buildCalendarObjectUrl(calendar, filename);
+  let objectUrls = [url];
+  let existingObjects = await withDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
+
+  // Recovery path: stale mapping may point to a deleted object while canonical object still exists.
+  if ((!existingObjects || existingObjects.length === 0) && previousFilename && previousFilename !== canonicalFilename) {
+    const canonicalUrl = buildCalendarObjectUrl(calendar, canonicalFilename);
+    const recovered = await withDavRetry(() =>
+      client.fetchCalendarObjects({
+        calendar,
+        objectUrls: [canonicalUrl],
+      }),
+    );
+    if (recovered && recovered.length > 0) {
+      filename = canonicalFilename;
+      url = canonicalUrl;
+      existingObjects = recovered;
+    }
+  }
 
   const iCalString = buildICalString(task, kind, dateOnly);
   if (!existingObjects || existingObjects.length === 0) {
-    const response = await client.createCalendarObject({
-      calendar,
-      filename,
-      iCalString,
-    });
+    const response = await withDavRetry(() =>
+      client.createCalendarObject({
+        calendar,
+        filename: canonicalFilename,
+        iCalString,
+      }),
+    );
     if (!response.ok) {
       throw new Error(`Failed to create Apple event for task ${task.id} (${kind}).`);
     }
-    return { filename, url, created: true, updated: false };
+    return {
+      filename: canonicalFilename,
+      url: buildCalendarObjectUrl(calendar, canonicalFilename),
+      created: true,
+      updated: false,
+    };
   }
 
   const existing = existingObjects[0];
@@ -390,9 +416,11 @@ async function upsertAppleCalendarObject(
   }
 
   existing.data = iCalString;
-  const response = await client.updateCalendarObject({
-    calendarObject: existing,
-  });
+  const response = await withDavRetry(() =>
+    client.updateCalendarObject({
+      calendarObject: existing,
+    }),
+  );
   if (!response.ok) {
     throw new Error(`Failed to update Apple event for task ${task.id} (${kind}).`);
   }
@@ -406,14 +434,16 @@ async function deleteAppleCalendarObjectIfExists(
   filename: string,
 ): Promise<boolean> {
   const objectUrls = [buildCalendarObjectUrl(calendar, filename)];
-  const existingObjects = await client.fetchCalendarObjects({ calendar, objectUrls });
+  const existingObjects = await withDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
   if (!existingObjects || existingObjects.length === 0) {
     return false;
   }
 
-  const response = await client.deleteCalendarObject({
-    calendarObject: existingObjects[0] as DAVCalendarObject,
-  });
+  const response = await withDavRetry(() =>
+    client.deleteCalendarObject({
+      calendarObject: existingObjects[0] as DAVCalendarObject,
+    }),
+  );
 
   return response.ok;
 }
@@ -606,6 +636,49 @@ function getTimestamp(value: Date | string | null | undefined): number {
   const date = value instanceof Date ? value : new Date(value);
   const millis = date.getTime();
   return Number.isFinite(millis) ? millis : 0;
+}
+
+function categorizeSyncError(error: unknown): SyncErrorCategory {
+  const message = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  if (message.includes("auth") || message.includes("credential") || message.includes("password")) {
+    return "auth";
+  }
+  if (
+    message.includes("timeout") ||
+    message.includes("network") ||
+    message.includes("econn") ||
+    message.includes("socket")
+  ) {
+    return "network";
+  }
+  if (message.includes("dav") || message.includes("calendar")) {
+    return "provider";
+  }
+  return "unknown";
+}
+
+function shouldRetryDavError(error: unknown): boolean {
+  const category = categorizeSyncError(error);
+  return category === "network" || category === "provider";
+}
+
+async function withDavRetry<T>(operation: () => Promise<T>, maxAttempts = 2): Promise<T> {
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt < maxAttempts) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      attempt += 1;
+      if (attempt >= maxAttempts || !shouldRetryDavError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 export function resolveAppleConflict(args: ResolveAppleConflictArgs): AppleConflictWinner {
@@ -878,6 +951,7 @@ export async function runAppleCalendarTwoWaySync(
   let updatedEvents = 0;
   let completedFromApple = 0;
   let rescheduledFromApple = 0;
+  let failedOperations = 0;
 
   for (const selection of activeSelections) {
     const task = await storage.getMaintenanceTask(selection.taskId, userId);
@@ -890,81 +964,82 @@ export async function runAppleCalendarTwoWaySync(
     const exportRecord = getAppleSyncExport(nextTask);
 
     for (const kind of ["minor", "major"] as SyncKind[]) {
-      const included = kind === "minor" ? selection.includeMinor : selection.includeMajor;
-      if (!included) {
-        continue;
-      }
+      try {
+        const included = kind === "minor" ? selection.includeMinor : selection.includeMajor;
+        if (!included) {
+          continue;
+        }
 
-      const currentDateOnly = schedule[kind] ?? null;
-      if (!currentDateOnly) {
-        continue;
-      }
+        const currentDateOnly = schedule[kind] ?? null;
+        if (!currentDateOnly) {
+          continue;
+        }
 
-      const existingEventId = exportRecord?.eventIds?.[kind];
-      const existingSyncedDate = normalizeDateOnly(exportRecord?.syncedDates?.[kind] ?? null);
-      const previousFilename = existingEventId || undefined;
+        const existingEventId = exportRecord?.eventIds?.[kind];
+        const existingSyncedDate = normalizeDateOnly(exportRecord?.syncedDates?.[kind] ?? null);
+        const previousFilename = existingEventId || undefined;
 
-      const remoteObjectUrl = existingEventId ? buildCalendarObjectUrl(calendar, existingEventId) : null;
-      const remoteObject = remoteObjectUrl
-        ? (await client.fetchCalendarObjects({ calendar, objectUrls: [remoteObjectUrl] }))?.[0]
-        : null;
-      const remoteData = String(remoteObject?.data || "");
-      const remoteDateOnly = normalizeDateOnly(parseICalDateOnly(String(remoteObject?.data || "")));
-      const remoteLastModifiedAt = parseICalLastModified(String(remoteObject?.data || ""));
+        const remoteObjectUrl = existingEventId ? buildCalendarObjectUrl(calendar, existingEventId) : null;
+        const remoteObject = remoteObjectUrl
+          ? (await withDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls: [remoteObjectUrl] })))?.[0]
+          : null;
+        const remoteData = String(remoteObject?.data || "");
+        const remoteDateOnly = normalizeDateOnly(parseICalDateOnly(String(remoteObject?.data || "")));
+        const remoteLastModifiedAt = parseICalLastModified(String(remoteObject?.data || ""));
 
-      const localChanged = !!existingSyncedDate && currentDateOnly !== existingSyncedDate;
-      const remoteChanged = !!existingSyncedDate && !!remoteDateOnly && remoteDateOnly !== existingSyncedDate;
-      const conflictWinner = resolveAppleConflict({
-        localChanged,
-        remoteChanged,
-        localUpdatedAt: nextTask.updatedAt,
-        remoteLastModifiedAt,
-        lastSyncedAt: exportRecord?.lastSyncedAt,
-      });
+        const localChanged = !!existingSyncedDate && currentDateOnly !== existingSyncedDate;
+        const remoteChanged = !!existingSyncedDate && !!remoteDateOnly && remoteDateOnly !== existingSyncedDate;
+        const conflictWinner = resolveAppleConflict({
+          localChanged,
+          remoteChanged,
+          localUpdatedAt: nextTask.updatedAt,
+          remoteLastModifiedAt,
+          lastSyncedAt: exportRecord?.lastSyncedAt,
+        });
 
-      let resolvedDateOnly = currentDateOnly;
+        let resolvedDateOnly = currentDateOnly;
 
-      const hasDoneMarker = hasDoneMarkerInAppleEventData(remoteData);
-      if (hasDoneMarker) {
-        const completion = deriveDoneCompletionDates(
-          nextTask,
-          kind,
-          remoteDateOnly ?? currentDateOnly,
-        );
+        const hasDoneMarker = hasDoneMarkerInAppleEventData(remoteData);
+        if (hasDoneMarker) {
+          const completion = deriveDoneCompletionDates(
+            nextTask,
+            kind,
+            remoteDateOnly ?? currentDateOnly,
+          );
 
-        if (completion) {
-          const currentLast = getTaskLastMaintenance(nextTask);
-          const existingCompletedDateOnly = normalizeDateOnly(currentLast[kind] ?? null);
-          const existingNextDateOnly = normalizeDateOnly(currentDateOnly);
+          if (completion) {
+            const currentLast = getTaskLastMaintenance(nextTask);
+            const existingCompletedDateOnly = normalizeDateOnly(currentLast[kind] ?? null);
+            const existingNextDateOnly = normalizeDateOnly(currentDateOnly);
 
-          if (
-            existingCompletedDateOnly !== completion.completedDateOnly ||
-            existingNextDateOnly !== completion.nextDateOnly
-          ) {
-            nextTask = {
-              ...nextTask,
-              lastMaintenanceDate: setTaskLastMaintenance(nextTask, { [kind]: completion.completedDateOnly }),
-              nextMaintenanceDate: setTaskSchedule(nextTask, { [kind]: completion.nextDateOnly }),
-              overdueBacklog: setTaskOverdueBacklog(nextTask, { [kind]: false }),
-              overdueSince: setTaskOverdueSince(nextTask, { [kind]: null }),
-            };
-            pulledChanges += 1;
-          }
+            if (
+              existingCompletedDateOnly !== completion.completedDateOnly ||
+              existingNextDateOnly !== completion.nextDateOnly
+            ) {
+              nextTask = {
+                ...nextTask,
+                lastMaintenanceDate: setTaskLastMaintenance(nextTask, { [kind]: completion.completedDateOnly }),
+                nextMaintenanceDate: setTaskSchedule(nextTask, { [kind]: completion.nextDateOnly }),
+                overdueBacklog: setTaskOverdueBacklog(nextTask, { [kind]: false }),
+                overdueSince: setTaskOverdueSince(nextTask, { [kind]: null }),
+              };
+              pulledChanges += 1;
+            }
 
-          completedFromApple += 1;
-          resolvedDateOnly = completion.nextDateOnly;
+            completedFromApple += 1;
+            resolvedDateOnly = completion.nextDateOnly;
 
-          if (existingEventId) {
-            try {
-              await deleteAppleCalendarObjectIfExists(client, calendar, existingEventId);
-            } catch {
-              // Best effort delete to avoid duplicate DONE events.
+            if (existingEventId) {
+              try {
+                await deleteAppleCalendarObjectIfExists(client, calendar, existingEventId);
+              } catch {
+                // Best effort delete to avoid duplicate DONE events.
+              }
             }
           }
         }
-      }
 
-      if (!hasDoneMarker && remoteChanged && conflictWinner === "remote" && remoteDateOnly) {
+        if (!hasDoneMarker && remoteChanged && conflictWinner === "remote" && remoteDateOnly) {
           const currentOverdueBacklog = getTaskOverdueBacklog(nextTask);
           const currentOverdueSince = getTaskOverdueSince(nextTask);
           const transition = deriveRescheduleBacklogState({
@@ -986,38 +1061,45 @@ export async function runAppleCalendarTwoWaySync(
           if (transition.rescheduled) {
             rescheduledFromApple += 1;
           }
+        }
+
+        const upserted = await upsertAppleCalendarObject(
+          client,
+          calendar,
+          nextTask,
+          kind,
+          resolvedDateOnly,
+          previousFilename,
+        );
+
+        const nextEventId = upserted.filename;
+
+        if (upserted.created) {
+          createdEvents += 1;
+          pushedEvents += 1;
+        } else if (upserted.updated || existingSyncedDate !== resolvedDateOnly) {
+          updatedEvents += 1;
+          pushedEvents += 1;
+        }
+
+        nextTask = {
+          ...nextTask,
+          calendarExports: upsertAppleSyncExport(nextTask, {
+            eventIds: { [kind]: nextEventId },
+            eventLinks: { [kind]: upserted.url },
+            selected: { [kind]: true },
+            syncedDates: { [kind]: resolvedDateOnly },
+            calendarId: calendar.url,
+            lastSyncedAt: new Date().toISOString(),
+          }),
+        };
+      } catch (error) {
+        failedOperations += 1;
+        const category = categorizeSyncError(error);
+        logAppleSyncDebug(
+          `Failed syncing task=${selection.taskId} kind=${kind} category=${category}. Continuing with remaining items.`,
+        );
       }
-
-      const upserted = await upsertAppleCalendarObject(
-        client,
-        calendar,
-        nextTask,
-        kind,
-        resolvedDateOnly,
-        previousFilename,
-      );
-
-      const nextEventId = upserted.filename;
-
-      if (upserted.created) {
-        createdEvents += 1;
-        pushedEvents += 1;
-      } else if (upserted.updated || existingSyncedDate !== resolvedDateOnly) {
-        updatedEvents += 1;
-        pushedEvents += 1;
-      }
-
-      nextTask = {
-        ...nextTask,
-        calendarExports: upsertAppleSyncExport(nextTask, {
-          eventIds: { [kind]: nextEventId },
-          eventLinks: { [kind]: upserted.url },
-          selected: { [kind]: true },
-          syncedDates: { [kind]: resolvedDateOnly },
-          calendarId: calendar.url,
-          lastSyncedAt: new Date().toISOString(),
-        }),
-      };
     }
 
     if (nextTask.calendarExports !== task.calendarExports) {
@@ -1050,5 +1132,6 @@ export async function runAppleCalendarTwoWaySync(
     rescheduledFromApple,
     lastSyncedAt: lastSyncedAt.toISOString(),
     calendarId: connection.calendarId ?? "simplehome-maintenance",
+    ...(failedOperations > 0 ? { failedOperations } : {}),
   };
 }
