@@ -499,7 +499,7 @@ function AppleExportPanel({
         ) : !appleSyncStatus?.configured ? (
           <div className="text-xs text-amber-800 bg-white/70 border border-amber-200 rounded p-2 space-y-1">
             <p className="font-medium">Apple Calendar sync is not configured on the server.</p>
-            <p>This feature is coming in a future release.</p>
+            <p>Set APPLE_SYNC_ENCRYPTION_KEY on the server to enable Apple two-way sync.</p>
           </div>
         ) : !appleSyncStatus.connected ? (
           <Button
@@ -860,48 +860,149 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
   const connectAppleMutation = useMutation({
     mutationFn: async () => {
-      toast({
-        title: "Coming Soon",
-        description: "Apple two-way sync is coming in a future release.",
-        variant: "default",
+      const appleIdEmail = window.prompt("Enter your Apple ID email for calendar sync:", "")?.trim() || "";
+      if (!appleIdEmail) {
+        throw new Error("Apple connection cancelled.");
+      }
+
+      const appSpecificPassword = window.prompt("Enter your Apple app-specific password:", "")?.trim() || "";
+      if (!appSpecificPassword) {
+        throw new Error("Apple connection cancelled.");
+      }
+
+      const calendarId = window.prompt("Optional Apple calendar ID (leave blank for default):", "")?.trim() || undefined;
+      const response = await apiRequest("POST", "/api/calendar/apple/sync/connect", {
+        appleIdEmail,
+        appSpecificPassword,
+        calendarId,
       });
-      throw new Error("Apple sync not yet available");
+      return response.json() as Promise<AppleCalendarSyncStatus>;
     },
-    onError: () => {
-      // Error already shown in mutationFn
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/scope"] }),
+      ]);
+      toast({
+        title: "Apple Calendar Connected",
+        description: "Two-way sync connection is ready.",
+      });
+    },
+    onError: (error: any) => {
+      if (error?.message === "Apple connection cancelled.") {
+        return;
+      }
+      toast({
+        title: "Apple Connect Failed",
+        description: error?.message || "Unable to connect Apple Calendar.",
+        variant: "destructive",
+      });
     },
   });
 
   const syncActiveScopeAppleMutation = useMutation({
     mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/calendar/apple/sync", { selections: [] });
+      return response.json() as Promise<{
+        syncedTasks: number;
+        pushedEvents: number;
+        pulledChanges: number;
+        createdEvents: number;
+        updatedEvents: number;
+        completedFromApple?: number;
+        rescheduledFromApple?: number;
+      }>;
+    },
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/scope"] }),
+      ]);
+
       toast({
-        title: "Coming Soon",
-        description: "Apple sync functionality will be available in a future release.",
-        variant: "default",
+        title: "Apple Calendar Synced",
+        description: `Synced ${result.syncedTasks} task${result.syncedTasks === 1 ? "" : "s"}. Pushed ${result.pushedEvents} event${result.pushedEvents === 1 ? "" : "s"}, pulled ${result.pulledChanges} change${result.pulledChanges === 1 ? "" : "s"}.`,
       });
-      throw new Error("Apple sync not yet available");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Apple Sync Failed",
+        description: error?.message || "Unable to sync with Apple Calendar active scope.",
+        variant: "destructive",
+      });
     },
   });
 
   const updateScopeAppleMutation = useMutation({
     mutationFn: async () => {
+      const selections = buildSelections();
+      if (selections.length === 0) {
+        throw new Error("Select at least one task with an upcoming maintenance date.");
+      }
+
+      const scopeResponse = await apiRequest("PUT", "/api/calendar/apple/sync/scope", { selections });
+      const scopeResult = (await scopeResponse.json()) as { count: number; removedEvents?: number };
+
+      const syncResponse = await apiRequest("POST", "/api/calendar/apple/sync", { selections: [] });
+      const syncResult = (await syncResponse.json()) as {
+        syncedTasks: number;
+        pushedEvents: number;
+      };
+
+      return { scopeResult, syncResult };
+    },
+    onSuccess: async ({ scopeResult, syncResult }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/scope"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] }),
+      ]);
+
       toast({
-        title: "Coming Soon",
-        description: "Apple scope management will be available in a future release.",
-        variant: "default",
+        title: "Apple Scope Updated and Synced",
+        description: `Active scope now includes ${scopeResult.count} task${scopeResult.count === 1 ? "" : "s"}. Synced ${syncResult.syncedTasks} task${syncResult.syncedTasks === 1 ? "" : "s"}.`,
       });
-      throw new Error("Apple sync not yet available");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Apple Scope Update Failed",
+        description: error?.message || "Unable to update Apple sync scope.",
+        variant: "destructive",
+      });
     },
   });
 
   const disconnectAppleMutation = useMutation({
     mutationFn: async ({ deleteCalendar }: { deleteCalendar: boolean }) => {
+      const response = await apiRequest("POST", "/api/calendar/apple/sync/disconnect", { deleteCalendar });
+      return response.json() as Promise<DisconnectAppleCalendarResponse>;
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] });
+      setDisconnectDialogOpen(false);
+
+      if (result.calendarDeleteRequested && !result.calendarDeleted) {
+        toast({
+          title: "Apple Calendar Disconnected",
+          description:
+            result.calendarDeleteMessage ||
+            "Two-way sync is disabled. Remove the Apple calendar manually if needed.",
+        });
+        return;
+      }
+
       toast({
-        title: "Coming Soon",
-        description: "Apple sync disconnect will be available in a future release.",
-        variant: "default",
+        title: "Apple Calendar Disconnected",
+        description: "Two-way sync has been disabled for this account.",
       });
-      throw new Error("Apple sync not yet available");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Disconnect Failed",
+        description: error?.message || "Unable to disconnect Apple Calendar.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -1367,9 +1468,9 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     }
   };
 
-  const exportToAppleCalendar = () => {
+  const exportToAppleCalendar = async () => {
     alert("An ICS file will be downloaded. Double-click the file to add events to Apple Calendar. The events will also be tracked here.");
-    void generateICSFile("apple");
+    await generateICSFile("apple");
   };
 
   const exportToAppleCalendarSubscription = async () => {
@@ -1523,6 +1624,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
               <>
                 <GoogleExportPanel
                   tasksWithDates={tasksWithDates}
+                  selectedTaskIds={selectedTaskIds}
                   googleSyncStatus={googleStatus}
                   googleSyncStatusQuery={googleSyncStatusQuery}
                   googleSyncScopeQuery={googleSyncScopeQuery}
@@ -1599,25 +1701,78 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
             {/* Apple Provider Panel */}
             {selectedProvider === "apple" && (
-              <AppleExportPanel
-                tasksWithDates={tasksWithDates}
-                appleSyncStatus={appleSyncStatus}
-                appleSyncStatusQuery={appleSyncStatusQuery}
-                appleSyncScopeQuery={appleSyncScopeQuery}
-                buildSelections={buildSelections}
-                connectAppleMutation={connectAppleMutation}
-                syncActiveScopeAppleMutation={syncActiveScopeAppleMutation}
-                updateScopeAppleMutation={updateScopeAppleMutation}
-                disconnectAppleMutation={disconnectAppleMutation}
-                appleFeedUrl={appleFeedUrl}
-                onExportToAppleCalendarSubscription={exportToAppleCalendarSubscription}
-                onExportToAppleCalendar={exportToAppleCalendar}
-                onOpenDisconnectDialog={() => {
-                  setDisconnectDeleteCalendar(false);
-                  setDisconnectDialogOpen(true);
-                }}
-                toast={toast}
-              />
+              <>
+                <AppleExportPanel
+                  tasksWithDates={tasksWithDates}
+                  appleSyncStatus={appleSyncStatus}
+                  appleSyncStatusQuery={appleSyncStatusQuery}
+                  appleSyncScopeQuery={appleSyncScopeQuery}
+                  buildSelections={buildSelections}
+                  connectAppleMutation={connectAppleMutation}
+                  syncActiveScopeAppleMutation={syncActiveScopeAppleMutation}
+                  updateScopeAppleMutation={updateScopeAppleMutation}
+                  disconnectAppleMutation={disconnectAppleMutation}
+                  appleFeedUrl={appleFeedUrl}
+                  onExportToAppleCalendarSubscription={exportToAppleCalendarSubscription}
+                  onExportToAppleCalendar={exportToAppleCalendar}
+                  onOpenDisconnectDialog={() => {
+                    setDisconnectDeleteCalendar(false);
+                    setDisconnectDialogOpen(true);
+                  }}
+                  toast={toast}
+                />
+                <AlertDialog open={disconnectDialogOpen} onOpenChange={setDisconnectDialogOpen}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Disconnect Apple Calendar?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Choose whether to disconnect only or also request calendar cleanup guidance.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-2 text-sm">
+                      <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="disconnect-mode-apple"
+                          checked={!disconnectDeleteCalendar}
+                          onChange={() => setDisconnectDeleteCalendar(false)}
+                        />
+                        <span>
+                          <span className="font-medium">Disconnect only</span>
+                          <br />
+                          Keep existing Apple calendar and events.
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-2 rounded border p-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="disconnect-mode-apple"
+                          checked={disconnectDeleteCalendar}
+                          onChange={() => setDisconnectDeleteCalendar(true)}
+                        />
+                        <span>
+                          <span className="font-medium">Disconnect and remove manually</span>
+                          <br />
+                          SimpleHome will disconnect and provide cleanup guidance.
+                        </span>
+                      </label>
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={disconnectAppleMutation.isPending}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(event) => {
+                          event.preventDefault();
+                          disconnectAppleMutation.mutate({ deleteCalendar: disconnectDeleteCalendar });
+                        }}
+                        disabled={disconnectAppleMutation.isPending}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        {disconnectAppleMutation.isPending ? "Disconnecting..." : "Confirm Disconnect"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
             )}
 
             {!selectedProvider && (
