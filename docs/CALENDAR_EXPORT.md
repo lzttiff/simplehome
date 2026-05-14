@@ -10,6 +10,7 @@ The calendar export feature allows you to export maintenance tasks to Google Cal
 - **Apple Calendar**: Downloads an ICS file that can be double-clicked to add to Apple Calendar
 - **Generic ICS**: Downloads a standard ICS file compatible with any calendar application
 - **Google Two-Way Sync**: Connects a Google account with OAuth, creates a dedicated `SimpleHome Maintenance` calendar, and syncs selected task dates in both directions when you run sync
+- **Apple Two-Way Sync** *(new)*: Connects an iCloud Calendar account with app-specific password, creates a dedicated `SimpleHome Maintenance` calendar, and syncs selected task dates in both directions when you run sync
 
 ### 2. **Local Tracking**
 Each task tracks its calendar exports in the `calendar_exports` field:
@@ -82,6 +83,31 @@ Notes:
 - `PUBLIC_BASE_URL` must be a publicly reachable HTTPS URL for both Google OAuth and Google subscription feeds
 - The current two-way sync flow is user-triggered: run sync again after editing Google event dates if you want those changes pulled back into SimpleHome immediately
 - SimpleHome stores Google OAuth tokens server-side and stores per-task event mappings in `calendar_exports`
+
+### Apple Two-Way Sync Setup
+The Apple two-way sync flow requires this environment variable on the server:
+
+```bash
+APPLE_SYNC_ENCRYPTION_KEY=<a-32-byte-hex-string>
+```
+
+To set up Apple two-way sync:
+
+1. Generate a secure encryption key:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+2. Set `APPLE_SYNC_ENCRYPTION_KEY` to the generated value
+3. In SimpleHome, open the Export modal and navigate to **Export Options**
+4. Click **"Connect Apple Calendar"** and provide your iCloud email and app-specific password
+5. Select which task kinds (Minor/Major) you want to sync
+6. Click **"Sync Now"** to push/pull changes
+
+Notes:
+- App-specific password is required (see [APPLE_CALENDAR_SYNC_SIMPLEHOME.md](APPLE_CALENDAR_SYNC_SIMPLEHOME.md) for generation instructions)
+- The sync flow is user-triggered: run sync again after editing Apple event dates to pull changes back into SimpleHome
+- SimpleHome stores encrypted credentials server-side and per-task event mappings in `calendar_exports`
+- Disconnecting Apple Calendar will delete all synced events from Apple
 
 ### Viewing Exported Tasks
 - In the Export modal, scroll down to see "Exported Tasks"
