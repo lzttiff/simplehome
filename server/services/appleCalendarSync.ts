@@ -22,6 +22,8 @@ type AppleCalendarSyncStatus = {
   connected: boolean;
   accountEmail: string | null;
   calendarId: string | null;
+  resolvedCalendarDisplayName?: string | null;
+  resolvedCalendarUrl?: string | null;
   lastSyncedAt: string | null;
   activeScopeCount?: number;
   syncScopeVersion?: number;
@@ -80,6 +82,15 @@ type ResolveAppleConflictArgs = {
   lastSyncedAt: Date | string | null | undefined;
 };
 
+type AppleSyncErrorDiagnostics = {
+  category: SyncErrorCategory;
+  status: number | null;
+  code: string | null;
+  name: string | null;
+  signalText: string;
+  message: string;
+};
+
 const SAFE_APPLE_ERROR_MESSAGES = new Set([
   "Not authenticated",
   "Select at least one task to sync.",
@@ -104,6 +115,54 @@ function logAppleSyncDebug(message: string) {
   if (APPLE_SYNC_DEBUG) {
     console.log(`[Apple Sync] ${message}`);
   }
+}
+
+function logAppleSyncInfo(message: string) {
+  console.log(`[Apple Sync] ${message}`);
+}
+
+function sanitizeAppleSyncDebugMessage(raw: unknown, fallbackMessage: string): string {
+  const input = (typeof raw === "string" ? raw : errorToString(raw)).trim();
+  if (!input) {
+    return fallbackMessage;
+  }
+
+  // Redact likely credentials/secrets while preserving enough diagnostics to debug.
+  const redacted = input
+    .replace(/([\w.%+-]+)@([\w.-]+\.[A-Za-z]{2,})/g, "<redacted-email>")
+    .replace(/\b(?:[A-Za-z0-9]{4}-){3}[A-Za-z0-9]{4}\b/g, "<redacted-app-password>")
+    .replace(/\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]+/gi, "<redacted-auth-header>")
+    .replace(/\b(token|secret|password|credential)\s*[:=]\s*[^\s,;]+/gi, "$1=<redacted>");
+
+  // Keep logs compact.
+  return redacted.slice(0, 280);
+}
+
+function errorToString(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message || error.name || "Error";
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error || "");
+  }
+}
+
+function extractDavResponseSummary(response: unknown): string {
+  const anyResponse = response as Record<string, unknown> | null;
+  if (!anyResponse) {
+    return "response=n/a";
+  }
+
+  const ok = typeof anyResponse.ok === "boolean" ? anyResponse.ok : null;
+  const status = typeof anyResponse.status === "number" ? anyResponse.status : null;
+  const statusText = typeof anyResponse.statusText === "string" ? anyResponse.statusText : null;
+
+  return `response.ok=${ok === null ? "n/a" : String(ok)} status=${status === null ? "n/a" : String(status)} statusText=${statusText || "n/a"}`;
 }
 
 export function sanitizeAppleSyncErrorMessage(error: unknown, fallbackMessage: string): string {
@@ -340,13 +399,19 @@ async function createAppleDavClient(email: string, password: string): Promise<DA
   return client;
 }
 
-function selectCalendar(calendars: DAVCalendar[], configuredCalendarId: string | null): DAVCalendar {
+function selectCalendar(
+  calendars: DAVCalendar[],
+  configuredCalendarId: string | null,
+): { calendar: DAVCalendar; fallbackUsed: boolean } {
   if (calendars.length === 0) {
     throw new Error("No Apple calendars were found for this account.");
   }
 
   if (!configuredCalendarId) {
-    return calendars[0];
+    return {
+      calendar: calendars[0],
+      fallbackUsed: true,
+    };
   }
 
   const normalizedId = configuredCalendarId.toLowerCase();
@@ -356,7 +421,20 @@ function selectCalendar(calendars: DAVCalendar[], configuredCalendarId: string |
     return displayName === normalizedId || displayName.includes(normalizedId) || url.includes(normalizedId);
   });
 
-  return matched || calendars[0];
+  if (matched) {
+    return {
+      calendar: matched,
+      fallbackUsed: false,
+    };
+  }
+
+  logAppleSyncInfo(
+    `Configured calendar identifier \"${configuredCalendarId}\" was not found. Falling back to first available calendar.`,
+  );
+  return {
+    calendar: calendars[0],
+    fallbackUsed: true,
+  };
 }
 
 async function upsertAppleCalendarObject(
@@ -371,17 +449,12 @@ async function upsertAppleCalendarObject(
   let filename = previousFilename || canonicalFilename;
   let url = buildCalendarObjectUrl(calendar, filename);
   let objectUrls = [url];
-  let existingObjects = await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
+  let existingObjects = await fetchCalendarObjectsSafe(client, calendar, objectUrls);
 
   // Recovery path: stale mapping may point to a deleted object while canonical object still exists.
   if ((!existingObjects || existingObjects.length === 0) && previousFilename && previousFilename !== canonicalFilename) {
     const canonicalUrl = buildCalendarObjectUrl(calendar, canonicalFilename);
-    const recovered = await withAppleDavRetry(() =>
-      client.fetchCalendarObjects({
-        calendar,
-        objectUrls: [canonicalUrl],
-      }),
-    );
+    const recovered = await fetchCalendarObjectsSafe(client, calendar, [canonicalUrl]);
     if (recovered && recovered.length > 0) {
       filename = canonicalFilename;
       url = canonicalUrl;
@@ -399,7 +472,9 @@ async function upsertAppleCalendarObject(
       }),
     );
     if (!response.ok) {
-      throw new Error(`Failed to create Apple event for task ${task.id} (${kind}).`);
+      throw new Error(
+        `DAV_CREATE_FAILED task=${task.id} kind=${kind} calendarUrl=${String(calendar.url || "n/a")} ${extractDavResponseSummary(response)}`,
+      );
     }
     return {
       filename: canonicalFilename,
@@ -422,7 +497,9 @@ async function upsertAppleCalendarObject(
     }),
   );
   if (!response.ok) {
-    throw new Error(`Failed to update Apple event for task ${task.id} (${kind}).`);
+    throw new Error(
+      `DAV_UPDATE_FAILED task=${task.id} kind=${kind} calendarUrl=${String(calendar.url || "n/a")} ${extractDavResponseSummary(response)}`,
+    );
   }
 
   return { filename, url, created: false, updated: true };
@@ -434,7 +511,7 @@ async function deleteAppleCalendarObjectIfExists(
   filename: string,
 ): Promise<boolean> {
   const objectUrls = [buildCalendarObjectUrl(calendar, filename)];
-  const existingObjects = await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
+  const existingObjects = await fetchCalendarObjectsSafe(client, calendar, objectUrls);
   if (!existingObjects || existingObjects.length === 0) {
     return false;
   }
@@ -639,19 +716,49 @@ function getTimestamp(value: Date | string | null | undefined): number {
 }
 
 export function categorizeAppleSyncError(error: unknown): SyncErrorCategory {
-  const message = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
-  if (message.includes("auth") || message.includes("credential") || message.includes("password")) {
+  const diagnostics = getAppleSyncErrorDiagnostics(error);
+  const message = diagnostics.signalText.toLowerCase();
+  const code = (diagnostics.code || "").toLowerCase();
+
+  if (diagnostics.status === 401 || diagnostics.status === 403) {
     return "auth";
   }
   if (
+    message.includes("auth") ||
+    message.includes("credential") ||
+    message.includes("password") ||
+    message.includes("unauthorized") ||
+    code.includes("unauthorized") ||
+    code.includes("forbidden")
+  ) {
+    return "auth";
+  }
+  if (
+    diagnostics.status === 408 ||
+    diagnostics.status === 429 ||
+    diagnostics.status === 502 ||
+    diagnostics.status === 503 ||
+    diagnostics.status === 504 ||
     message.includes("timeout") ||
     message.includes("network") ||
     message.includes("econn") ||
-    message.includes("socket")
+    message.includes("socket") ||
+    code.includes("econn") ||
+    code.includes("etimedout")
   ) {
     return "network";
   }
-  if (message.includes("dav") || message.includes("calendar")) {
+  if (
+    diagnostics.status === 404 ||
+    (diagnostics.status !== null && diagnostics.status >= 400) ||
+    message.includes("dav") ||
+    message.includes("calendar") ||
+    message.includes("not found") ||
+    message.includes("collection query failed") ||
+    message.includes("propfind") ||
+    message.includes("report") ||
+    message.includes("calendar-object")
+  ) {
     return "provider";
   }
   return "unknown";
@@ -679,6 +786,76 @@ export async function withAppleDavRetry<T>(operation: () => Promise<T>, maxAttem
   }
 
   throw lastError;
+}
+
+function getAppleSyncErrorDiagnostics(error: unknown): AppleSyncErrorDiagnostics {
+  const anyError = error as Record<string, unknown> | null;
+  const response = (anyError?.response as Record<string, unknown> | undefined) ?? undefined;
+
+  const rawStatus =
+    (typeof anyError?.status === "number" ? anyError.status : null) ??
+    (typeof response?.status === "number" ? response.status : null);
+
+  const rawCode =
+    (typeof anyError?.code === "string" ? anyError.code : null) ??
+    (typeof response?.code === "string" ? response.code : null);
+
+  const rawName =
+    (typeof anyError?.name === "string" ? anyError.name : null) ??
+    (typeof response?.name === "string" ? response.name : null);
+
+  const rawMessage =
+    (typeof anyError?.message === "string" ? anyError.message : null) ??
+    (typeof response?.statusText === "string" ? response.statusText : null) ??
+    (typeof response?.message === "string" ? response.message : null) ??
+    (error instanceof Error ? error.message : String(error || ""));
+
+  const signalText = [
+    rawMessage,
+    rawCode || "",
+    rawName || "",
+    typeof response?.statusText === "string" ? response.statusText : "",
+  ]
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .join(" ");
+
+  const safeMessage = sanitizeAppleSyncDebugMessage(rawMessage, "Apple DAV operation failed");
+
+  return {
+    category: "unknown",
+    status: rawStatus,
+    code: rawCode,
+    name: rawName,
+    signalText,
+    message: safeMessage,
+  };
+}
+
+function isAppleDavNotFoundError(error: unknown): boolean {
+  const diagnostics = getAppleSyncErrorDiagnostics(error);
+  const signal = diagnostics.signalText.toLowerCase();
+  return (
+    diagnostics.status === 404 ||
+    signal.includes("404 not found") ||
+    signal.includes("collection query failed")
+  );
+}
+
+async function fetchCalendarObjectsSafe(
+  client: DAVClient,
+  calendar: DAVCalendar,
+  objectUrls: string[],
+): Promise<DAVCalendarObject[]> {
+  try {
+    const objects = await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
+    return (objects as DAVCalendarObject[]) || [];
+  } catch (error) {
+    // Apple often returns 404 for object lookup when the target filename does not exist yet.
+    if (isAppleDavNotFoundError(error)) {
+      return [];
+    }
+    throw error;
+  }
 }
 
 export function resolveAppleConflict(args: ResolveAppleConflictArgs): AppleConflictWinner {
@@ -784,6 +961,8 @@ export async function getAppleCalendarSyncStatus(req: express.Request): Promise<
     connected: !!connection,
     accountEmail: connection?.email ?? null,
     calendarId: connection?.calendarId ?? null,
+    resolvedCalendarDisplayName: connection?.resolvedCalendarDisplayName ?? null,
+    resolvedCalendarUrl: connection?.resolvedCalendarUrl ?? null,
     lastSyncedAt: connection?.lastSyncedAt ? connection.lastSyncedAt.toISOString() : null,
     activeScopeCount: connection?.activeSyncSelections?.length ?? 0,
     syncScopeVersion: connection?.syncScopeVersion ?? undefined,
@@ -814,12 +993,20 @@ export async function connectAppleCalendar(
   }
 
   // Validate credentials and basic CalDAV access at connect-time.
+  let selectedCalendarDisplayName: string | null = null;
+  let selectedCalendarUrl: string | null = null;
   try {
     const client = await createAppleDavClient(email, password);
     const calendars = await client.fetchCalendars();
     if (!calendars || calendars.length === 0) {
       throw new Error("No Apple calendars were found for this account.");
     }
+    const selected = selectCalendar(calendars, calendarId);
+    selectedCalendarDisplayName = String(selected.calendar.displayName || "").trim() || null;
+    selectedCalendarUrl = String(selected.calendar.url || "").trim() || null;
+    logAppleSyncInfo(
+      `Connected Apple sync using calendar \"${selectedCalendarDisplayName || "(unnamed)"}\" (${selectedCalendarUrl || "no-url"}).`,
+    );
   } catch (error) {
     throw new Error("Unable to authenticate Apple CalDAV credentials. Check Apple ID and app-specific password.");
   }
@@ -829,6 +1016,8 @@ export async function connectAppleCalendar(
   await storage.upsertAppleCalendarConnection(userId, {
     email,
     calendarId,
+    resolvedCalendarDisplayName: selectedCalendarDisplayName,
+    resolvedCalendarUrl: selectedCalendarUrl,
     appSpecificPasswordEncrypted: encryptedPassword,
     connectedAt: new Date(),
   });
@@ -873,7 +1062,8 @@ export async function setAppleCalendarSyncScope(
       const decryptedPassword = decryptSecret(connection.appSpecificPasswordEncrypted);
       const client = await createAppleDavClient(connection.email, decryptedPassword);
       const calendars = await client.fetchCalendars();
-      const calendar = selectCalendar(calendars, connection.calendarId);
+      const selected = selectCalendar(calendars, connection.calendarId);
+      const calendar = selected.calendar;
 
       for (const removal of removals) {
         const filename = buildEventFilename(removal.taskId, removal.kind);
@@ -940,7 +1130,13 @@ export async function runAppleCalendarTwoWaySync(
 
   const client = await createAppleDavClient(connection.email || "", decryptedPassword);
   const calendars = await client.fetchCalendars();
-  const calendar = selectCalendar(calendars, connection.calendarId);
+  const selected = selectCalendar(calendars, connection.calendarId);
+  const calendar = selected.calendar;
+  const resolvedCalendarDisplayName = String(calendar.displayName || "").trim() || null;
+  const resolvedCalendarUrl = String(calendar.url || "").trim() || null;
+  logAppleSyncInfo(
+    `Starting Apple two-way sync against calendar \"${resolvedCalendarDisplayName || "(unnamed)"}\" (${resolvedCalendarUrl || "no-url"}) for ${connection.email || "unknown-account"}.`,
+  );
 
   const { activeSelections } = await resolveActiveSyncScope(userId, selections);
 
@@ -981,7 +1177,7 @@ export async function runAppleCalendarTwoWaySync(
 
         const remoteObjectUrl = existingEventId ? buildCalendarObjectUrl(calendar, existingEventId) : null;
         const remoteObject = remoteObjectUrl
-          ? (await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls: [remoteObjectUrl] })))?.[0]
+          ? (await fetchCalendarObjectsSafe(client, calendar, [remoteObjectUrl]))?.[0]
           : null;
         const remoteData = String(remoteObject?.data || "");
         const remoteDateOnly = normalizeDateOnly(parseICalDateOnly(String(remoteObject?.data || "")));
@@ -1095,10 +1291,15 @@ export async function runAppleCalendarTwoWaySync(
         };
       } catch (error) {
         failedOperations += 1;
+        const diagnostics = getAppleSyncErrorDiagnostics(error);
         const category = categorizeAppleSyncError(error);
         logAppleSyncDebug(
-          `Failed syncing task=${selection.taskId} kind=${kind} category=${category}. Continuing with remaining items.`,
+          `Failed syncing task=${selection.taskId} kind=${kind} category=${category} status=${diagnostics.status ?? "n/a"} code=${diagnostics.code ?? "n/a"} name=${diagnostics.name ?? "n/a"} message=\"${diagnostics.message}\". Continuing with remaining items.`,
         );
+        const details = sanitizeAppleSyncDebugMessage(error, "no-additional-error-details");
+        if (details && details !== diagnostics.message) {
+          logAppleSyncDebug(`Failure details task=${selection.taskId} kind=${kind}: \"${details}\"`);
+        }
       }
     }
 
@@ -1120,6 +1321,8 @@ export async function runAppleCalendarTwoWaySync(
   const lastSyncedAt = new Date();
   await storage.upsertAppleCalendarConnection(userId, {
     lastSyncedAt,
+    resolvedCalendarDisplayName,
+    resolvedCalendarUrl,
   });
 
   return {

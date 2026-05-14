@@ -148,6 +148,8 @@ export interface AppleCalendarConnection {
   userId: string;
   email: string | null;
   calendarId: string | null;
+  resolvedCalendarDisplayName: string | null;
+  resolvedCalendarUrl: string | null;
   appSpecificPasswordEncrypted: string | null;
   connectedAt: Date;
   lastSyncedAt: Date | null;
@@ -857,6 +859,8 @@ export class MongoDBStorage implements IStorage {
       userId: doc.userId,
       email: doc.email ?? null,
       calendarId: doc.calendarId ?? null,
+      resolvedCalendarDisplayName: doc.resolvedCalendarDisplayName ?? null,
+      resolvedCalendarUrl: doc.resolvedCalendarUrl ?? null,
       appSpecificPasswordEncrypted: doc.appSpecificPasswordEncrypted ?? null,
       connectedAt: new Date(doc.connectedAt),
       lastSyncedAt: doc.lastSyncedAt ? new Date(doc.lastSyncedAt) : null,
@@ -885,6 +889,8 @@ export class MongoDBStorage implements IStorage {
       userId,
       email: null,
       calendarId: null,
+      resolvedCalendarDisplayName: null,
+      resolvedCalendarUrl: null,
       appSpecificPasswordEncrypted: null,
       connectedAt: now,
       lastSyncedAt: null,
