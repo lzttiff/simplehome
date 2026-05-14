@@ -371,12 +371,12 @@ async function upsertAppleCalendarObject(
   let filename = previousFilename || canonicalFilename;
   let url = buildCalendarObjectUrl(calendar, filename);
   let objectUrls = [url];
-  let existingObjects = await withDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
+  let existingObjects = await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
 
   // Recovery path: stale mapping may point to a deleted object while canonical object still exists.
   if ((!existingObjects || existingObjects.length === 0) && previousFilename && previousFilename !== canonicalFilename) {
     const canonicalUrl = buildCalendarObjectUrl(calendar, canonicalFilename);
-    const recovered = await withDavRetry(() =>
+    const recovered = await withAppleDavRetry(() =>
       client.fetchCalendarObjects({
         calendar,
         objectUrls: [canonicalUrl],
@@ -391,7 +391,7 @@ async function upsertAppleCalendarObject(
 
   const iCalString = buildICalString(task, kind, dateOnly);
   if (!existingObjects || existingObjects.length === 0) {
-    const response = await withDavRetry(() =>
+    const response = await withAppleDavRetry(() =>
       client.createCalendarObject({
         calendar,
         filename: canonicalFilename,
@@ -416,7 +416,7 @@ async function upsertAppleCalendarObject(
   }
 
   existing.data = iCalString;
-  const response = await withDavRetry(() =>
+  const response = await withAppleDavRetry(() =>
     client.updateCalendarObject({
       calendarObject: existing,
     }),
@@ -434,12 +434,12 @@ async function deleteAppleCalendarObjectIfExists(
   filename: string,
 ): Promise<boolean> {
   const objectUrls = [buildCalendarObjectUrl(calendar, filename)];
-  const existingObjects = await withDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
+  const existingObjects = await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls }));
   if (!existingObjects || existingObjects.length === 0) {
     return false;
   }
 
-  const response = await withDavRetry(() =>
+  const response = await withAppleDavRetry(() =>
     client.deleteCalendarObject({
       calendarObject: existingObjects[0] as DAVCalendarObject,
     }),
@@ -638,7 +638,7 @@ function getTimestamp(value: Date | string | null | undefined): number {
   return Number.isFinite(millis) ? millis : 0;
 }
 
-function categorizeSyncError(error: unknown): SyncErrorCategory {
+export function categorizeAppleSyncError(error: unknown): SyncErrorCategory {
   const message = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
   if (message.includes("auth") || message.includes("credential") || message.includes("password")) {
     return "auth";
@@ -657,12 +657,12 @@ function categorizeSyncError(error: unknown): SyncErrorCategory {
   return "unknown";
 }
 
-function shouldRetryDavError(error: unknown): boolean {
-  const category = categorizeSyncError(error);
+export function shouldRetryAppleSyncError(error: unknown): boolean {
+  const category = categorizeAppleSyncError(error);
   return category === "network" || category === "provider";
 }
 
-async function withDavRetry<T>(operation: () => Promise<T>, maxAttempts = 2): Promise<T> {
+export async function withAppleDavRetry<T>(operation: () => Promise<T>, maxAttempts = 2): Promise<T> {
   let attempt = 0;
   let lastError: unknown;
 
@@ -672,7 +672,7 @@ async function withDavRetry<T>(operation: () => Promise<T>, maxAttempts = 2): Pr
     } catch (error) {
       lastError = error;
       attempt += 1;
-      if (attempt >= maxAttempts || !shouldRetryDavError(error)) {
+      if (attempt >= maxAttempts || !shouldRetryAppleSyncError(error)) {
         throw error;
       }
     }
@@ -981,7 +981,7 @@ export async function runAppleCalendarTwoWaySync(
 
         const remoteObjectUrl = existingEventId ? buildCalendarObjectUrl(calendar, existingEventId) : null;
         const remoteObject = remoteObjectUrl
-          ? (await withDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls: [remoteObjectUrl] })))?.[0]
+          ? (await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar, objectUrls: [remoteObjectUrl] })))?.[0]
           : null;
         const remoteData = String(remoteObject?.data || "");
         const remoteDateOnly = normalizeDateOnly(parseICalDateOnly(String(remoteObject?.data || "")));
@@ -1095,7 +1095,7 @@ export async function runAppleCalendarTwoWaySync(
         };
       } catch (error) {
         failedOperations += 1;
-        const category = categorizeSyncError(error);
+        const category = categorizeAppleSyncError(error);
         logAppleSyncDebug(
           `Failed syncing task=${selection.taskId} kind=${kind} category=${category}. Continuing with remaining items.`,
         );

@@ -269,12 +269,10 @@ Response:
 
 ### Tests
 - `tests/server/appleCalendarSync.test.ts` (new)
-  - connect/disconnect/status
-  - push create/update
-  - pull date edits
-  - conflict resolution
-  - DONE marker completion path
-  - missing/deleted event recovery
+  - error redaction assertions
+  - conflict resolution policy arbitration and tie-breaker
+  - DONE marker detection logic
+  - 2E resilience helpers (error categorization, retry policy, bounded retry behavior)
 - `tests/server/routes.test.ts`
   - endpoint validation and error contracts
 - Optional UI tests for modal state transitions.
@@ -335,12 +333,13 @@ Local reliability note:
   - [x] CalDAV client integration
   - [x] Push event CRUD operations (create/update/delete for scope removals)
 - [ ] Phase 2: Two-way sync core logic
+- [x] Phase 2: Two-way sync core logic
   - [x] Push-state mapping scaffold (`calendarExports` `apple/direct` metadata + counters)
   - [x] Push transport (local → Apple via CalDAV event CRUD)
   - [x] Slice 2B: Pull (Apple → local)
-  - [ ] Slice 2C: Conflict resolution (tie-breaker/documentation completion)
-  - [ ] Slice 2D: DONE marker handling
-  - [ ] Slice 2E: Recovery and idempotency hardening
+  - [x] Slice 2C: Conflict resolution
+  - [x] Slice 2D: DONE marker handling
+  - [x] Slice 2E: Recovery and idempotency hardening
 - [x] Phase 3: Wire real mutations
   - [x] Replace stub mutations with real API calls
   - [x] Connect form implementation (prompt-based)

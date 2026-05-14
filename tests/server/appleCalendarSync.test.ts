@@ -1,7 +1,10 @@
 import {
+  categorizeAppleSyncError,
   hasDoneMarkerInAppleEventData,
   resolveAppleConflict,
   sanitizeAppleSyncErrorMessage,
+  shouldRetryAppleSyncError,
+  withAppleDavRetry,
 } from '../../server/services/appleCalendarSync';
 
 describe('sanitizeAppleSyncErrorMessage', () => {
@@ -112,5 +115,43 @@ describe('hasDoneMarkerInAppleEventData', () => {
     ].join('\r\n');
 
     expect(hasDoneMarkerInAppleEventData(ical)).toBe(false);
+  });
+});
+
+describe('Apple retry resilience helpers', () => {
+  test('categorizes auth/network/provider errors', () => {
+    expect(categorizeAppleSyncError(new Error('invalid credential password rejected'))).toBe('auth');
+    expect(categorizeAppleSyncError(new Error('socket timeout ECONNRESET from upstream'))).toBe('network');
+    expect(categorizeAppleSyncError(new Error('DAV calendar object update failed'))).toBe('provider');
+  });
+
+  test('retries only retryable errors', () => {
+    expect(shouldRetryAppleSyncError(new Error('network timeout'))).toBe(true);
+    expect(shouldRetryAppleSyncError(new Error('DAV error while updating calendar'))).toBe(true);
+    expect(shouldRetryAppleSyncError(new Error('invalid credential password'))).toBe(false);
+  });
+
+  test('withAppleDavRetry retries once then succeeds', async () => {
+    let attempts = 0;
+    const out = await withAppleDavRetry(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error('network timeout');
+      }
+      return 'ok';
+    }, 2);
+
+    expect(out).toBe('ok');
+    expect(attempts).toBe(2);
+  });
+
+  test('withAppleDavRetry does not retry auth errors', async () => {
+    let attempts = 0;
+    await expect(withAppleDavRetry(async () => {
+      attempts += 1;
+      throw new Error('invalid credential password');
+    }, 3)).rejects.toThrow('invalid credential password');
+
+    expect(attempts).toBe(1);
   });
 });
