@@ -476,6 +476,9 @@ async function upsertAppleCalendarObject(
         `DAV_CREATE_FAILED task=${task.id} kind=${kind} calendarUrl=${String(calendar.url || "n/a")} ${extractDavResponseSummary(response)}`,
       );
     }
+    logAppleSyncDebug(
+      `DAV_CREATED task=${task.id} kind=${kind} status=${(response as Response).status ?? "n/a"} url=${buildCalendarObjectUrl(calendar, canonicalFilename)}`,
+    );
     return {
       filename: canonicalFilename,
       url: buildCalendarObjectUrl(calendar, canonicalFilename),
@@ -501,6 +504,7 @@ async function upsertAppleCalendarObject(
       `DAV_UPDATE_FAILED task=${task.id} kind=${kind} calendarUrl=${String(calendar.url || "n/a")} ${extractDavResponseSummary(response)}`,
     );
   }
+  logAppleSyncDebug(`DAV_UPDATED task=${task.id} kind=${kind} status=${(response as Response).status ?? "n/a"} url=${url}`);
 
   return { filename, url, created: false, updated: true };
 }
@@ -939,6 +943,52 @@ async function resolveActiveSyncScope(
   return {
     activeSelections: normalizeSelections(connection.activeSyncSelections),
     initializedFromRequest: true,
+  };
+}
+
+export async function listAppleCalendarObjects(
+  req: express.Request,
+): Promise<{ calendarUrl: string; calendarName: string; count: number; filenames: string[] }> {
+  const userId = getUserId(req);
+  const connection = await storage.getAppleCalendarConnection(userId);
+  if (!connection) throw new Error("Apple Calendar not connected.");
+
+  const client = await createAppleDavClient(connection.email, decryptSecret(connection.appSpecificPasswordEncrypted));
+  const calendars = await client.fetchCalendars();
+  const { calendar } = selectCalendar(calendars, connection.calendarId);
+  const objects = await withAppleDavRetry(() =>
+    client.fetchCalendarObjects({ calendar }),
+  );
+  const filenames = (objects as DAVCalendarObject[])
+    .map((o) => String(o.url || "").split("/").pop() || "")
+    .filter(Boolean);
+  return {
+    calendarUrl: String(calendar.url || ""),
+    calendarName: String(calendar.displayName || ""),
+    count: filenames.length,
+    filenames,
+  };
+}
+
+export async function listAppleCalendarObjects(
+  req: express.Request,
+): Promise<{ calendarUrl: string; calendarName: string; count: number; filenames: string[] }> {
+  const userId = getUserId(req);
+  const connection = await storage.getAppleCalendarConnection(userId);
+  if (!connection) throw new Error("Apple Calendar not connected.");
+
+  const client = await createAppleDavClient(connection.email, decryptSecret(connection.appSpecificPasswordEncrypted));
+  const calendars = await client.fetchCalendars();
+  const { calendar } = selectCalendar(calendars, connection.calendarId);
+  const objects = await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar }));
+  const filenames = (objects as DAVCalendarObject[])
+    .map((o) => String(o.url || "").split("/").pop() || "")
+    .filter(Boolean);
+  return {
+    calendarUrl: String(calendar.url || ""),
+    calendarName: String(calendar.displayName || ""),
+    count: filenames.length,
+    filenames,
   };
 }
 

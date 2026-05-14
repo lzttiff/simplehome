@@ -60,6 +60,7 @@ import {
   disconnectAppleCalendar,
   getAppleCalendarSyncScope,
   getAppleCalendarSyncStatus,
+  listAppleCalendarObjects,
   runAppleCalendarTwoWaySync,
   sanitizeAppleSyncErrorMessage,
   setAppleCalendarSyncScope,
@@ -1031,6 +1032,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(status);
     } catch (error: any) {
       res.status(500).json({ message: sanitizeAppleSyncErrorMessage(error, "Failed to load Apple Calendar sync status") });
+    }
+  });
+
+  app.get("/api/calendar/apple/debug/objects", requireAuth, async (req, res) => {
+    try {
+      const result = await listAppleCalendarObjects(req);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: sanitizeAppleSyncErrorMessage(error, "Failed to list Apple Calendar objects") });
     }
   });
 
