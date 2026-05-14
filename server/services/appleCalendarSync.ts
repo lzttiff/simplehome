@@ -9,7 +9,7 @@ import {
   type CalendarExportRecord,
   type MaintenanceTask,
 } from "@shared/schema";
-import { deriveRescheduleBacklogState } from "./googleCalendarSync";
+import { deriveDoneCompletionDates, deriveRescheduleBacklogState } from "./googleCalendarSync";
 
 type AppleSyncSelection = {
   taskId: string;
@@ -438,11 +438,42 @@ function getTaskSchedule(task: MaintenanceTask): { minor?: string | null; major?
   }
 }
 
+function getTaskLastMaintenance(task: MaintenanceTask): { minor?: string | null; major?: string | null } {
+  if (!task.lastMaintenanceDate) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(task.lastMaintenanceDate) as { minor?: string | null; major?: string | null };
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+
+    return {
+      minor: normalizeDateOnly(parsed.minor ?? null),
+      major: normalizeDateOnly(parsed.major ?? null),
+    };
+  } catch {
+    return {};
+  }
+}
+
 function setTaskSchedule(
   task: MaintenanceTask,
   next: { minor?: string | null; major?: string | null },
 ): string {
   const current = getTaskSchedule(task);
+  return JSON.stringify({
+    minor: next.minor === undefined ? current.minor ?? null : next.minor,
+    major: next.major === undefined ? current.major ?? null : next.major,
+  });
+}
+
+function setTaskLastMaintenance(
+  task: MaintenanceTask,
+  next: { minor?: string | null; major?: string | null },
+): string {
+  const current = getTaskLastMaintenance(task);
   return JSON.stringify({
     minor: next.minor === undefined ? current.minor ?? null : next.minor,
     major: next.major === undefined ? current.major ?? null : next.major,
@@ -557,6 +588,14 @@ function parseICalLastModified(iCalString: string): string | null {
   }
 
   return null;
+}
+
+export function hasDoneMarkerInAppleEventData(iCalString: string): boolean {
+  const normalized = iCalString.replace(/\r\n[ \t]/g, "");
+  const summaryMatch = normalized.match(/(?:^|\n)SUMMARY(?:;[^:\n]*)?:(.*)$/im);
+  const descriptionMatch = normalized.match(/(?:^|\n)DESCRIPTION(?:;[^:\n]*)?:(.*)$/im);
+  const haystack = `${summaryMatch?.[1] ?? ""}\n${descriptionMatch?.[1] ?? ""}`;
+  return /\[done\]/i.test(haystack);
 }
 
 function getTimestamp(value: Date | string | null | undefined): number {
@@ -837,6 +876,7 @@ export async function runAppleCalendarTwoWaySync(
   let pulledChanges = 0;
   let createdEvents = 0;
   let updatedEvents = 0;
+  let completedFromApple = 0;
   let rescheduledFromApple = 0;
 
   for (const selection of activeSelections) {
@@ -868,6 +908,7 @@ export async function runAppleCalendarTwoWaySync(
       const remoteObject = remoteObjectUrl
         ? (await client.fetchCalendarObjects({ calendar, objectUrls: [remoteObjectUrl] }))?.[0]
         : null;
+      const remoteData = String(remoteObject?.data || "");
       const remoteDateOnly = normalizeDateOnly(parseICalDateOnly(String(remoteObject?.data || "")));
       const remoteLastModifiedAt = parseICalLastModified(String(remoteObject?.data || ""));
 
@@ -883,7 +924,47 @@ export async function runAppleCalendarTwoWaySync(
 
       let resolvedDateOnly = currentDateOnly;
 
-      if (remoteChanged && conflictWinner === "remote" && remoteDateOnly) {
+      const hasDoneMarker = hasDoneMarkerInAppleEventData(remoteData);
+      if (hasDoneMarker) {
+        const completion = deriveDoneCompletionDates(
+          nextTask,
+          kind,
+          remoteDateOnly ?? currentDateOnly,
+        );
+
+        if (completion) {
+          const currentLast = getTaskLastMaintenance(nextTask);
+          const existingCompletedDateOnly = normalizeDateOnly(currentLast[kind] ?? null);
+          const existingNextDateOnly = normalizeDateOnly(currentDateOnly);
+
+          if (
+            existingCompletedDateOnly !== completion.completedDateOnly ||
+            existingNextDateOnly !== completion.nextDateOnly
+          ) {
+            nextTask = {
+              ...nextTask,
+              lastMaintenanceDate: setTaskLastMaintenance(nextTask, { [kind]: completion.completedDateOnly }),
+              nextMaintenanceDate: setTaskSchedule(nextTask, { [kind]: completion.nextDateOnly }),
+              overdueBacklog: setTaskOverdueBacklog(nextTask, { [kind]: false }),
+              overdueSince: setTaskOverdueSince(nextTask, { [kind]: null }),
+            };
+            pulledChanges += 1;
+          }
+
+          completedFromApple += 1;
+          resolvedDateOnly = completion.nextDateOnly;
+
+          if (existingEventId) {
+            try {
+              await deleteAppleCalendarObjectIfExists(client, calendar, existingEventId);
+            } catch {
+              // Best effort delete to avoid duplicate DONE events.
+            }
+          }
+        }
+      }
+
+      if (!hasDoneMarker && remoteChanged && conflictWinner === "remote" && remoteDateOnly) {
           const currentOverdueBacklog = getTaskOverdueBacklog(nextTask);
           const currentOverdueSince = getTaskOverdueSince(nextTask);
           const transition = deriveRescheduleBacklogState({
@@ -965,7 +1046,7 @@ export async function runAppleCalendarTwoWaySync(
     pulledChanges,
     createdEvents,
     updatedEvents,
-    completedFromApple: 0,
+    completedFromApple,
     rescheduledFromApple,
     lastSyncedAt: lastSyncedAt.toISOString(),
     calendarId: connection.calendarId ?? "simplehome-maintenance",

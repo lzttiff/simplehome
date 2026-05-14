@@ -1,4 +1,8 @@
-import { resolveAppleConflict, sanitizeAppleSyncErrorMessage } from '../../server/services/appleCalendarSync';
+import {
+  hasDoneMarkerInAppleEventData,
+  resolveAppleConflict,
+  sanitizeAppleSyncErrorMessage,
+} from '../../server/services/appleCalendarSync';
 
 describe('sanitizeAppleSyncErrorMessage', () => {
   test('keeps approved safe messages', () => {
@@ -67,5 +71,46 @@ describe('resolveAppleConflict', () => {
     });
 
     expect(out).toBe('local');
+  });
+});
+
+describe('hasDoneMarkerInAppleEventData', () => {
+  test('detects [DONE] marker in summary', () => {
+    const ical = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'SUMMARY:[DONE] Minor Maintenance: HVAC Filter',
+      'DESCRIPTION:Done in Apple Calendar',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    expect(hasDoneMarkerInAppleEventData(ical)).toBe(true);
+  });
+
+  test('detects [done] marker in description case-insensitively', () => {
+    const ical = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'SUMMARY:Minor Maintenance: HVAC Filter',
+      'DESCRIPTION:completed today [done]',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    expect(hasDoneMarkerInAppleEventData(ical)).toBe(true);
+  });
+
+  test('returns false when marker is absent', () => {
+    const ical = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'SUMMARY:Minor Maintenance: HVAC Filter',
+      'DESCRIPTION:Routine maintenance',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    expect(hasDoneMarkerInAppleEventData(ical)).toBe(false);
   });
 });

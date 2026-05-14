@@ -168,7 +168,7 @@ Response:
 
 ## Phase 2: Two-Way Sync Core Logic
 ### Status
-🟡 **In Progress**: Endpoint flow/persistence are complete; CalDAV push transport and pull date-ingestion are implemented. DONE parity and full conflict policy completion remain.
+🟡 **In Progress**: Endpoint flow/persistence are complete; CalDAV push/pull, conflict policy, and DONE marker parity are implemented. Recovery/idempotency hardening remains.
 
 ### Outcomes
 - Manual Apple sync pushes local changes and pulls Apple changes.
@@ -194,7 +194,8 @@ Response:
 - ✅ Scope reduction now attempts deletion of out-of-scope Apple events.
 - ✅ Pull ingestion for remote date edits now updates local `nextMaintenanceDate` with backlog-state transitions.
 - ✅ Conflict policy finalized: timestamp-based arbitration (`LAST-MODIFIED`/`DTSTAMP` vs local `updatedAt`) with deterministic local tie-breaker.
-- ⏳ Remaining: DONE marker parity.
+- ✅ DONE marker parity implemented: `[DONE]` in Apple event summary/description now completes current cycle, rolls next date, clears backlog fields, and recreates next-cycle event.
+- ⏳ Remaining: recovery/idempotency hardening.
 
 ### Phase 2 Execution Slices (tracking)
 #### Slice 2A: Push Transport Hardening
@@ -220,11 +221,11 @@ Response:
   - ✅ finalize tie-breaker for simultaneous edits (local wins when remote freshness is not provably newer)
 
 #### Slice 2D: DONE Marker Parity
-- Status: ⏳ Planned
+- Status: ✅ Complete
 - Scope:
-  - detect `[DONE]` markers from Apple event content
-  - set `lastMaintenanceDate`, roll forward `nextMaintenanceDate`
-  - clear backlog fields consistently with Google behavior
+  - ✅ detect `[DONE]` markers from Apple event content
+  - ✅ set `lastMaintenanceDate`, roll forward `nextMaintenanceDate`
+  - ✅ clear backlog fields consistently with Google behavior
 
 #### Slice 2E: Resilience and Recovery
 - Status: ⏳ Planned
