@@ -329,11 +329,65 @@ function buildEventSummary(task: MaintenanceTask, kind: SyncKind): string {
   return `${kind === "minor" ? "Minor" : "Major"} Maintenance: ${task.title}`;
 }
 
-function buildEventDescription(task: MaintenanceTask): string {
+function buildEventDescription(task: MaintenanceTask, kind: SyncKind): string {
+  const lines: string[] = [];
+
   if (task.description && task.description.trim()) {
-    return task.description.trim();
+    lines.push(task.description.trim());
+    lines.push("");
   }
-  return `Scheduled by SimpleHome for ${task.title}`;
+
+  // Sub-task checklist
+  const rawTasks = kind === "minor" ? task.minorTasks : task.majorTasks;
+  if (rawTasks) {
+    try {
+      const items = JSON.parse(rawTasks) as unknown[];
+      if (Array.isArray(items) && items.length > 0) {
+        lines.push(`${kind === "minor" ? "Minor" : "Major"} tasks:`);
+        for (const item of items) {
+          const label = typeof item === "string" ? item : (item as { task?: string; title?: string })?.task || (item as { task?: string; title?: string })?.title || String(item);
+          if (label) lines.push(`  • ${label}`);
+        }
+        lines.push("");
+      }
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+
+  // Metadata
+  if (task.category) lines.push(`Category: ${task.category}`);
+  if (task.priority) lines.push(`Priority: ${task.priority}`);
+  if (task.location) lines.push(`Location: ${task.location}`);
+
+  const interval = kind === "minor" ? task.minorIntervalMonths : task.majorIntervalMonths;
+  if (interval) lines.push(`Interval: every ${interval} month${interval !== 1 ? "s" : ""}`);
+
+  const lastDoneRaw = task.lastMaintenanceDate;
+  if (lastDoneRaw) {
+    try {
+      const parsed = JSON.parse(lastDoneRaw) as { minor?: string | null; major?: string | null };
+      const lastDone = kind === "minor" ? parsed.minor : parsed.major;
+      if (lastDone) lines.push(`Last done: ${lastDone}`);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (task.brand || task.model) {
+    const parts = [task.brand, task.model].filter(Boolean).join(" ");
+    lines.push(`Equipment: ${parts}`);
+  }
+
+  if (task.notes && task.notes.trim()) {
+    lines.push("");
+    lines.push(`Notes: ${task.notes.trim()}`);
+  }
+
+  lines.push("");
+  lines.push("— SimpleHome");
+
+  return lines.join("\n");
 }
 
 function buildEventFilename(taskId: string, kind: SyncKind): string {
@@ -352,7 +406,7 @@ function buildCalendarObjectUrl(calendar: DAVCalendar, filename: string): string
 function buildICalString(task: MaintenanceTask, kind: SyncKind, dateOnly: string): string {
   const uid = buildEventUid(task.id, kind);
   const summary = escapeICSText(buildEventSummary(task, kind));
-  const description = escapeICSText(buildEventDescription(task));
+  const description = escapeICSText(buildEventDescription(task, kind));
   const dtStart = toICSDateOnly(dateOnly);
   const dtEnd = toICSDateOnly(addOneDayDateOnly(dateOnly));
   const dtStamp = formatDateStamp(new Date());
@@ -953,7 +1007,7 @@ export async function listAppleCalendarObjects(
   const connection = await storage.getAppleCalendarConnection(userId);
   if (!connection) throw new Error("Apple Calendar not connected.");
 
-  const client = await createAppleDavClient(connection.email, decryptSecret(connection.appSpecificPasswordEncrypted));
+  const client = await createAppleDavClient(connection.email || "", decryptSecret(connection.appSpecificPasswordEncrypted || ""));
   const calendars = await client.fetchCalendars();
   const { calendar } = selectCalendar(calendars, connection.calendarId);
   const objects = await withAppleDavRetry(() =>
@@ -970,27 +1024,6 @@ export async function listAppleCalendarObjects(
   };
 }
 
-export async function listAppleCalendarObjects(
-  req: express.Request,
-): Promise<{ calendarUrl: string; calendarName: string; count: number; filenames: string[] }> {
-  const userId = getUserId(req);
-  const connection = await storage.getAppleCalendarConnection(userId);
-  if (!connection) throw new Error("Apple Calendar not connected.");
-
-  const client = await createAppleDavClient(connection.email, decryptSecret(connection.appSpecificPasswordEncrypted));
-  const calendars = await client.fetchCalendars();
-  const { calendar } = selectCalendar(calendars, connection.calendarId);
-  const objects = await withAppleDavRetry(() => client.fetchCalendarObjects({ calendar }));
-  const filenames = (objects as DAVCalendarObject[])
-    .map((o) => String(o.url || "").split("/").pop() || "")
-    .filter(Boolean);
-  return {
-    calendarUrl: String(calendar.url || ""),
-    calendarName: String(calendar.displayName || ""),
-    count: filenames.length,
-    filenames,
-  };
-}
 
 export async function getAppleCalendarSyncStatus(req: express.Request): Promise<AppleCalendarSyncStatus> {
   const userId = getUserId(req);
