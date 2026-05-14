@@ -52,6 +52,15 @@ export interface IStorage {
   deleteGoogleCalendarConnection(userId: string): Promise<boolean>;
   getGoogleCalendarSyncScope(userId: string): Promise<GoogleCalendarSyncSelection[]>;
   setGoogleCalendarSyncScope(userId: string, selections: GoogleCalendarSyncSelection[]): Promise<GoogleCalendarConnection>;
+  // Apple Calendar Connections
+  getAppleCalendarConnection(userId: string): Promise<AppleCalendarConnection | undefined>;
+  upsertAppleCalendarConnection(
+    userId: string,
+    updates: Partial<Omit<AppleCalendarConnection, 'userId' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<AppleCalendarConnection>;
+  deleteAppleCalendarConnection(userId: string): Promise<boolean>;
+  getAppleCalendarSyncScope(userId: string): Promise<AppleCalendarSyncSelection[]>;
+  setAppleCalendarSyncScope(userId: string, selections: AppleCalendarSyncSelection[]): Promise<AppleCalendarConnection>;
   // Property Templates
   getPropertyTemplates(userId?: string | null): Promise<PropertyTemplate[]>;
   getPropertyTemplate(id: string): Promise<PropertyTemplate | undefined>;
@@ -79,6 +88,12 @@ export interface IStorage {
 }
 
 export interface GoogleCalendarSyncSelection {
+  taskId: string;
+  includeMinor: boolean;
+  includeMajor: boolean;
+}
+
+export interface AppleCalendarSyncSelection {
   taskId: string;
   includeMinor: boolean;
   includeMajor: boolean;
@@ -129,6 +144,25 @@ interface MongoGoogleCalendarConnection extends Omit<GoogleCalendarConnection, '
   userId: string;
 }
 
+export interface AppleCalendarConnection {
+  userId: string;
+  email: string | null;
+  calendarId: string | null;
+  appSpecificPasswordEncrypted: string | null;
+  connectedAt: Date;
+  lastSyncedAt: Date | null;
+  activeSyncSelections: AppleCalendarSyncSelection[];
+  syncScopeVersion: number;
+  syncScopeUpdatedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface MongoAppleCalendarConnection extends Omit<AppleCalendarConnection, 'userId'> {
+  _id?: ObjectId;
+  userId: string;
+}
+
 function normalizeGoogleSyncSelections(raw: unknown): GoogleCalendarSyncSelection[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -153,6 +187,30 @@ function normalizeGoogleSyncSelections(raw: unknown): GoogleCalendarSyncSelectio
     .filter((selection): selection is GoogleCalendarSyncSelection => !!selection);
 }
 
+function normalizeAppleSyncSelections(raw: unknown): AppleCalendarSyncSelection[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .map((entry) => {
+      const selection = entry as Partial<AppleCalendarSyncSelection>;
+      const taskId = typeof selection.taskId === 'string' ? selection.taskId.trim() : '';
+      const includeMinor = !!selection.includeMinor;
+      const includeMajor = !!selection.includeMajor;
+      if (!taskId || (!includeMinor && !includeMajor)) {
+        return null;
+      }
+
+      return {
+        taskId,
+        includeMinor,
+        includeMajor,
+      } satisfies AppleCalendarSyncSelection;
+    })
+    .filter((selection): selection is AppleCalendarSyncSelection => !!selection);
+}
+
 export class MongoDBStorage implements IStorage {
   private client: MongoClient;
   private db!: Db;
@@ -161,6 +219,7 @@ export class MongoDBStorage implements IStorage {
   private responsesCollection!: Collection<MongoQuestionnaireResponse>;
   private usersCollection!: Collection<MongoUser>;
   private googleCalendarConnectionsCollection!: Collection<MongoGoogleCalendarConnection>;
+  private appleCalendarConnectionsCollection!: Collection<MongoAppleCalendarConnection>;
   private initialized = false;
 
   constructor() {
@@ -174,6 +233,7 @@ export class MongoDBStorage implements IStorage {
     this.responsesCollection = this.db.collection<MongoQuestionnaireResponse>("questionnaire_responses");
     this.usersCollection = this.db.collection<MongoUser>("users");
     this.googleCalendarConnectionsCollection = this.db.collection<MongoGoogleCalendarConnection>("google_calendar_connections");
+    this.appleCalendarConnectionsCollection = this.db.collection<MongoAppleCalendarConnection>("apple_calendar_connections");
   }
 
   async initialize(): Promise<void> {
@@ -191,6 +251,7 @@ export class MongoDBStorage implements IStorage {
       await this.responsesCollection.createIndex({ sessionId: 1 }, { unique: true });
       await this.usersCollection.createIndex({ email: 1 }, { unique: true });
       await this.googleCalendarConnectionsCollection.createIndex({ userId: 1 }, { unique: true });
+      await this.appleCalendarConnectionsCollection.createIndex({ userId: 1 }, { unique: true });
       
       // Check if we need to seed data
       const templateCount = await this.templatesCollection.countDocuments();
@@ -783,6 +844,94 @@ export class MongoDBStorage implements IStorage {
 
   async deleteGoogleCalendarConnection(userId: string): Promise<boolean> {
     const result = await this.googleCalendarConnectionsCollection.deleteOne({ userId });
+    return result.deletedCount > 0;
+  }
+
+  async getAppleCalendarConnection(userId: string): Promise<AppleCalendarConnection | undefined> {
+    const doc = await this.appleCalendarConnectionsCollection.findOne({ userId });
+    if (!doc) {
+      return undefined;
+    }
+
+    return {
+      userId: doc.userId,
+      email: doc.email ?? null,
+      calendarId: doc.calendarId ?? null,
+      appSpecificPasswordEncrypted: doc.appSpecificPasswordEncrypted ?? null,
+      connectedAt: new Date(doc.connectedAt),
+      lastSyncedAt: doc.lastSyncedAt ? new Date(doc.lastSyncedAt) : null,
+      activeSyncSelections: normalizeAppleSyncSelections(doc.activeSyncSelections),
+      syncScopeVersion: typeof doc.syncScopeVersion === 'number' ? doc.syncScopeVersion : 1,
+      syncScopeUpdatedAt: doc.syncScopeUpdatedAt ? new Date(doc.syncScopeUpdatedAt) : null,
+      createdAt: new Date(doc.createdAt),
+      updatedAt: new Date(doc.updatedAt),
+    };
+  }
+
+  async upsertAppleCalendarConnection(
+    userId: string,
+    updates: Partial<Omit<AppleCalendarConnection, 'userId' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<AppleCalendarConnection> {
+    const now = new Date();
+
+    const setFields: Record<string, unknown> = { updatedAt: now };
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        setFields[key] = value;
+      }
+    }
+
+    const setOnInsertFields: Record<string, unknown> = {
+      userId,
+      email: null,
+      calendarId: null,
+      appSpecificPasswordEncrypted: null,
+      connectedAt: now,
+      lastSyncedAt: null,
+      activeSyncSelections: [],
+      syncScopeVersion: 1,
+      syncScopeUpdatedAt: null,
+      createdAt: now,
+    };
+
+    for (const key of Object.keys(setFields)) {
+      delete setOnInsertFields[key];
+    }
+
+    await this.appleCalendarConnectionsCollection.updateOne(
+      { userId },
+      {
+        $set: setFields,
+        $setOnInsert: setOnInsertFields,
+      },
+      { upsert: true },
+    );
+
+    const record = await this.getAppleCalendarConnection(userId);
+    if (!record) {
+      throw new Error('Failed to persist Apple Calendar connection');
+    }
+
+    return record;
+  }
+
+  async getAppleCalendarSyncScope(userId: string): Promise<AppleCalendarSyncSelection[]> {
+    const connection = await this.getAppleCalendarConnection(userId);
+    return connection?.activeSyncSelections ?? [];
+  }
+
+  async setAppleCalendarSyncScope(userId: string, selections: AppleCalendarSyncSelection[]): Promise<AppleCalendarConnection> {
+    const normalized = normalizeAppleSyncSelections(selections);
+    const current = await this.getAppleCalendarConnection(userId);
+    return this.upsertAppleCalendarConnection(userId, {
+      activeSyncSelections: normalized,
+      syncScopeVersion: (current?.syncScopeVersion ?? 1) + 1,
+      syncScopeUpdatedAt: new Date(),
+    });
+  }
+
+  async deleteAppleCalendarConnection(userId: string): Promise<boolean> {
+    const result = await this.appleCalendarConnectionsCollection.deleteOne({ userId });
     return result.deletedCount > 0;
   }
 

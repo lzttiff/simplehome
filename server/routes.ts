@@ -55,6 +55,15 @@ import {
   runGoogleCalendarTwoWaySync,
   setGoogleCalendarSyncScope,
 } from "./services/googleCalendarSync";
+import {
+  connectAppleCalendar,
+  disconnectAppleCalendar,
+  getAppleCalendarSyncScope,
+  getAppleCalendarSyncStatus,
+  runAppleCalendarTwoWaySync,
+  sanitizeAppleSyncErrorMessage,
+  setAppleCalendarSyncScope,
+} from "./services/appleCalendarSync";
 import { initializeUserDefaultTemplates } from "./services/userTemplateInit";
 import passport from "passport";
 import { requireAuth, hashPassword, verifyPassword } from "./auth";
@@ -1013,6 +1022,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(outcome);
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "Failed to disconnect Google Calendar" });
+    }
+  });
+
+  app.get("/api/calendar/apple/sync/status", requireAuth, async (req, res) => {
+    try {
+      const status = await getAppleCalendarSyncStatus(req);
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: sanitizeAppleSyncErrorMessage(error, "Failed to load Apple Calendar sync status") });
+    }
+  });
+
+  app.post("/api/calendar/apple/sync/connect", requireAuth, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        appleIdEmail: z.string().min(3),
+        appSpecificPassword: z.string().min(3),
+        calendarId: z.string().optional(),
+      });
+
+      const { appleIdEmail, appSpecificPassword, calendarId } = bodySchema.parse(req.body ?? {});
+      const status = await connectAppleCalendar(req, {
+        appleIdEmail,
+        appSpecificPassword,
+        calendarId,
+      });
+      res.json(status);
+    } catch (error: any) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ message: "Invalid connect payload", issues: error.issues });
+      }
+      res.status(500).json({ message: sanitizeAppleSyncErrorMessage(error, "Failed to connect Apple Calendar") });
+    }
+  });
+
+  app.post("/api/calendar/apple/sync", requireAuth, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        selections: z
+          .array(
+            z.object({
+              taskId: z.string().min(1),
+              includeMinor: z.boolean().default(true),
+              includeMajor: z.boolean().default(true),
+            }),
+          )
+          .default([]),
+      });
+
+      const { selections } = bodySchema.parse(req.body ?? {});
+      const outcome = await runAppleCalendarTwoWaySync(
+        req,
+        selections
+          .map((selection) => ({
+            taskId: selection.taskId,
+            includeMinor: !!selection.includeMinor,
+            includeMajor: !!selection.includeMajor,
+          }))
+          .filter((selection) => selection.includeMinor || selection.includeMajor),
+      );
+      res.json(outcome);
+    } catch (error: any) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ message: "Invalid sync request payload", issues: error.issues });
+      }
+      const safeMessage = sanitizeAppleSyncErrorMessage(error, "Apple Calendar sync failed");
+      const status = safeMessage.includes("not connected") ? 409 : 500;
+      res.status(status).json({ message: safeMessage });
+    }
+  });
+
+  app.get("/api/calendar/apple/sync/scope", requireAuth, async (req, res) => {
+    try {
+      const scope = await getAppleCalendarSyncScope(req);
+      res.json(scope);
+    } catch (error: any) {
+      res.status(500).json({ message: sanitizeAppleSyncErrorMessage(error, "Failed to load Apple Calendar sync scope") });
+    }
+  });
+
+  app.put("/api/calendar/apple/sync/scope", requireAuth, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        selections: z
+          .array(
+            z.object({
+              taskId: z.string().min(1),
+              includeMinor: z.boolean().default(true),
+              includeMajor: z.boolean().default(true),
+            }),
+          )
+          .min(1),
+      });
+
+      const { selections } = bodySchema.parse(req.body ?? {});
+      const outcome = await setAppleCalendarSyncScope(
+        req,
+        selections
+          .map((selection) => ({
+            taskId: selection.taskId,
+            includeMinor: !!selection.includeMinor,
+            includeMajor: !!selection.includeMajor,
+          }))
+          .filter((selection) => selection.includeMinor || selection.includeMajor),
+      );
+      res.json(outcome);
+    } catch (error: any) {
+      res.status(500).json({ message: sanitizeAppleSyncErrorMessage(error, "Failed to update Apple Calendar sync scope") });
+    }
+  });
+
+  app.post("/api/calendar/apple/sync/disconnect", requireAuth, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        deleteCalendar: z.boolean().optional(),
+      });
+
+      const { deleteCalendar } = bodySchema.parse(req.body ?? {});
+      const outcome = await disconnectAppleCalendar(req, { deleteCalendar: !!deleteCalendar });
+      res.json(outcome);
+    } catch (error: any) {
+      res.status(500).json({ message: sanitizeAppleSyncErrorMessage(error, "Failed to disconnect Apple Calendar") });
     }
   });
 
