@@ -193,8 +193,8 @@ Response:
 - ✅ Sync now performs create/update transport for Apple calendar objects per task-kind.
 - ✅ Scope reduction now attempts deletion of out-of-scope Apple events.
 - ✅ Pull ingestion for remote date edits now updates local `nextMaintenanceDate` with backlog-state transitions.
-- ✅ Conservative conflict gate added: pull wins only when local has not changed since last sync.
-- ⏳ Remaining: DONE marker parity and conflict-policy tie-breaker finalization.
+- ✅ Conflict policy finalized: timestamp-based arbitration (`LAST-MODIFIED`/`DTSTAMP` vs local `updatedAt`) with deterministic local tie-breaker.
+- ⏳ Remaining: DONE marker parity.
 
 ### Phase 2 Execution Slices (tracking)
 #### Slice 2A: Push Transport Hardening
@@ -213,11 +213,11 @@ Response:
   - ✅ increment `pulledChanges`
 
 #### Slice 2C: Conflict Resolution
-- Status: 🟡 In progress
+- Status: ✅ Complete
 - Scope:
-  - ✅ define baseline timestamp source (`task.updatedAt` vs record `lastSyncedAt`)
-  - ✅ implement conservative local-vs-remote arbitration gate
-  - ⏳ document and finalize tie-breaker behavior for simultaneous edits
+  - ✅ define timestamp sources (Apple `LAST-MODIFIED`/fallback `DTSTAMP`, local `updatedAt`, record `lastSyncedAt`)
+  - ✅ implement local-vs-remote arbitration
+  - ✅ finalize tie-breaker for simultaneous edits (local wins when remote freshness is not provably newer)
 
 #### Slice 2D: DONE Marker Parity
 - Status: ⏳ Planned

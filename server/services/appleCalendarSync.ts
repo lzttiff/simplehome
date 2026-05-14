@@ -69,6 +69,14 @@ type ScopeRemoval = {
   taskId: string;
   kind: SyncKind;
 };
+type AppleConflictWinner = "local" | "remote";
+type ResolveAppleConflictArgs = {
+  localChanged: boolean;
+  remoteChanged: boolean;
+  localUpdatedAt: Date | string | null | undefined;
+  remoteLastModifiedAt: Date | string | null | undefined;
+  lastSyncedAt: Date | string | null | undefined;
+};
 
 const SAFE_APPLE_ERROR_MESSAGES = new Set([
   "Not authenticated",
@@ -296,6 +304,7 @@ function buildICalString(task: MaintenanceTask, kind: SyncKind, dateOnly: string
     "BEGIN:VEVENT",
     `UID:${uid}`,
     `DTSTAMP:${dtStamp}`,
+    `LAST-MODIFIED:${dtStamp}`,
     `DTSTART;VALUE=DATE:${dtStart}`,
     `DTEND;VALUE=DATE:${dtEnd}`,
     `SUMMARY:${summary}`,
@@ -504,7 +513,7 @@ function setTaskOverdueSince(
 
 function parseICalDateOnly(iCalString: string): string | null {
   const normalized = iCalString.replace(/\r\n[ \t]/g, "");
-  const match = normalized.match(/\nDTSTART(?:;[^:\n]*)?:(\d{8})/i);
+  const match = normalized.match(/(?:^|\n)DTSTART(?:;[^:\n]*)?:(\d{8})/i);
   if (!match?.[1]) {
     return null;
   }
@@ -516,6 +525,40 @@ function parseICalDateOnly(iCalString: string): string | null {
   return normalizeDateOnly(`${year}-${month}-${day}`);
 }
 
+function parseICalDateTime(value: string | null | undefined): string | null {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  const utcMatch = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  if (utcMatch) {
+    return `${utcMatch[1]}-${utcMatch[2]}-${utcMatch[3]}T${utcMatch[4]}:${utcMatch[5]}:${utcMatch[6]}.000Z`;
+  }
+
+  const localMatch = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
+  if (localMatch) {
+    return `${localMatch[1]}-${localMatch[2]}-${localMatch[3]}T${localMatch[4]}:${localMatch[5]}:${localMatch[6]}.000Z`;
+  }
+
+  return null;
+}
+
+function parseICalLastModified(iCalString: string): string | null {
+  const normalized = iCalString.replace(/\r\n[ \t]/g, "");
+  const lastModifiedMatch = normalized.match(/(?:^|\n)LAST-MODIFIED(?:;[^:\n]*)?:(\d{8}T\d{6}Z?)/i);
+  if (lastModifiedMatch?.[1]) {
+    return parseICalDateTime(lastModifiedMatch[1]);
+  }
+
+  const dtStampMatch = normalized.match(/(?:^|\n)DTSTAMP(?:;[^:\n]*)?:(\d{8}T\d{6}Z?)/i);
+  if (dtStampMatch?.[1]) {
+    return parseICalDateTime(dtStampMatch[1]);
+  }
+
+  return null;
+}
+
 function getTimestamp(value: Date | string | null | undefined): number {
   if (!value) {
     return 0;
@@ -524,6 +567,36 @@ function getTimestamp(value: Date | string | null | undefined): number {
   const date = value instanceof Date ? value : new Date(value);
   const millis = date.getTime();
   return Number.isFinite(millis) ? millis : 0;
+}
+
+export function resolveAppleConflict(args: ResolveAppleConflictArgs): AppleConflictWinner {
+  if (!args.remoteChanged) {
+    return "local";
+  }
+
+  if (!args.localChanged) {
+    return "remote";
+  }
+
+  const localTs = getTimestamp(args.localUpdatedAt);
+  const remoteTs = getTimestamp(args.remoteLastModifiedAt);
+  if (remoteTs > 0 && localTs > 0) {
+    if (remoteTs > localTs) {
+      return "remote";
+    }
+    if (remoteTs < localTs) {
+      return "local";
+    }
+  }
+
+  const syncedTs = getTimestamp(args.lastSyncedAt);
+  if (remoteTs > syncedTs && localTs <= syncedTs) {
+    return "remote";
+  }
+
+  // Deterministic tie-breaker: prefer local when both changed and remote freshness
+  // cannot be proven newer.
+  return "local";
 }
 
 function getAppleSyncExport(task: MaintenanceTask): CalendarExportRecord | undefined {
@@ -796,17 +869,21 @@ export async function runAppleCalendarTwoWaySync(
         ? (await client.fetchCalendarObjects({ calendar, objectUrls: [remoteObjectUrl] }))?.[0]
         : null;
       const remoteDateOnly = normalizeDateOnly(parseICalDateOnly(String(remoteObject?.data || "")));
+      const remoteLastModifiedAt = parseICalLastModified(String(remoteObject?.data || ""));
 
       const localChanged = !!existingSyncedDate && currentDateOnly !== existingSyncedDate;
       const remoteChanged = !!existingSyncedDate && !!remoteDateOnly && remoteDateOnly !== existingSyncedDate;
+      const conflictWinner = resolveAppleConflict({
+        localChanged,
+        remoteChanged,
+        localUpdatedAt: nextTask.updatedAt,
+        remoteLastModifiedAt,
+        lastSyncedAt: exportRecord?.lastSyncedAt,
+      });
 
       let resolvedDateOnly = currentDateOnly;
 
-      if (remoteChanged) {
-        const shouldPullRemote = !localChanged ||
-          (localChanged && getTimestamp(nextTask.updatedAt) <= getTimestamp(exportRecord?.lastSyncedAt));
-
-        if (shouldPullRemote && remoteDateOnly) {
+      if (remoteChanged && conflictWinner === "remote" && remoteDateOnly) {
           const currentOverdueBacklog = getTaskOverdueBacklog(nextTask);
           const currentOverdueSince = getTaskOverdueSince(nextTask);
           const transition = deriveRescheduleBacklogState({
@@ -828,7 +905,6 @@ export async function runAppleCalendarTwoWaySync(
           if (transition.rescheduled) {
             rescheduledFromApple += 1;
           }
-        }
       }
 
       const upserted = await upsertAppleCalendarObject(
