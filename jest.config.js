@@ -1,13 +1,16 @@
 export default {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
+  maxWorkers: '50%',
+  workerIdleMemoryLimit: '512MB',
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',
       {
         useESM: true,
-        tsconfig: './tsconfig.jest.json'
+        tsconfig: './tsconfig.jest.json',
+        isolatedModules: true,
       }
     ]
   },

@@ -121,3 +121,16 @@ Status: In progress
 - 2026-04-17: Began next phase warning-noise reduction (`use-toast` mock in task-card tests, dashboard log suppression in dashboard tests).
 - 2026-04-17: Committed phase 3 warning hygiene in `test: phase 3 warning hygiene and cleaner verification output`.
 - 2026-04-17: Started phase 4 CI guardrails with targeted/stability scripts and GitHub workflow automation.
+
+## Jest OOM Troubleshooting
+
+If Jest crashes with JavaScript heap out of memory, prefer npm scripts that already include memory guardrails.
+
+Recommended command for Apple sync unit tests:
+
+- `npm run test:server:apple-sync`
+
+Notes:
+
+- This script runs with `NODE_OPTIONS=--max-old-space-size=4096` and `--runInBand`.
+- Direct `npx jest ...` commands may skip script-level memory settings unless explicitly provided.

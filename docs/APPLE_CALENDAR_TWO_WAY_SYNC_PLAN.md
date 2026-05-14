@@ -1,9 +1,19 @@
 # Apple Calendar Two-Way Sync Plan
 
-## Recommended Order
-Do the export modal redesign first, with Apple two-way sync as a first-class constraint, then implement Apple sync behind the reorganized UI.
+## Status Overview
+✅ **Completed**: Export modal redesign with tab-based layout ("Select Items", "Export Options", "History", "Help") and Apple two-way sync UI placeholders.
 
-Use the companion document [EXPORT_SCHEDULE_REDESIGN_WITH_APPLE_SYNC.md](EXPORT_SCHEDULE_REDESIGN_WITH_APPLE_SYNC.md) as the UI and sequencing guide for that first step.
+See [EXPORT_SCHEDULE_REDESIGN_WITH_APPLE_SYNC.md](EXPORT_SCHEDULE_REDESIGN_WITH_APPLE_SYNC.md) for redesign details.
+
+**Current State**: The modal now has:
+- Apple two-way sync UI in "Export Options" tab with functional status/connect/scope/disconnect controls
+- Real Apple sync mutations wired to backend endpoints
+- Connection status, scope controls, and disconnect flow are functional
+- Backend Apple connection/scope/status/sync/disconnect endpoints are implemented
+- Phase 2 push-state scaffold implemented: `apple/direct` `calendarExports` mapping is persisted during sync runs
+- CalDAV client integrated (`tsdav`) with Apple credential validation on connect and real event upsert/delete transport in sync flows
+
+**Next Step**: Execute Phase 2 core sync logic (CalDAV event CRUD, push/pull reconciliation, and DONE marker parity).
 
 ## Goal
 Add Apple Calendar two-way sync with behavior parity to existing Google two-way sync, while keeping current Apple subscription and file export flows.
@@ -28,6 +38,7 @@ Add Apple Calendar two-way sync with behavior parity to existing Google two-way 
 ### Outcomes
 - Signed-off protocol and UX decisions.
 - Security model for Apple credentials finalized.
+- Decision document captured in-repo and referenced by implementation PRs.
 
 ### Work
 1. Finalize provider scope: iCloud CalDAV first.
@@ -46,6 +57,24 @@ Add Apple Calendar two-way sync with behavior parity to existing Google two-way 
 ### Exit Criteria
 - Technical design doc and API contract reviewed.
 - Security checklist approved.
+
+### Required Deliverable (add now)
+- Create `docs/APPLE_CALENDAR_SYNC_DESIGN_SECURITY_DECISIONS.md` with:
+  1. Provider scope and rationale (iCloud CalDAV first).
+  2. Credential lifecycle: capture, encryption, storage, rotation, disconnect behavior.
+  3. Logging policy: explicit redaction rules and prohibited fields.
+  4. Threat model summary: credential theft, replay, accidental logging, misconfiguration.
+  5. Operational guardrails: required env vars, startup checks, and failure modes.
+  6. API security contract: auth requirements, payload validation, error code strategy.
+
+### Phase 0 Checklist
+- [x] Design+security decision doc created.
+- [x] Design+security decision doc reviewed/sign-off.
+- [x] Redaction assertions added (Apple error sanitizer + server unit tests).
+- [x] Production env var validation documented (`APPLE_SYNC_ENCRYPTION_KEY`, optional CalDAV URL override).
+- [x] Explicit disconnect semantics documented (what is deleted locally vs remotely).
+
+Reference: `docs/APPLE_CALENDAR_SYNC_DESIGN_SECURITY_DECISIONS.md`
 
 ## Phase 1: Backend Foundation (Connection + Storage)
 ### Outcomes
@@ -138,6 +167,9 @@ Response:
 - Sensitive values are encrypted and never returned in API responses.
 
 ## Phase 2: Two-Way Sync Core Logic
+### Status
+🟡 **In Progress**: Endpoint flow/persistence are complete; CalDAV push transport and pull date-ingestion are implemented. DONE parity and full conflict policy completion remain.
+
 ### Outcomes
 - Manual Apple sync pushes local changes and pulls Apple changes.
 
@@ -155,27 +187,77 @@ Response:
    - Remove DONE event and create new next-cycle event.
 5. Remove out-of-scope events during scope reductions (same policy as Google).
 
+### Progress Notes (Phase 2)
+- ✅ Added `tsdav` dependency and initialized CalDAV client in Apple sync service.
+- ✅ Connect flow now validates Apple credentials against CalDAV login/fetch.
+- ✅ Sync now performs create/update transport for Apple calendar objects per task-kind.
+- ✅ Scope reduction now attempts deletion of out-of-scope Apple events.
+- ✅ Pull ingestion for remote date edits now updates local `nextMaintenanceDate` with backlog-state transitions.
+- ✅ Conservative conflict gate added: pull wins only when local has not changed since last sync.
+- ⏳ Remaining: DONE marker parity and conflict-policy tie-breaker finalization.
+
+### Phase 2 Execution Slices (tracking)
+#### Slice 2A: Push Transport Hardening
+- Status: ✅ Complete
+- Scope:
+  - create/update path via CalDAV
+  - out-of-scope deletion attempt
+  - `calendarExports` direct mapping updates
+
+#### Slice 2B: Pull Ingestion
+- Status: ✅ Complete
+- Scope:
+  - ✅ fetch Apple event dates by mapped objects
+  - ✅ detect remote date edits
+  - ✅ write back to `nextMaintenanceDate`
+  - ✅ increment `pulledChanges`
+
+#### Slice 2C: Conflict Resolution
+- Status: 🟡 In progress
+- Scope:
+  - ✅ define baseline timestamp source (`task.updatedAt` vs record `lastSyncedAt`)
+  - ✅ implement conservative local-vs-remote arbitration gate
+  - ⏳ document and finalize tie-breaker behavior for simultaneous edits
+
+#### Slice 2D: DONE Marker Parity
+- Status: ⏳ Planned
+- Scope:
+  - detect `[DONE]` markers from Apple event content
+  - set `lastMaintenanceDate`, roll forward `nextMaintenanceDate`
+  - clear backlog fields consistently with Google behavior
+
+#### Slice 2E: Resilience and Recovery
+- Status: ⏳ Planned
+- Scope:
+  - missing/deleted event remapping strategy
+  - partial failure handling and retry boundaries
+  - idempotent re-runs without duplicate event creation
+
 ### Exit Criteria
 - Push/pull parity verified against Google behavior on sample tasks.
 - No date regressions on timezone/date-only values.
 
-## Phase 3: Frontend Integration
+## Phase 3: Frontend Integration (UI Wiring)
+### Status
+✅ **Substantially Complete**: Apple two-way sync UI is wired to backend endpoints (connect/sync/scope/disconnect), with status and error handling.
+
 ### Outcomes
-- Users can connect, scope, sync, and disconnect Apple two-way sync from Export modal.
+- Keep Apple sync flows stable while Phase 2 CalDAV event logic is added.
+- Optional UX refinement: replace temporary prompt-based connect flow with in-modal form.
 
 ### Work
 - `client/src/components/export-schedule-modal.tsx`
-  1. Add Apple Two-Way Sync card beside existing Google section.
-  2. Add connect form (Apple ID + app-specific password).
-  3. Add sync actions:
-     - Sync active scope
-     - Update scope from current view
-  4. Add disconnect flow and user messaging.
-  5. Surface sync counters and failure toasts.
-- Keep existing Apple subscription and file export controls unchanged as fallback modes.
+  1. ✅ Replace stub mutations with real API calls to backend Apple sync endpoints.
+  2. ✅ Implement Apple connect submission path (currently prompt-based).
+  3. ✅ Wire disconnect flow with optional calendar deletion guidance.
+  4. ✅ Connect sync action buttons to `/api/calendar/apple/sync` endpoint.
+  5. ✅ Ensure error toasts and sync counters display correctly.
+  6. Optional: move connect inputs from prompts to an in-modal form.
+- Existing Apple subscription and file export controls in same modal remain unchanged (already functional).
 
 ### Exit Criteria
-- Apple two-way controls are usable and do not break existing Google or one-way Apple flows.
+- ✅ Real API mutations work end-to-end without breaking existing Google or one-way Apple flows.
+- ✅ All Apple sync state flows through working backend endpoints.
 
 ## Phase 4: Tests, Logging, and Docs
 ### Outcomes
@@ -193,6 +275,10 @@ Response:
   - endpoint validation and error contracts
 - Optional UI tests for modal state transitions.
 
+Local reliability note:
+- If Jest crashes with OOM while running Apple server tests, use `npm run test:server:apple-sync` (memory guardrails + in-band execution).
+- Troubleshooting reference: `docs/TEST_RELIABILITY_MULTI_PHASE_PLAN.md` (Jest OOM Troubleshooting section).
+
 ### Logging and Observability
 - Add provider-specific structured logs at INFO/WARN/ERROR.
 - Add optional `APPLE_SYNC_DEBUG` verbose logs (non-sensitive only).
@@ -209,8 +295,53 @@ Response:
 - Docs are complete for setup and support.
 
 ## Dependencies and Libraries
-- Add a CalDAV client library (evaluate `tsdav` first).
+- ✅ CalDAV client library added: `tsdav@2.2.1`.
 - Add/implement encryption helper for sensitive credentials.
+
+## Implementation Status Checklist
+
+### Already Implemented ✅
+- [x] Export modal UI redesign with tabs
+- [x] Apple two-way sync "Keep In Sync" card in Export Options tab
+- [x] AppleCalendarSyncStatus and AppleCalendarSyncScope interfaces
+- [x] Stub mutations (show "coming soon" toast)
+- [x] Connection status display structure
+- [x] Sync control buttons (disabled/placeholder)
+- [x] Disconnect button with confirmation dialog
+- [x] Selection picker reused for Apple scope
+
+### Not Yet Implemented ❌
+- [x] Phase 0: Design + security decisions document
+  - [x] `docs/APPLE_CALENDAR_SYNC_DESIGN_SECURITY_DECISIONS.md` created
+  - [x] Review/sign-off completed
+  - [x] Redaction and threat model review sign-off
+- [x] Phase 1: Backend Apple connection storage
+  - [x] MongoDB collection for Apple connections
+  - [x] Encrypted credential persistence
+  - [x] Connection CRUD methods in `storage.ts`
+- [x] Phase 1: Apple sync routes
+  - [x] `GET /api/calendar/apple/sync/status`
+  - [x] `POST /api/calendar/apple/sync/connect`
+  - [x] `POST /api/calendar/apple/sync/disconnect`
+  - [x] `GET /api/calendar/apple/sync/scope`
+  - [x] `PUT /api/calendar/apple/sync/scope`
+  - [x] `POST /api/calendar/apple/sync`
+- [x] Phase 1: Apple sync service scaffold
+  - [x] `server/services/appleCalendarSync.ts`
+  - [x] CalDAV client integration
+  - [x] Push event CRUD operations (create/update/delete for scope removals)
+- [ ] Phase 2: Two-way sync core logic
+  - [x] Push-state mapping scaffold (`calendarExports` `apple/direct` metadata + counters)
+  - [x] Push transport (local → Apple via CalDAV event CRUD)
+  - [x] Slice 2B: Pull (Apple → local)
+  - [ ] Slice 2C: Conflict resolution (tie-breaker/documentation completion)
+  - [ ] Slice 2D: DONE marker handling
+  - [ ] Slice 2E: Recovery and idempotency hardening
+- [x] Phase 3: Wire real mutations
+  - [x] Replace stub mutations with real API calls
+  - [x] Connect form implementation (prompt-based)
+  - [ ] Optional UX upgrade: in-modal credential form
+- [ ] Phase 4: Tests and docs
 
 ## Key Risks and Mitigations
 1. iCloud CalDAV auth/discovery variability.
@@ -223,17 +354,16 @@ Response:
    - Mitigation: mandatory encryption key, redaction tests, and security review.
 
 ## Suggested Ticket Breakdown
-1. Design + security decisions (Phase 0)
-2. Storage + encrypted credential plumbing
-3. Apple direct sync routes scaffold
-4. Apple connect/status/disconnect vertical slice
-5. Apple push sync implementation
-6. Apple pull sync + conflicts
-7. DONE marker parity
-8. Scope removal parity
-9. Export modal Apple two-way UI
-10. Server tests
-11. Docs and rollout notes
+1. Phase 0 decision doc (`APPLE_CALENDAR_SYNC_DESIGN_SECURITY_DECISIONS.md`) + review sign-off
+2. ~~CalDAV client integration and account/calendar discovery~~ ✅ Implemented
+3. ~~Slice 2A: Apple push sync implementation~~ ✅ Implemented (transport + mapping)
+4. Slice 2B: Apple pull ingestion
+5. Slice 2C: Conflict resolution policy + implementation
+6. Slice 2D: DONE marker parity
+7. Slice 2E: Recovery/idempotency hardening
+8. Server tests (Phase 4)
+9. Docs and rollout notes (Phase 4)
+10. Optional UX upgrade: in-modal Apple credential form
 
 ## Rollout Strategy
 1. Feature flag Apple two-way sync for internal testing.
