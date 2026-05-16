@@ -104,6 +104,32 @@ describe('hasDoneMarkerInAppleEventData', () => {
     expect(hasDoneMarkerInAppleEventData(ical)).toBe(true);
   });
 
+  test('detects plain DONE prefix in description', () => {
+    const ical = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'SUMMARY:Major Maintenance: Ceiling Fans',
+      'DESCRIPTION:DONE Maintenance task for Ceiling Fans',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    expect(hasDoneMarkerInAppleEventData(ical)).toBe(true);
+  });
+
+  test('does not treat "Last done:" metadata as DONE marker', () => {
+    const ical = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'SUMMARY:Major Maintenance: Ceiling Fans',
+      'DESCRIPTION:Regular maintenance\\nLast done: 2026-05-21\\nCategory: Electrical',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    expect(hasDoneMarkerInAppleEventData(ical)).toBe(false);
+  });
+
   test('returns false when marker is absent', () => {
     const ical = [
       'BEGIN:VCALENDAR',

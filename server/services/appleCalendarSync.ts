@@ -759,8 +759,22 @@ export function hasDoneMarkerInAppleEventData(iCalString: string): boolean {
   const normalized = iCalString.replace(/\r\n[ \t]/g, "");
   const summaryMatch = normalized.match(/(?:^|\n)SUMMARY(?:;[^:\n]*)?:(.*)$/im);
   const descriptionMatch = normalized.match(/(?:^|\n)DESCRIPTION(?:;[^:\n]*)?:(.*)$/im);
-  const haystack = `${summaryMatch?.[1] ?? ""}\n${descriptionMatch?.[1] ?? ""}`;
-  return /\[done\]/i.test(haystack);
+  const summary = String(summaryMatch?.[1] ?? "");
+  const description = String(descriptionMatch?.[1] ?? "");
+
+  // [DONE] marker can appear anywhere in SUMMARY/DESCRIPTION.
+  if (/\[done\]/i.test(summary) || /\[done\]/i.test(description)) {
+    return true;
+  }
+
+  // Plain DONE marker is only accepted at the start of a logical line.
+  // This avoids false positives from phrases like "Last done: 2026-05-21".
+  const hasLeadingDone = (value: string): boolean =>
+    value
+      .split(/\\n|\n/)
+      .some((line) => /^\s*done(?:\s|:|-|$)/i.test(line));
+
+  return hasLeadingDone(summary) || hasLeadingDone(description);
 }
 
 function getTimestamp(value: Date | string | null | undefined): number {
@@ -1386,11 +1400,21 @@ export async function runAppleCalendarTwoWaySync(
       }
     }
 
-    if (nextTask.calendarExports !== task.calendarExports) {
+    if (
+      nextTask.calendarExports !== task.calendarExports ||
+      nextTask.nextMaintenanceDate !== task.nextMaintenanceDate ||
+      nextTask.lastMaintenanceDate !== task.lastMaintenanceDate ||
+      nextTask.overdueBacklog !== task.overdueBacklog ||
+      nextTask.overdueSince !== task.overdueSince
+    ) {
       await storage.updateMaintenanceTask(
         task.id,
         {
           calendarExports: nextTask.calendarExports ?? null,
+          nextMaintenanceDate: nextTask.nextMaintenanceDate ?? null,
+          lastMaintenanceDate: nextTask.lastMaintenanceDate ?? null,
+          overdueBacklog: nextTask.overdueBacklog ?? null,
+          overdueSince: nextTask.overdueSince ?? null,
         },
         userId,
       );
