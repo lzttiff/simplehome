@@ -176,6 +176,28 @@ describe('User Management - Server Tests (Phase 5)', () => {
       expect(warningResponse.warningTasks[0]).toHaveProperty('intervalMonths');
     });
 
+    it('should warn using today as baseline when lastMaintenanceDate is missing', () => {
+      const warningResponse = {
+        message: 'Selected date exceeds recommended interval for some tasks.',
+        requiresConfirmation: true,
+        warningTasks: [
+          {
+            id: 'task-99',
+            title: 'Newly Added Task',
+            kind: 'minor',
+            // Baseline falls back to today when task has no lastMaintenanceDate
+            lastMaintenanceDate: '2026-05-20',
+            intervalMonths: 3,
+          },
+        ],
+      };
+
+      expect(warningResponse.requiresConfirmation).toBe(true);
+      expect(warningResponse.warningTasks[0].kind).toBe('minor');
+      expect(warningResponse.warningTasks[0].lastMaintenanceDate).toBe('2026-05-20');
+      expect(warningResponse.warningTasks[0].intervalMonths).toBe(3);
+    });
+
     it('should support per-task kind selections for bulk fill payload', () => {
       const payload = {
         date: '2026-09-01',

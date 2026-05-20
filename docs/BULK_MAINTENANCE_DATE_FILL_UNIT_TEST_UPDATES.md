@@ -68,6 +68,7 @@ For every bulk date fill feature update, include matching test changes in the sa
 - Updated `tests/server/user-management.test.ts` to validate payload structure for:
   - `taskSelections: [{ taskId, kinds: [...] }]`
   - Mixed selection types including both `minor` and `major`.
+  - Interval warning behavior when `lastMaintenanceDate` is missing (fallback baseline uses today).
 
 ## Calendar [DONE] Parity Coverage Added
 

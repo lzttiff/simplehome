@@ -35,6 +35,7 @@ This document outlines the proposed enhancements to the bulk maintenance date fi
 ## 2. Warning: Exceeding Recommended Maintenance Interval
 - **Behavior:**
   - For each task, check if the chosen date exceeds the recommended interval (minor/major) from `lastMaintenanceDate`.
+  - If `lastMaintenanceDate` is missing, use today's date as the fallback baseline for interval warning checks.
   - If violations exist, show a warning listing all affected tasks:
     > "Warning: The following tasks exceed the recommended interval for [minor/major] maintenance: [Task X, Task Y]. Do you want to proceed?"
   - Allow the user to proceed after acknowledging the warning.

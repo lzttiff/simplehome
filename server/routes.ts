@@ -854,6 +854,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const violatingTasks: { id: string; title: string; kind: BulkUpdateKind; lastMaintenanceDate: string | null }[] = [];
       const warningTasks: { id: string; title: string; kind: BulkUpdateKind; lastMaintenanceDate: string; intervalMonths: number }[] = [];
       const foundTasks = new Map<string, Awaited<ReturnType<typeof storage.getMaintenanceTask>>>();
+      const todayDateOnly = toDateOnlyFromLocalDate(new Date());
 
       // First pass: load tasks and validate without mutating data.
       for (const selection of normalizedSelections) {
@@ -874,14 +875,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           const intervalMonths = selectedKind === "minor" ? task.minorIntervalMonths : task.majorIntervalMonths;
-          if (lastMaintenanceDate && typeof intervalMonths === "number" && intervalMonths > 0) {
-            const recommendedDate = addMonthsToDateOnly(lastMaintenanceDate, intervalMonths);
+          const warningBaselineDateOnly = lastMaintenanceDate ?? todayDateOnly;
+          if (typeof intervalMonths === "number" && intervalMonths > 0) {
+            const recommendedDate = addMonthsToDateOnly(warningBaselineDateOnly, intervalMonths);
             if (recommendedDate && compareDateOnly(normalizedDate, recommendedDate) > 0) {
               warningTasks.push({
                 id: task.id,
                 title: task.title,
                 kind: selectedKind,
-                lastMaintenanceDate,
+                lastMaintenanceDate: warningBaselineDateOnly,
                 intervalMonths,
               });
             }
