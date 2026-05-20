@@ -565,6 +565,57 @@ export default function Dashboard() {
     setSelectedTaskIds(new Set());
   };
 
+  const parseBulkFillErrorPayload = (error: unknown): {
+    message?: string;
+    violatingTasks?: Array<{ title?: string; id?: string; lastMaintenanceDate?: string | null }>;
+    warningTasks?: Array<{ title?: string; id?: string; lastMaintenanceDate?: string; intervalMonths?: number }>;
+    requiresConfirmation?: boolean;
+  } | null => {
+    if (!(error instanceof Error)) {
+      return null;
+    }
+
+    const message = error.message || "";
+    const match = message.match(/^\d+:\s*(\{[\s\S]*\})$/);
+    if (!match) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(match[1]);
+    } catch {
+      return null;
+    }
+  };
+
+  const getBulkFillValidationMessage = (parsed: ReturnType<typeof parseBulkFillErrorPayload>): string | null => {
+    if (!parsed) {
+      return null;
+    }
+
+    const violating = Array.isArray(parsed.violatingTasks) ? parsed.violatingTasks : [];
+    if (violating.length > 0) {
+      const labels = violating.map((task) => task.title || task.id || "Unknown task");
+      const summary = labels.length <= 6 ? labels.join(", ") : `${labels.slice(0, 6).join(", ")}, and ${labels.length - 6} more`;
+      return `Selected date is earlier than last maintenance for: ${summary}.`;
+    }
+
+    return parsed.message || null;
+  };
+
+  const submitBulkFill = async (
+    payload: { kind: BulkFillKind; date: string; mode: BulkFillMode },
+    allowBeyondInterval = false,
+  ) => {
+    return apiRequest("POST", "/api/tasks/bulk-next-maintenance-date", {
+      taskIds: Array.from(selectedTaskIds),
+      kind: payload.kind,
+      date: payload.date,
+      mode: payload.mode,
+      allowBeyondInterval,
+    });
+  };
+
   const handleBulkFillSubmit = async (payload: { kind: BulkFillKind; date: string; mode: BulkFillMode }) => {
     if (selectedTaskIds.size === 0) {
       toast({
@@ -577,12 +628,7 @@ export default function Dashboard() {
 
     setBulkSubmitting(true);
     try {
-      const response = await apiRequest("POST", "/api/tasks/bulk-next-maintenance-date", {
-        taskIds: Array.from(selectedTaskIds),
-        kind: payload.kind,
-        date: payload.date,
-        mode: payload.mode,
-      });
+      let response = await submitBulkFill(payload, false);
       const result = await response.json();
 
       await queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
@@ -596,9 +642,53 @@ export default function Dashboard() {
       setShowBulkFillModal(false);
       setSelectedTaskIds(new Set());
     } catch (error: any) {
+      const parsed = parseBulkFillErrorPayload(error);
+      const warningTasks = Array.isArray(parsed?.warningTasks) ? parsed.warningTasks : [];
+
+      if (parsed?.requiresConfirmation && warningTasks.length > 0) {
+        const labels = warningTasks.map((task) => task.title || task.id || "Unknown task");
+        const summary = labels.length <= 8 ? labels.join(", ") : `${labels.slice(0, 8).join(", ")}, and ${labels.length - 8} more`;
+        const confirmed = window.confirm(
+          `Warning: The selected date goes beyond recommended ${payload.kind} interval for: ${summary}. Continue anyway?`,
+        );
+
+        if (confirmed) {
+          try {
+            const confirmedResponse = await submitBulkFill(payload, true);
+            const confirmedResult = await confirmedResponse.json();
+            await queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+            await queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+            toast({
+              title: "Bulk update complete",
+              description: `Updated ${confirmedResult.updated}, skipped ${confirmedResult.skipped}, failed ${confirmedResult.failed}.`,
+            });
+
+            setShowBulkFillModal(false);
+            setSelectedTaskIds(new Set());
+            return;
+          } catch (secondError: any) {
+            const secondParsed = parseBulkFillErrorPayload(secondError);
+            toast({
+              title: "Bulk update failed",
+              description: getBulkFillValidationMessage(secondParsed) || secondError?.message || "Failed to apply bulk maintenance date update.",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        toast({
+          title: "Bulk update cancelled",
+          description: "No changes were applied.",
+        });
+        return;
+      }
+
+      const validationMessage = getBulkFillValidationMessage(parsed);
       toast({
         title: "Bulk update failed",
-        description: error?.message || "Failed to apply bulk maintenance date update.",
+        description: validationMessage || error?.message || "Failed to apply bulk maintenance date update.",
         variant: "destructive",
       });
     } finally {

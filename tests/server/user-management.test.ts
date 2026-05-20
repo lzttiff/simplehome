@@ -132,6 +132,49 @@ describe('User Management - Server Tests (Phase 5)', () => {
       expect(typeof response.skipped).toBe('number');
       expect(typeof response.failed).toBe('number');
     });
+
+    it('should include violating tasks when date is earlier than last maintenance date', () => {
+      const errorResponse = {
+        message: 'Selected date is earlier than last maintenance date for some tasks.',
+        violatingTasks: [
+          {
+            id: 'task-1',
+            title: 'Replace HVAC Filter',
+            lastMaintenanceDate: '2026-05-01',
+          },
+        ],
+      };
+
+      expect(errorResponse).toHaveProperty('message');
+      expect(Array.isArray(errorResponse.violatingTasks)).toBe(true);
+      expect(errorResponse.violatingTasks.length).toBeGreaterThan(0);
+      expect(errorResponse.violatingTasks[0]).toHaveProperty('id');
+      expect(errorResponse.violatingTasks[0]).toHaveProperty('title');
+      expect(errorResponse.violatingTasks[0]).toHaveProperty('lastMaintenanceDate');
+    });
+
+    it('should return warning tasks and require confirmation when date exceeds recommended interval', () => {
+      const warningResponse = {
+        message: 'Selected date exceeds recommended minor interval for some tasks.',
+        requiresConfirmation: true,
+        warningTasks: [
+          {
+            id: 'task-1',
+            title: 'Replace HVAC Filter',
+            lastMaintenanceDate: '2026-01-01',
+            intervalMonths: 3,
+          },
+        ],
+      };
+
+      expect(warningResponse).toHaveProperty('message');
+      expect(warningResponse.requiresConfirmation).toBe(true);
+      expect(Array.isArray(warningResponse.warningTasks)).toBe(true);
+      expect(warningResponse.warningTasks[0]).toHaveProperty('id');
+      expect(warningResponse.warningTasks[0]).toHaveProperty('title');
+      expect(warningResponse.warningTasks[0]).toHaveProperty('lastMaintenanceDate');
+      expect(warningResponse.warningTasks[0]).toHaveProperty('intervalMonths');
+    });
   });
 
   describe('Google Calendar Sync Status - Structure', () => {

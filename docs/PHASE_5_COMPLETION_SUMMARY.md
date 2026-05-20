@@ -189,6 +189,7 @@ AccountEventLogger.logCalendarCleanupPartial(userId, {
 - Updated Phase 5 with Google Calendar tests
 - Updated operational checklist with calendar sync monitoring
 - Updated implementation slices to include PR 6 for calendar feature
+- Added dedicated bulk-fill test update tracker: `docs/BULK_MAINTENANCE_DATE_FILL_UNIT_TEST_UPDATES.md`
 - All phases now documented with acceptance criteria
 
 ---

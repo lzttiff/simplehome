@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Settings, KeyRound, Trash2, LogOut } from "lucide-react";
 
 interface AccountMenuProps {
-  user: User;
+  user?: User;
   onSettingsClick?: () => void;
 }
 
@@ -107,13 +107,16 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
     }
   };
 
-  const displayName = user.name || user.email;
+  const name = typeof user?.name === "string" ? user.name.trim() : "";
+  const email = typeof user?.email === "string" ? user.email.trim() : "";
+  const displayName = name || email || "User";
   const initials = displayName
-    .split(" ")
+    .split(/\s+/)
+    .filter(Boolean)
     .map((s) => s[0])
     .join("")
     .slice(0, 2)
-    .toUpperCase();
+    .toUpperCase() || "U";
 
   return (
     <>
@@ -132,8 +135,8 @@ export default function AccountMenu({ user, onSettingsClick }: AccountMenuProps)
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-0.5">
               <p className="text-sm font-medium leading-none truncate">{displayName}</p>
-              {user.name && (
-                <p className="text-xs leading-none text-muted-foreground truncate">{user.email}</p>
+              {name && email && (
+                <p className="text-xs leading-none text-muted-foreground truncate">{email}</p>
               )}
             </div>
           </DropdownMenuLabel>

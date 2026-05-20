@@ -105,6 +105,24 @@ The server binds to port `5000` by default. Use `PORT=3000 npm run dev` to chang
 npm test
 ```
 
+### 6.1) Bulk Date Fill feature testing policy
+
+When bulk maintenance date fill behavior changes, update unit tests in the same PR.
+
+- Proposal and implementation notes:
+  - `docs/bulk-maintenance-date-fill-enhancement.md`
+- Dedicated unit-test update log:
+  - `docs/BULK_MAINTENANCE_DATE_FILL_UNIT_TEST_UPDATES.md`
+
+Recommended verification command chain:
+
+```zsh
+npm run check && \
+npx jest --testMatch='**/client/src/pages/dashboard.test.tsx' && \
+npx jest --testMatch='**/tests/client/user-management-ui.test.tsx' && \
+npx jest --testMatch='**/tests/server/user-management.test.ts'
+```
+
 ## 7) Build and run production-like bundle
 
 ```zsh

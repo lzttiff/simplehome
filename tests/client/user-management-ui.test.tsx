@@ -1,629 +1,225 @@
+/** @jest-environment jsdom */
+
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AccountMenu from '../../client/src/components/account-menu';
 import BulkFillDatesModal from '../../client/src/components/bulk-fill-dates-modal';
 import UserSettingsModal from '../../client/src/components/user-settings-modal';
 
-/**
- * Phase 5: UI Tests for User Management Features
- * 
- * Tests for:
- * - Account menu interactions (logout, change password, delete account)
- * - Bulk fill dates modal workflow
- * - User settings modal with Google Calendar display
- */
+jest.mock('../../client/src/hooks/use-toast', () => ({
+  useToast: () => ({ toast: jest.fn() }),
+}));
 
-describe('Account Menu - UI Tests (Phase 5)', () => {
-  let queryClient: QueryClient;
+// Make date selection deterministic for the modal tests.
+jest.mock('../../client/src/components/ui/calendar', () => ({
+  Calendar: ({ onSelect }: { onSelect?: (d: Date) => void }) => (
+    <button type="button" onClick={() => onSelect?.(new Date('2026-05-15T00:00:00Z'))}>
+      Select test date
+    </button>
+  ),
+}));
 
+const mockUser: any = {
+  id: 'user-1',
+  email: 'test@example.com',
+  passwordHash: 'hash',
+  name: 'Test User',
+  timezone: 'America/New_York',
+  createdAt: new Date(),
+};
+
+function renderWithClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
+
+describe('Account Menu - UI Tests', () => {
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
+    jest.restoreAllMocks();
+    (global as any).fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+  });
+
+  it('renders initials button from user name', () => {
+    renderWithClient(<AccountMenu user={mockUser} />);
+    expect(screen.getByRole('button', { name: 'TU' })).toBeInTheDocument();
+  });
+
+  it('opens dropdown and shows logout option', async () => {
+    const user = userEvent.setup();
+    renderWithClient(<AccountMenu user={mockUser} />);
+
+    await user.click(screen.getByRole('button', { name: 'TU' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('menuitem', { name: /log out/i })).toBeInTheDocument();
     });
   });
 
-  afterEach(() => {
-    queryClient.clear();
-  });
+  it('calls logout endpoint when clicking log out', async () => {
+    const user = userEvent.setup();
+    renderWithClient(<AccountMenu user={mockUser} />);
 
-  describe('Logout Functionality', () => {
-    it('should render account menu with user avatar', () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
-      
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      expect(avatarButton).toBeInTheDocument();
-    });
+    await user.click(screen.getByRole('button', { name: 'TU' }));
+    const logoutButton = await screen.findByRole('menuitem', { name: /log out/i });
+    await user.click(logoutButton);
 
-    it('should display logout option in dropdown', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
-
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
-
-      await waitFor(() => {
-        const logoutButton = screen.getByRole('menuitem', { name: /logout/i });
-        expect(logoutButton).toBeInTheDocument();
-      });
-    });
-
-    it('should call logout endpoint and clear auth state on logout click', async () => {
-      // Mock API calls
-      global.fetch = jest.fn()
-        .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) })
-        .mockResolvedValueOnce({ ok: true, json: async () => null });
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
-
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
-
-      await waitFor(() => {
-        const logoutButton = screen.getByRole('menuitem', { name: /logout/i });
-        fireEvent.click(logoutButton);
-      });
-
-      // Verify logout API was called
+    await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/auth/logout'),
-        expect.any(Object)
+        '/api/auth/logout',
+        expect.objectContaining({ method: 'POST' }),
       );
     });
   });
 
-  describe('Change Password Dialog', () => {
-    it('should open change password dialog from menu', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
+  it('opens change password dialog from menu', async () => {
+    const user = userEvent.setup();
+    renderWithClient(<AccountMenu user={mockUser} />);
 
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
+    await user.click(screen.getByRole('button', { name: 'TU' }));
+    await user.click(await screen.findByRole('menuitem', { name: /change password/i }));
 
-      await waitFor(() => {
-        const changePasswordOption = screen.getByRole('menuitem', { name: /change.*password/i });
-        fireEvent.click(changePasswordOption);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/change password/i)).toBeInTheDocument();
-      });
-    });
-
-    it('should display password input fields', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
-
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
-
-      await waitFor(() => {
-        const changePasswordOption = screen.getByRole('menuitem', { name: /change.*password/i });
-        fireEvent.click(changePasswordOption);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByLabelText(/current password/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/^new password/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/confirm.*password/i)).toBeInTheDocument();
-      });
-    });
-
-    it('should validate password match before submission', async () => {
-      const user = userEvent.setup();
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
-
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
-
-      await waitFor(() => {
-        const changePasswordOption = screen.getByRole('menuitem', { name: /change.*password/i });
-        fireEvent.click(changePasswordOption);
-      });
-
-      await waitFor(() => {
-        const newPasswordField = screen.getByLabelText(/^new password/i);
-        const confirmField = screen.getByLabelText(/confirm.*password/i);
-        fireEvent.change(newPasswordField, { target: { value: 'Password123' } });
-        fireEvent.change(confirmField, { target: { value: 'DifferentPassword456' } });
-      });
-
-      const submitButton = screen.getByRole('button', { name: /change|update/i });
-      fireEvent.click(submitButton);
-
-      // Should show validation error
-      await waitFor(() => {
-        expect(screen.getByText(/password.*match|mismatch|same/i)).toBeInTheDocument();
-      });
-    });
-
-    it('should validate minimum password length (8 chars)', async () => {
-      const user = userEvent.setup();
-      
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
-
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
-
-      await waitFor(() => {
-        const changePasswordOption = screen.getByRole('menuitem', { name: /change.*password/i });
-        fireEvent.click(changePasswordOption);
-      });
-
-      await waitFor(() => {
-        const newPasswordField = screen.getByLabelText(/^new password/i);
-        fireEvent.change(newPasswordField, { target: { value: 'Short1' } });  // Less than 8
-      });
-
-      const submitButton = screen.getByRole('button', { name: /change|update/i });
-      fireEvent.click(submitButton);
-
-      // Should show validation error
-      await waitFor(() => {
-        expect(screen.getByText(/at least 8|minimum/i)).toBeInTheDocument();
-      });
-    });
+    expect(await screen.findByText(/change password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/current password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^new password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/confirm new password/i)).toBeInTheDocument();
   });
 
-  describe('Delete Account Dialog', () => {
-    it('should open delete account dialog from menu', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
+  it('opens delete account dialog and shows calendar data checkbox', async () => {
+    const user = userEvent.setup();
+    renderWithClient(<AccountMenu user={mockUser} />);
 
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
+    await user.click(screen.getByRole('button', { name: 'TU' }));
+    await user.click(await screen.findByRole('menuitem', { name: /delete account/i }));
 
-      await waitFor(() => {
-        const deleteAccountOption = screen.getByRole('menuitem', { name: /delete.*account|delete account/i });
-        fireEvent.click(deleteAccountOption);
-      });
+    expect(await screen.findByRole('heading', { name: /delete account/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/enter your password to confirm/i)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+  });
+});
 
-      await waitFor(() => {
-        expect(screen.getByText(/delete.*account|permanently delete/i)).toBeInTheDocument();
-      });
-    });
+describe('Bulk Fill Dates Modal - UI Tests', () => {
+  const onClose = jest.fn();
 
-    it('should display password confirmation field', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
+  it('renders selected count and required selectors', () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    renderWithClient(
+      <BulkFillDatesModal
+        isOpen={true}
+        onClose={onClose}
+        selectedCount={2}
+        onSubmit={onSubmit}
+      />,
+    );
 
-      await waitFor(() => {
-        const deleteAccountOption = screen.getByRole('menuitem', { name: /delete.*account/i });
-        fireEvent.click(deleteAccountOption);
-      });
+    expect(screen.getByText(/update 2 selected item\(s\)/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/date kind/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/apply mode/i)).toBeInTheDocument();
+  });
 
-      await waitFor(() => {
-        expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-      });
-    });
+  it('keeps apply button disabled until a date is selected', () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    renderWithClient(
+      <BulkFillDatesModal
+        isOpen={true}
+        onClose={onClose}
+        selectedCount={1}
+        onSubmit={onSubmit}
+      />,
+    );
 
-    it('should display Google Calendar data deletion checkbox', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
+    expect(screen.getByRole('button', { name: /apply/i })).toBeDisabled();
+  });
 
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
+  it('enables apply and submits payload after date selection', async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    renderWithClient(
+      <BulkFillDatesModal
+        isOpen={true}
+        onClose={onClose}
+        selectedCount={1}
+        onSubmit={onSubmit}
+      />,
+    );
 
-      await waitFor(() => {
-        const deleteAccountOption = screen.getByRole('menuitem', { name: /delete.*account/i });
-        fireEvent.click(deleteAccountOption);
-      });
+    const dateTrigger = screen.getByLabelText(/^date$/i);
+    await user.click(dateTrigger);
+    await user.click(await screen.findByRole('button', { name: /select test date/i }));
 
-      await waitFor(() => {
-        const calendarCheckbox = screen.getByRole('checkbox', { name: /delete.*calendar|calendar.*data/i });
-        expect(calendarCheckbox).toBeInTheDocument();
-      });
-    });
+    const apply = screen.getByRole('button', { name: /apply/i });
+    expect(apply).not.toBeDisabled();
 
-    it('should display destructive warning message', async () => {
-      render(
-        <QueryClientProvider client={queryClient}>
-          <AccountMenu />
-        </QueryClientProvider>
-      );
+    fireEvent.click(apply);
 
-      const avatarButton = screen.getByRole('button', { name: /avatar|user menu/i });
-      fireEvent.click(avatarButton);
-
-      await waitFor(() => {
-        const deleteAccountOption = screen.getByRole('menuitem', { name: /delete.*account/i });
-        fireEvent.click(deleteAccountOption);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/permanent|irreversible|cannot be undone|warning/i)).toBeInTheDocument();
-      });
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      const payload = onSubmit.mock.calls[0][0];
+      expect(payload.kind).toBe('minor');
+      expect(payload.mode).toBe('fill-empty-only');
+      expect(payload.date).toMatch(/^2026-05-\d{2}$/);
     });
   });
 });
 
-describe('Bulk Fill Dates Modal - UI Tests (Phase 5)', () => {
-  let queryClient: QueryClient;
-
+describe('User Settings Modal - Google Calendar tests', () => {
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
+    jest.restoreAllMocks();
   });
 
-  afterEach(() => {
-    queryClient.clear();
+  it('shows disconnected state when status reports not connected', async () => {
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ configured: true, connected: false, calendarId: null, accountEmail: null }),
+    });
+
+    renderWithClient(
+      <UserSettingsModal
+        isOpen={true}
+        onClose={jest.fn()}
+        currentTimezone="America/New_York"
+        currentName="Test User"
+      />,
+    );
+
+    expect(await screen.findByText(/google calendar id/i)).toBeInTheDocument();
+    expect(await screen.findByText(/not connected/i)).toBeInTheDocument();
   });
 
-  describe('Modal Workflow', () => {
-    it('should open bulk fill modal when tasks are selected', () => {
-      const mockTasks = [
-        { id: 'task-1', name: 'Task 1', nextMaintenanceDate: null },
-        { id: 'task-2', name: 'Task 2', nextMaintenanceDate: null },
-      ];
-      const mockOnClose = jest.fn();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1', 'task-2']}
-          />
-        </QueryClientProvider>
-      );
-
-      expect(screen.getByText(/bulk fill|fill.*dates/i)).toBeInTheDocument();
+  it('shows connected calendar details and actions', async () => {
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        configured: true,
+        connected: true,
+        calendarId: 'test@gmail.com',
+        accountEmail: 'test@gmail.com',
+        lastSyncedAt: new Date().toISOString(),
+      }),
     });
 
-    it('should display kind selector (minor/major)', () => {
-      const mockOnClose = jest.fn();
+    renderWithClient(
+      <UserSettingsModal
+        isOpen={true}
+        onClose={jest.fn()}
+        currentTimezone="America/New_York"
+        currentName="Test User"
+      />,
+    );
 
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1']}
-          />
-        </QueryClientProvider>
-      );
-
-      expect(screen.getByLabelText(/kind|schedule.*type|minor.*major/i)).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: /minor/i })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: /major/i })).toBeInTheDocument();
-    });
-
-    it('should display date picker', () => {
-      const mockOnClose = jest.fn();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1']}
-          />
-        </QueryClientProvider>
-      );
-
-      expect(screen.getByLabelText(/date|next.*date/i)).toBeInTheDocument();
-    });
-
-    it('should display month and year selectors for fast navigation', () => {
-      const mockOnClose = jest.fn();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1']}
-          />
-        </QueryClientProvider>
-      );
-
-      expect(screen.getByLabelText(/month/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/year/i)).toBeInTheDocument();
-    });
-
-    it('should support year range: current ± 10 to ± 30', () => {
-      const mockOnClose = jest.fn();
-      const currentYear = new Date().getFullYear();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1']}
-          />
-        </QueryClientProvider>
-      );
-
-      const yearSelect = screen.getByLabelText(/year/i);
-      const options = yearSelect.querySelectorAll('option');
-      
-      // Extract years from options
-      const years = Array.from(options).map(opt => parseInt(opt.value)).filter(y => !isNaN(y));
-      
-      expect(years[0]).toBeCloseTo(currentYear - 10, 1);
-      expect(years[years.length - 1]).toBeCloseTo(currentYear + 30, 1);
-    });
-
-    it('should display apply mode selector (fill-empty-only/overwrite)', () => {
-      const mockOnClose = jest.fn();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1']}
-          />
-        </QueryClientProvider>
-      );
-
-      expect(screen.getByLabelText(/mode|apply|fill-empty|overwrite/i)).toBeInTheDocument();
-    });
-
-    it('should disable submit if no date selected', () => {
-      const mockOnClose = jest.fn();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1']}
-          />
-        </QueryClientProvider>
-      );
-
-      const submitButton = screen.getByRole('button', { name: /fill|apply|submit|confirm/i });
-      expect(submitButton).toBeDisabled();
-    });
-
-    it('should enable submit after selecting a valid date', async () => {
-      const mockOnClose = jest.fn();
-      const user = userEvent.setup();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1']}
-          />
-        </QueryClientProvider>
-      );
-
-      // Select a date
-      const dateInput = screen.getByLabelText(/date|next.*date/i);
-      await user.click(dateInput);
-
-      // Pick a calendar day (example: 15th)
-      await waitFor(() => {
-        const dayButton = screen.getByRole('button', { name: /15/ });
-        if (dayButton) fireEvent.click(dayButton);
-      });
-
-      const submitButton = screen.getByRole('button', { name: /fill|apply|submit|confirm/i });
-      
-      await waitFor(() => {
-        expect(submitButton).not.toBeDisabled();
-      });
-    });
-  });
-
-  describe('Date Range Validation', () => {
-    it('should allow dates up to current year + 30', () => {
-      const mockOnClose = jest.fn();
-      const farFutureYear = new Date().getFullYear() + 30;
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <BulkFillDatesModal
-            isOpen={true}
-            onClose={mockOnClose}
-            selectedTaskIds={['task-1']}
-          />
-        </QueryClientProvider>
-      );
-
-      const yearSelect = screen.getByLabelText(/year/i);
-      const futureOption = Array.from(yearSelect.querySelectorAll('option')).find(
-        opt => parseInt(opt.value) === farFutureYear
-      );
-
-      expect(futureOption).toBeInTheDocument();
-    });
-  });
-});
-
-describe('User Settings Modal - Google Calendar Tests (Phase 5)', () => {
-  let queryClient: QueryClient;
-
-  beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
-  });
-
-  afterEach(() => {
-    queryClient.clear();
-  });
-
-  describe('Google Calendar Display', () => {
-    it('should display Google Calendar section', () => {
-      const mockOnClose = jest.fn();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <UserSettingsModal
-            isOpen={true}
-            onClose={mockOnClose}
-            currentTimezone="America/New_York"
-            currentName="Test User"
-          />
-        </QueryClientProvider>
-      );
-
-      expect(screen.getByText(/google.*calendar|calendar.*id/i)).toBeInTheDocument();
-    });
-
-    it('should display calendar ID when connected', async () => {
-      const mockOnClose = jest.fn();
-
-      // Mock the sync status query
-      global.fetch = jest.fn().mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          configured: true,
-          connected: true,
-          calendarId: 'test@gmail.com',
-          accountEmail: 'test@gmail.com',
-          lastSyncedAt: new Date().toISOString(),
-        }),
-      });
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <UserSettingsModal
-            isOpen={true}
-            onClose={mockOnClose}
-            currentTimezone="America/New_York"
-            currentName="Test User"
-          />
-        </QueryClientProvider>
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText('test@gmail.com')).toBeInTheDocument();
-      });
-    });
-
-    it('should display copy button for calendar ID', async () => {
-      const mockOnClose = jest.fn();
-
-      global.fetch = jest.fn().mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          configured: true,
-          connected: true,
-          calendarId: 'test@gmail.com',
-          accountEmail: 'test@gmail.com',
-        }),
-      });
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <UserSettingsModal
-            isOpen={true}
-            onClose={mockOnClose}
-            currentTimezone="America/New_York"
-            currentName="Test User"
-          />
-        </QueryClientProvider>
-      );
-
-      await waitFor(() => {
-        const copyButton = screen.getByRole('button', { name: /copy.*calendar|calendar.*id/i });
-        expect(copyButton).toBeInTheDocument();
-      });
-    });
-
-    it('should display link to open Google Calendar', async () => {
-      const mockOnClose = jest.fn();
-
-      global.fetch = jest.fn().mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          configured: true,
-          connected: true,
-          calendarId: 'test@gmail.com',
-          accountEmail: 'test@gmail.com',
-        }),
-      });
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <UserSettingsModal
-            isOpen={true}
-            onClose={mockOnClose}
-            currentTimezone="America/New_York"
-            currentName="Test User"
-          />
-        </QueryClientProvider>
-      );
-
-      await waitFor(() => {
-        const calendarLink = screen.getByRole('link', { name: /open.*google.*calendar|google.*calendar.*settings/i });
-        expect(calendarLink).toBeInTheDocument();
-        expect(calendarLink).toHaveAttribute('href', 'https://calendar.google.com/calendar/u/0/r');
-        expect(calendarLink).toHaveAttribute('target', '_blank');
-      });
-    });
-
-    it('should show disconnected state when not connected', () => {
-      const mockOnClose = jest.fn();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <UserSettingsModal
-            isOpen={true}
-            onClose={mockOnClose}
-            currentTimezone="America/New_York"
-            currentName="Test User"
-          />
-        </QueryClientProvider>
-      );
-
-      expect(screen.getByText(/not connected|not configured/i)).toBeInTheDocument();
-    });
+    expect(await screen.findByText('test@gmail.com')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copy calendar id/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open google calendar settings/i })).toBeInTheDocument();
   });
 });

@@ -21,6 +21,7 @@ import { storage } from "./storage";
 import { 
   insertMaintenanceTaskSchema, 
   insertQuestionnaireResponseSchema,
+  addMonthsToDateOnly,
   compareDateOnly,
   normalizeDateOnly,
   parseMaintenanceSchedule,
@@ -783,7 +784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tasks/bulk-next-maintenance-date", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const { taskIds, kind, date, mode } = req.body ?? {};
+      const { taskIds, kind, date, mode, allowBeyondInterval } = req.body ?? {};
 
       if (!Array.isArray(taskIds) || taskIds.length === 0) {
         return res.status(400).json({ message: "taskIds must be a non-empty array" });
@@ -813,14 +814,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let updated = 0;
       let skipped = 0;
       let failed = 0;
+      const violatingTasks: { id: string; title: string; lastMaintenanceDate: string | null }[] = [];
+      const warningTasks: { id: string; title: string; lastMaintenanceDate: string; intervalMonths: number }[] = [];
+      const foundTasks: Array<Awaited<ReturnType<typeof storage.getMaintenanceTask>>> = [];
 
+      // First pass: load tasks and validate without mutating data.
       for (const taskId of uniqueTaskIds) {
         const task = await storage.getMaintenanceTask(taskId, userId);
         if (!task) {
           failed += 1;
           continue;
         }
+        foundTasks.push(task);
 
+        // Check lastMaintenanceDate for the selected kind.
+        const lastMaintSchedule = parseMaintenanceSchedule(task.lastMaintenanceDate);
+        const lastMaintenanceDate = kind === "minor" ? lastMaintSchedule.minor : lastMaintSchedule.major;
+
+        if (lastMaintenanceDate && compareDateOnly(normalizedDate, lastMaintenanceDate) < 0) {
+          violatingTasks.push({ id: task.id, title: task.title, lastMaintenanceDate });
+          continue;
+        }
+
+        const intervalMonths = kind === "minor" ? task.minorIntervalMonths : task.majorIntervalMonths;
+        if (lastMaintenanceDate && typeof intervalMonths === "number" && intervalMonths > 0) {
+          const recommendedDate = addMonthsToDateOnly(lastMaintenanceDate, intervalMonths);
+          if (recommendedDate && compareDateOnly(normalizedDate, recommendedDate) > 0) {
+            warningTasks.push({
+              id: task.id,
+              title: task.title,
+              lastMaintenanceDate,
+              intervalMonths,
+            });
+          }
+        }
+      }
+
+      if (violatingTasks.length > 0) {
+        return res.status(400).json({
+          message: "Selected date is earlier than last maintenance date for some tasks.",
+          violatingTasks,
+        });
+      }
+
+      if (warningTasks.length > 0 && allowBeyondInterval !== true) {
+        return res.status(409).json({
+          message: `Selected date exceeds recommended ${kind} interval for some tasks.`,
+          warningTasks,
+          requiresConfirmation: true,
+        });
+      }
+
+      // Second pass: apply updates only after validation/confirmation.
+      for (const task of foundTasks) {
         const schedule = parseMaintenanceSchedule(task.nextMaintenanceDate);
         const existingValue = kind === "minor" ? schedule.minor : schedule.major;
 
@@ -835,7 +881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         const updatedTask = await storage.updateMaintenanceTask(
-          taskId,
+          task.id,
           { nextMaintenanceDate: serializeMaintenanceSchedule(nextSchedule) },
           userId,
         );
