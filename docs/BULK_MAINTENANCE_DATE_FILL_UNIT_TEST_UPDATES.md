@@ -56,3 +56,20 @@ For every bulk date fill feature update, include matching test changes in the sa
 - Phase 3 per-task minor/major/both selection:
   - Add tests for per-row selection state and payload composition.
   - Add tests for mixed selection scenarios in one bulk operation.
+
+## Phase 3 Coverage Added
+
+### Client UI
+- Updated `tests/client/user-management-ui.test.tsx` to validate:
+  - Per-task kind selector rendering in `BulkFillDatesModal`.
+  - Submit payload includes `taskSelections` with `minor`, `major`, or both per task.
+
+### Server Contract
+- Updated `tests/server/user-management.test.ts` to validate payload structure for:
+  - `taskSelections: [{ taskId, kinds: [...] }]`
+  - Mixed selection types including both `minor` and `major`.
+
+## Calendar [DONE] Parity Coverage Added
+
+- Updated `tests/server/googleCalendarSync.test.ts` to assert future `[DONE]` completion dates are clamped to today.
+- Updated `tests/server/appleCalendarSync.test.ts` to assert Apple sync follows the same clamped completion behavior via shared helper logic.

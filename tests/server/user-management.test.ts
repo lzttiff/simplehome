@@ -175,6 +175,25 @@ describe('User Management - Server Tests (Phase 5)', () => {
       expect(warningResponse.warningTasks[0]).toHaveProperty('lastMaintenanceDate');
       expect(warningResponse.warningTasks[0]).toHaveProperty('intervalMonths');
     });
+
+    it('should support per-task kind selections for bulk fill payload', () => {
+      const payload = {
+        date: '2026-09-01',
+        mode: 'overwrite',
+        taskSelections: [
+          { taskId: 'task-1', kinds: ['minor'] },
+          { taskId: 'task-2', kinds: ['major'] },
+          { taskId: 'task-3', kinds: ['minor', 'major'] },
+        ],
+      };
+
+      expect(payload).toHaveProperty('date');
+      expect(payload).toHaveProperty('mode');
+      expect(Array.isArray(payload.taskSelections)).toBe(true);
+      expect(payload.taskSelections[0]).toHaveProperty('taskId');
+      expect(payload.taskSelections[0]).toHaveProperty('kinds');
+      expect(payload.taskSelections[2].kinds).toEqual(['minor', 'major']);
+    });
   });
 
   describe('Google Calendar Sync Status - Structure', () => {

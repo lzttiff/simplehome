@@ -784,14 +784,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tasks/bulk-next-maintenance-date", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const { taskIds, kind, date, mode, allowBeyondInterval } = req.body ?? {};
+      const { taskIds, kind, taskSelections, date, mode, allowBeyondInterval } = req.body ?? {};
 
-      if (!Array.isArray(taskIds) || taskIds.length === 0) {
-        return res.status(400).json({ message: "taskIds must be a non-empty array" });
-      }
-      if (kind !== "minor" && kind !== "major") {
-        return res.status(400).json({ message: "kind must be 'minor' or 'major'" });
-      }
       if (mode !== "fill-empty-only" && mode !== "overwrite") {
         return res.status(400).json({ message: "mode must be 'fill-empty-only' or 'overwrite'" });
       }
@@ -804,48 +798,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "date must be a valid yyyy-mm-dd value" });
       }
 
-      const uniqueTaskIds = Array.from(
-        new Set(taskIds.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0)),
-      );
-      if (uniqueTaskIds.length === 0) {
-        return res.status(400).json({ message: "taskIds must contain valid string ids" });
+      type BulkUpdateKind = "minor" | "major";
+      const normalizedSelections: Array<{ taskId: string; kinds: BulkUpdateKind[] }> = [];
+
+      if (Array.isArray(taskSelections) && taskSelections.length > 0) {
+        for (const rawSelection of taskSelections) {
+          const selection = rawSelection as { taskId?: unknown; kinds?: unknown };
+          const taskId = typeof selection.taskId === "string" ? selection.taskId.trim() : "";
+          if (!taskId) {
+            return res.status(400).json({ message: "taskSelections must include valid taskId values" });
+          }
+
+          const kinds = Array.isArray(selection.kinds)
+            ? Array.from(
+                new Set(
+                  selection.kinds.filter((k): k is BulkUpdateKind => k === "minor" || k === "major"),
+                ),
+              )
+            : [];
+
+          if (kinds.length === 0) {
+            return res.status(400).json({ message: "Each taskSelection must include at least one kind: minor or major" });
+          }
+
+          const existing = normalizedSelections.find((entry) => entry.taskId === taskId);
+          if (!existing) {
+            normalizedSelections.push({ taskId, kinds });
+          } else {
+            existing.kinds = Array.from(new Set([...existing.kinds, ...kinds]));
+          }
+        }
+      } else {
+        if (!Array.isArray(taskIds) || taskIds.length === 0) {
+          return res.status(400).json({ message: "taskIds must be a non-empty array" });
+        }
+        if (kind !== "minor" && kind !== "major") {
+          return res.status(400).json({ message: "kind must be 'minor' or 'major'" });
+        }
+
+        const uniqueTaskIds = Array.from(
+          new Set(taskIds.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0)),
+        );
+        if (uniqueTaskIds.length === 0) {
+          return res.status(400).json({ message: "taskIds must contain valid string ids" });
+        }
+
+        for (const taskId of uniqueTaskIds) {
+          normalizedSelections.push({ taskId, kinds: [kind] });
+        }
       }
 
       let updated = 0;
       let skipped = 0;
       let failed = 0;
-      const violatingTasks: { id: string; title: string; lastMaintenanceDate: string | null }[] = [];
-      const warningTasks: { id: string; title: string; lastMaintenanceDate: string; intervalMonths: number }[] = [];
-      const foundTasks: Array<Awaited<ReturnType<typeof storage.getMaintenanceTask>>> = [];
+      const violatingTasks: { id: string; title: string; kind: BulkUpdateKind; lastMaintenanceDate: string | null }[] = [];
+      const warningTasks: { id: string; title: string; kind: BulkUpdateKind; lastMaintenanceDate: string; intervalMonths: number }[] = [];
+      const foundTasks = new Map<string, Awaited<ReturnType<typeof storage.getMaintenanceTask>>>();
 
       // First pass: load tasks and validate without mutating data.
-      for (const taskId of uniqueTaskIds) {
-        const task = await storage.getMaintenanceTask(taskId, userId);
+      for (const selection of normalizedSelections) {
+        const task = foundTasks.get(selection.taskId) ?? await storage.getMaintenanceTask(selection.taskId, userId);
         if (!task) {
           failed += 1;
           continue;
         }
-        foundTasks.push(task);
+        foundTasks.set(selection.taskId, task);
 
-        // Check lastMaintenanceDate for the selected kind.
         const lastMaintSchedule = parseMaintenanceSchedule(task.lastMaintenanceDate);
-        const lastMaintenanceDate = kind === "minor" ? lastMaintSchedule.minor : lastMaintSchedule.major;
+        for (const selectedKind of selection.kinds) {
+          const lastMaintenanceDate = selectedKind === "minor" ? lastMaintSchedule.minor : lastMaintSchedule.major;
 
-        if (lastMaintenanceDate && compareDateOnly(normalizedDate, lastMaintenanceDate) < 0) {
-          violatingTasks.push({ id: task.id, title: task.title, lastMaintenanceDate });
-          continue;
-        }
+          if (lastMaintenanceDate && compareDateOnly(normalizedDate, lastMaintenanceDate) < 0) {
+            violatingTasks.push({ id: task.id, title: task.title, kind: selectedKind, lastMaintenanceDate });
+            continue;
+          }
 
-        const intervalMonths = kind === "minor" ? task.minorIntervalMonths : task.majorIntervalMonths;
-        if (lastMaintenanceDate && typeof intervalMonths === "number" && intervalMonths > 0) {
-          const recommendedDate = addMonthsToDateOnly(lastMaintenanceDate, intervalMonths);
-          if (recommendedDate && compareDateOnly(normalizedDate, recommendedDate) > 0) {
-            warningTasks.push({
-              id: task.id,
-              title: task.title,
-              lastMaintenanceDate,
-              intervalMonths,
-            });
+          const intervalMonths = selectedKind === "minor" ? task.minorIntervalMonths : task.majorIntervalMonths;
+          if (lastMaintenanceDate && typeof intervalMonths === "number" && intervalMonths > 0) {
+            const recommendedDate = addMonthsToDateOnly(lastMaintenanceDate, intervalMonths);
+            if (recommendedDate && compareDateOnly(normalizedDate, recommendedDate) > 0) {
+              warningTasks.push({
+                id: task.id,
+                title: task.title,
+                kind: selectedKind,
+                lastMaintenanceDate,
+                intervalMonths,
+              });
+            }
           }
         }
       }
@@ -859,26 +898,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (warningTasks.length > 0 && allowBeyondInterval !== true) {
         return res.status(409).json({
-          message: `Selected date exceeds recommended ${kind} interval for some tasks.`,
+          message: "Selected date exceeds recommended interval for some tasks.",
           warningTasks,
           requiresConfirmation: true,
         });
       }
 
       // Second pass: apply updates only after validation/confirmation.
-      for (const task of foundTasks) {
-        const schedule = parseMaintenanceSchedule(task.nextMaintenanceDate);
-        const existingValue = kind === "minor" ? schedule.minor : schedule.major;
-
-        if (mode === "fill-empty-only" && existingValue) {
-          skipped += 1;
+      for (const selection of normalizedSelections) {
+        const task = foundTasks.get(selection.taskId);
+        if (!task) {
+          failed += 1;
           continue;
         }
 
-        const nextSchedule = {
-          ...schedule,
-          [kind]: normalizedDate,
-        };
+        const schedule = parseMaintenanceSchedule(task.nextMaintenanceDate);
+        const nextSchedule = { ...schedule };
+        let changed = false;
+
+        for (const selectedKind of selection.kinds) {
+          const existingValue = selectedKind === "minor" ? schedule.minor : schedule.major;
+          if (mode === "fill-empty-only" && existingValue) {
+            skipped += 1;
+            continue;
+          }
+
+          nextSchedule[selectedKind] = normalizedDate;
+          changed = true;
+        }
+
+        if (!changed) {
+          continue;
+        }
 
         const updatedTask = await storage.updateMaintenanceTask(
           task.id,
@@ -887,9 +938,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         if (updatedTask) {
-          updated += 1;
+          updated += selection.kinds.length;
         } else {
-          failed += 1;
+          failed += selection.kinds.length;
         }
       }
 

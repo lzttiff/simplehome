@@ -6,6 +6,8 @@ import {
   shouldRetryAppleSyncError,
   withAppleDavRetry,
 } from '../../server/services/appleCalendarSync';
+import { deriveDoneCompletionDates } from '../../server/services/googleCalendarSync';
+import type { MaintenanceTask } from '../../shared/schema';
 
 describe('sanitizeAppleSyncErrorMessage', () => {
   test('keeps approved safe messages', () => {
@@ -141,6 +143,28 @@ describe('hasDoneMarkerInAppleEventData', () => {
     ].join('\r\n');
 
     expect(hasDoneMarkerInAppleEventData(ical)).toBe(false);
+  });
+});
+
+describe('Apple [DONE] completion date behavior', () => {
+  test('clamps future completion date to today via shared completion helper', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-20T12:00:00.000Z'));
+
+    try {
+      const task = {
+        minorIntervalMonths: 6,
+        majorIntervalMonths: 24,
+      } as unknown as MaintenanceTask;
+
+      const out = deriveDoneCompletionDates(task, 'minor', '2026-06-15');
+
+      expect(out).not.toBeNull();
+      expect(out?.completedDateOnly).toBe('2026-05-20');
+      expect(out?.nextDateOnly).toBe('2026-11-20');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

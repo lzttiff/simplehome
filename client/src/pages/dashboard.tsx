@@ -21,7 +21,7 @@ import AddTaskModal from "@/components/add-task-modal";
 import ExportScheduleModal from "@/components/export-schedule-modal";
 import UserSettingsModal from "@/components/user-settings-modal";
 import AccountMenu from "@/components/account-menu";
-import BulkFillDatesModal, { BulkFillKind, BulkFillMode } from "@/components/bulk-fill-dates-modal";
+import BulkFillDatesModal, { BulkFillKind, BulkFillMode, BulkFillTaskSelectionPayload } from "@/components/bulk-fill-dates-modal";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -567,8 +567,8 @@ export default function Dashboard() {
 
   const parseBulkFillErrorPayload = (error: unknown): {
     message?: string;
-    violatingTasks?: Array<{ title?: string; id?: string; lastMaintenanceDate?: string | null }>;
-    warningTasks?: Array<{ title?: string; id?: string; lastMaintenanceDate?: string; intervalMonths?: number }>;
+    violatingTasks?: Array<{ title?: string; id?: string; kind?: BulkFillKind; lastMaintenanceDate?: string | null }>;
+    warningTasks?: Array<{ title?: string; id?: string; kind?: BulkFillKind; lastMaintenanceDate?: string; intervalMonths?: number }>;
     requiresConfirmation?: boolean;
   } | null => {
     if (!(error instanceof Error)) {
@@ -595,7 +595,10 @@ export default function Dashboard() {
 
     const violating = Array.isArray(parsed.violatingTasks) ? parsed.violatingTasks : [];
     if (violating.length > 0) {
-      const labels = violating.map((task) => task.title || task.id || "Unknown task");
+      const labels = violating.map((task) => {
+        const label = task.title || task.id || "Unknown task";
+        return task.kind ? `${label} (${task.kind})` : label;
+      });
       const summary = labels.length <= 6 ? labels.join(", ") : `${labels.slice(0, 6).join(", ")}, and ${labels.length - 6} more`;
       return `Selected date is earlier than last maintenance for: ${summary}.`;
     }
@@ -604,19 +607,18 @@ export default function Dashboard() {
   };
 
   const submitBulkFill = async (
-    payload: { kind: BulkFillKind; date: string; mode: BulkFillMode },
+    payload: { date: string; mode: BulkFillMode; taskSelections: BulkFillTaskSelectionPayload[] },
     allowBeyondInterval = false,
   ) => {
     return apiRequest("POST", "/api/tasks/bulk-next-maintenance-date", {
-      taskIds: Array.from(selectedTaskIds),
-      kind: payload.kind,
       date: payload.date,
       mode: payload.mode,
+      taskSelections: payload.taskSelections,
       allowBeyondInterval,
     });
   };
 
-  const handleBulkFillSubmit = async (payload: { kind: BulkFillKind; date: string; mode: BulkFillMode }) => {
+  const handleBulkFillSubmit = async (payload: { date: string; mode: BulkFillMode; taskSelections: BulkFillTaskSelectionPayload[] }) => {
     if (selectedTaskIds.size === 0) {
       toast({
         title: "No tasks selected",
@@ -646,10 +648,13 @@ export default function Dashboard() {
       const warningTasks = Array.isArray(parsed?.warningTasks) ? parsed.warningTasks : [];
 
       if (parsed?.requiresConfirmation && warningTasks.length > 0) {
-        const labels = warningTasks.map((task) => task.title || task.id || "Unknown task");
+        const labels = warningTasks.map((task) => {
+          const label = task.title || task.id || "Unknown task";
+          return task.kind ? `${label} (${task.kind})` : label;
+        });
         const summary = labels.length <= 8 ? labels.join(", ") : `${labels.slice(0, 8).join(", ")}, and ${labels.length - 8} more`;
         const confirmed = window.confirm(
-          `Warning: The selected date goes beyond recommended ${payload.kind} interval for: ${summary}. Continue anyway?`,
+          `Warning: The selected date goes beyond recommended interval for: ${summary}. Continue anyway?`,
         );
 
         if (confirmed) {
@@ -695,6 +700,10 @@ export default function Dashboard() {
       setBulkSubmitting(false);
     }
   };
+
+  const selectedTasksForBulkFill = sortedTasks
+    .filter((task) => selectedTaskIds.has(task.id))
+    .map((task) => ({ id: task.id, title: task.title }));
 
   if (tasksLoading) {
     return (
@@ -1052,6 +1061,7 @@ export default function Dashboard() {
         isOpen={showBulkFillModal}
         onClose={() => setShowBulkFillModal(false)}
         selectedCount={selectedCount}
+        selectedTasks={selectedTasksForBulkFill}
         isSubmitting={bulkSubmitting}
         onSubmit={handleBulkFillSubmit}
       />

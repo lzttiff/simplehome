@@ -1294,6 +1294,7 @@ export async function runAppleCalendarTwoWaySync(
 
         const hasDoneMarker = hasDoneMarkerInAppleEventData(remoteData);
         if (hasDoneMarker) {
+          // Shared with Google sync: future [DONE] completion dates are clamped to today.
           const completion = deriveDoneCompletionDates(
             nextTask,
             kind,

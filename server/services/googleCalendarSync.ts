@@ -212,10 +212,14 @@ export function deriveDoneCompletionDates(
   kind: SyncKind,
   completionDateRaw: string | null | undefined,
 ): { completedDateOnly: string; nextDateOnly: string } | null {
-  const completedDateOnly = normalizeDateOnly(completionDateRaw);
-  if (!completedDateOnly) {
+  const normalizedCompletedDateOnly = normalizeDateOnly(completionDateRaw);
+  if (!normalizedCompletedDateOnly) {
     return null;
   }
+
+  // [DONE] should never complete in the future.
+  const todayDateOnly = getTodayDateOnly();
+  const completedDateOnly = normalizedCompletedDateOnly > todayDateOnly ? todayDateOnly : normalizedCompletedDateOnly;
 
   const intervalMonths = kind === "minor" ? task.minorIntervalMonths : task.majorIntervalMonths;
   const nextDateOnly =

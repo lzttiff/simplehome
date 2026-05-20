@@ -23,27 +23,39 @@ import { cn } from "@/lib/utils";
 
 export type BulkFillKind = "minor" | "major";
 export type BulkFillMode = "fill-empty-only" | "overwrite";
+export type BulkFillTaskKindSelection = "minor" | "major" | "both";
+
+export type BulkFillTaskSelectionPayload = {
+  taskId: string;
+  kinds: BulkFillKind[];
+};
 
 interface BulkFillDatesModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedCount: number;
+  selectedTasks: Array<{ id: string; title: string }>;
   isSubmitting?: boolean;
-  onSubmit: (payload: { kind: BulkFillKind; date: string; mode: BulkFillMode }) => Promise<void>;
+  onSubmit: (payload: {
+    date: string;
+    mode: BulkFillMode;
+    taskSelections: BulkFillTaskSelectionPayload[];
+  }) => Promise<void>;
 }
 
 export default function BulkFillDatesModal({
   isOpen,
   onClose,
   selectedCount,
+  selectedTasks,
   isSubmitting = false,
   onSubmit,
 }: BulkFillDatesModalProps) {
-  const [kind, setKind] = useState<BulkFillKind>("minor");
   const [date, setDate] = useState<Date | null>(null);
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [mode, setMode] = useState<BulkFillMode>("fill-empty-only");
+  const [taskSelections, setTaskSelections] = useState<Record<string, BulkFillTaskKindSelection>>({});
   const currentYear = new Date().getFullYear();
   const minYear = currentYear - 10;
   const maxYear = currentYear + 30;
@@ -72,20 +84,57 @@ export default function BulkFillDatesModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setKind("minor");
       setDate(null);
       setMode("fill-empty-only");
       setCalendarMonth(new Date());
       setCalendarOpen(false);
+      setTaskSelections({});
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setTaskSelections((prev) => {
+      const next: Record<string, BulkFillTaskKindSelection> = {};
+      for (const task of selectedTasks) {
+        next[task.id] = prev[task.id] ?? "both";
+      }
+      return next;
+    });
+  }, [isOpen, selectedTasks]);
+
+  const kindsForSelection = (selection: BulkFillTaskKindSelection): BulkFillKind[] => {
+    if (selection === "minor") return ["minor"];
+    if (selection === "major") return ["major"];
+    return ["minor", "major"];
+  };
+
+  const normalizedSelections = selectedTasks
+    .map((task) => {
+      const selection = taskSelections[task.id] ?? "both";
+      return {
+        taskId: task.id,
+        kinds: kindsForSelection(selection),
+      };
+    })
+    .filter((entry) => entry.kinds.length > 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) {
       return;
     }
-    await onSubmit({ kind, date: toDateOnlyString(date), mode });
+    if (normalizedSelections.length === 0) {
+      return;
+    }
+    await onSubmit({
+      date: toDateOnlyString(date),
+      mode,
+      taskSelections: normalizedSelections,
+    });
   };
 
   return (
@@ -100,17 +149,28 @@ export default function BulkFillDatesModal({
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
           <div className="space-y-2">
-            <Label htmlFor="bulk-kind">Date kind</Label>
-            <select
-              id="bulk-kind"
-              value={kind}
-              onChange={(e) => setKind(e.target.value as BulkFillKind)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              disabled={isSubmitting}
-            >
-              <option value="minor">Minor</option>
-              <option value="major">Major</option>
-            </select>
+            <Label>Per-task schedule kind</Label>
+            <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 divide-y">
+              {selectedTasks.map((task) => (
+                <div key={task.id} className="grid grid-cols-[1fr_auto] items-center gap-3 px-3 py-2">
+                  <span className="text-sm text-gray-700 truncate" title={task.title}>{task.title}</span>
+                  <select
+                    aria-label={`Kind for ${task.title}`}
+                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    value={taskSelections[task.id] ?? "both"}
+                    onChange={(e) => {
+                      const value = e.target.value as BulkFillTaskKindSelection;
+                      setTaskSelections((prev) => ({ ...prev, [task.id]: value }));
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    <option value="minor">Minor only</option>
+                    <option value="major">Major only</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -206,7 +266,7 @@ export default function BulkFillDatesModal({
             <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || selectedCount === 0 || !date}>
+            <Button type="submit" disabled={isSubmitting || selectedCount === 0 || !date || normalizedSelections.length === 0}>
               {isSubmitting ? "Applying..." : "Apply"}
             </Button>
           </div>

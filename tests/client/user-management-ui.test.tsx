@@ -119,12 +119,17 @@ describe('Bulk Fill Dates Modal - UI Tests', () => {
         isOpen={true}
         onClose={onClose}
         selectedCount={2}
+        selectedTasks={[
+          { id: 'task-1', title: 'Task 1' },
+          { id: 'task-2', title: 'Task 2' },
+        ]}
         onSubmit={onSubmit}
       />,
     );
 
     expect(screen.getByText(/update 2 selected item\(s\)/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/date kind/i)).toBeInTheDocument();
+    expect(screen.getByText(/per-task schedule kind/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/kind for task 1/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/apply mode/i)).toBeInTheDocument();
   });
 
@@ -135,6 +140,7 @@ describe('Bulk Fill Dates Modal - UI Tests', () => {
         isOpen={true}
         onClose={onClose}
         selectedCount={1}
+        selectedTasks={[{ id: 'task-1', title: 'Task 1' }]}
         onSubmit={onSubmit}
       />,
     );
@@ -150,6 +156,7 @@ describe('Bulk Fill Dates Modal - UI Tests', () => {
         isOpen={true}
         onClose={onClose}
         selectedCount={1}
+        selectedTasks={[{ id: 'task-1', title: 'Task 1' }]}
         onSubmit={onSubmit}
       />,
     );
@@ -166,9 +173,11 @@ describe('Bulk Fill Dates Modal - UI Tests', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledTimes(1);
       const payload = onSubmit.mock.calls[0][0];
-      expect(payload.kind).toBe('minor');
       expect(payload.mode).toBe('fill-empty-only');
       expect(payload.date).toMatch(/^2026-05-\d{2}$/);
+      expect(payload.taskSelections).toEqual([
+        { taskId: 'task-1', kinds: ['minor', 'major'] },
+      ]);
     });
   });
 });

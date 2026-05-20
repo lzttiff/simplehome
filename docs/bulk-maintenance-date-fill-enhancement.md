@@ -43,16 +43,21 @@ This document outlines the proposed enhancements to the bulk maintenance date fi
 
 ## 3. Per-Task Minor/Major Event Selection
 - **UI/UX:**
-  - In the bulk fill dialog, display a list/table of all tasks eligible for date update.
-  - For each task, provide a dropdown or toggle with options:
+  - In the bulk fill dialog, display a list/table of selected tasks eligible for date update.
+  - For each task, provide a dropdown with options:
     - Minor only
     - Major only
     - Both
-  - Optionally, provide a "Set all" control for convenience, but allow per-task overrides.
 
 - **Behavior:**
   - The user selects which event type(s) (minor, major, or both) to update for each task.
   - The bulk operation applies the chosen date only to the selected event type(s) for each task.
+  - Backend accepts `taskSelections` payload and validates each selected kind independently.
+  - Warning/error responses include task and kind details (for example `Task A (major)`).
+
+- **Implementation Status:**
+  - Implemented in `BulkFillDatesModal` and dashboard submit flow.
+  - Legacy payload (`taskIds` + `kind`) remains supported for backward compatibility.
 
 ---
 

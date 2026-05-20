@@ -125,6 +125,21 @@ describe('deriveDoneCompletionDates', () => {
 
     expect(out).toBeNull();
   });
+
+  test('clamps future completion date to today when [DONE] date is in the future', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-20T10:00:00.000Z'));
+    try {
+      const task = createTask({ minorIntervalMonths: 6 });
+      const out = deriveDoneCompletionDates(task, 'minor', '2026-06-15');
+
+      expect(out).not.toBeNull();
+      expect(out?.completedDateOnly).toBe('2026-05-20');
+      expect(out?.nextDateOnly).toBe('2026-11-20');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe('buildCalendarTaskDescription', () => {
