@@ -2,7 +2,6 @@ import type express from "express";
 import { randomBytes } from "crypto";
 import { google, type calendar_v3 } from "googleapis";
 import {
-  addMonthsToDateOnly,
   normalizeDateOnly,
   normalizeCalendarExports,
   serializeCalendarExports,
@@ -10,7 +9,10 @@ import {
   type MaintenanceTask,
 } from "@shared/schema";
 import { storage } from "../storage";
+import { deriveDoneCompletionDates } from "./calendarDoneHandling";
 import { logWithLevel } from "./logWithLevel";
+
+export { deriveDoneCompletionDates } from "./calendarDoneHandling";
 
 export type GoogleSyncSelection = {
   taskId: string;
@@ -205,34 +207,6 @@ function hasDoneMarker(event: calendar_v3.Schema$Event | null | undefined): bool
   if (!event) return false;
   const text = `${event.summary ?? ""}\n${event.description ?? ""}`;
   return /\[done\]/i.test(text);
-}
-
-export function deriveDoneCompletionDates(
-  task: MaintenanceTask,
-  kind: SyncKind,
-  completionDateRaw: string | null | undefined,
-): { completedDateOnly: string; nextDateOnly: string } | null {
-  const normalizedCompletedDateOnly = normalizeDateOnly(completionDateRaw);
-  if (!normalizedCompletedDateOnly) {
-    return null;
-  }
-
-  // [DONE] should never complete in the future.
-  const todayDateOnly = getTodayDateOnly();
-  const completedDateOnly = normalizedCompletedDateOnly > todayDateOnly ? todayDateOnly : normalizedCompletedDateOnly;
-
-  const intervalMonths = kind === "minor" ? task.minorIntervalMonths : task.majorIntervalMonths;
-  const nextDateOnly =
-    normalizeDateOnly(
-      typeof intervalMonths === "number" && intervalMonths > 0
-        ? addMonthsToDateOnly(completedDateOnly, intervalMonths)
-        : completedDateOnly,
-    ) ?? completedDateOnly;
-
-  return {
-    completedDateOnly,
-    nextDateOnly,
-  };
 }
 
 function getTodayDateOnly(): string {

@@ -9,7 +9,8 @@ import {
   type CalendarExportRecord,
   type MaintenanceTask,
 } from "@shared/schema";
-import { deriveDoneCompletionDates, deriveRescheduleBacklogState } from "./googleCalendarSync";
+import { deriveDoneCompletionDates } from "./calendarDoneHandling";
+import { deriveRescheduleBacklogState } from "./googleCalendarSync";
 
 type AppleSyncSelection = {
   taskId: string;
