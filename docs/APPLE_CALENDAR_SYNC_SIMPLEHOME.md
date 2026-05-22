@@ -23,7 +23,13 @@ Apple-specific security delta:
 - `APPLE_SYNC_DEBUG` is opt-in and should remain disabled in production by default.
 - `APPLE_CALDAV_SERVER_URL` may be overridden for advanced deployments.
 
+Policy ownership note:
+- Shared security/config policy is maintained only in the maintainer guide to avoid drift.
+- This document intentionally keeps provider-specific behavior and implementation details only.
+
 ## Environment Setup
+
+Canonical environment variable catalog, migration mapping, and deprecation timelines are maintained in [MAINTAINER_CONFIGURATION_AND_DEBUGGING.md](MAINTAINER_CONFIGURATION_AND_DEBUGGING.md).
 
 ### Required Variables
 

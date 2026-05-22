@@ -17,6 +17,10 @@ Google-specific security delta:
 - `GOOGLE_SYNC_DEBUG` is opt-in and should remain disabled in production by default.
 - OAuth callback behavior depends on correctly configured public origin (`PUBLIC_BASE_URL`) and valid session/state handling.
 
+Policy ownership note:
+- Shared security/config policy is maintained only in the maintainer guide to avoid drift.
+- This document intentionally keeps provider-specific behavior and implementation details only.
+
 ## Modes
 
 ### 1) Two-way direct sync

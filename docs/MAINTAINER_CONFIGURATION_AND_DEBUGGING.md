@@ -21,7 +21,7 @@ Checklist:
 - [x] AI per-user configuration tech debt captured with backlog items and acceptance criteria
 
 Remaining from Phase 1:
-- [ ] Optional: attach code-reference appendix (file/line references) for each finding if auditors require traceability
+- [x] Code-reference appendix (file/line references) completed for the documented findings
 
 ### Current state summary
 - Provider auth is intentionally different:
@@ -61,6 +61,9 @@ Remaining from Phase 1:
 | Apple sync uses per-user credential encryption with app-level key | server/services/appleCalendarSync.ts:211, server/services/appleCalendarSync.ts:231, server/services/appleCalendarSync.ts:246, server/services/appleCalendarSync.ts:1113 |
 | Shared security controls exist at app level | server/index.ts:20, server/services/logWithLevel.ts:3, server/services/calendarSyncAudit.ts:14, server/services/calendarSyncAudit.ts:16 |
 | Provider-specific debug/config controls remain fragmented | server/services/googleCalendarSync.ts:97, server/services/appleCalendarSync.ts:110, server/services/appleCalendarSync.ts:436 |
+
+### Phase 1 appendix status
+- Completed: code-reference appendix is now present for all Phase 1 findings documented above.
 
 ## Phase 2: Security Model Consolidation
 
@@ -270,17 +273,29 @@ Definition of done:
 - Implement target-first, legacy-fallback reads for each mapped variable.
 - Emit [CONFIG_DEPRECATION] warning logs only when fallback is used.
 - Add unit tests for resolution order and warning emission.
-- Add one release-note entry per migrated variable with deprecation timeline.
+- [x] Add one release-note entry per migrated variable with deprecation timeline.
 
 Definition of done:
 - Existing deployments continue to function unchanged.
 - New variable names are honored first.
 - Legacy usage is measurable from logs.
 
+### Phase 3 release notes
+
+Use these notes in the release summary / deployment notes when communicating the migration:
+
+- Apple calendar encryption key migration: `CALENDAR_CREDENTIALS_ENCRYPTION_KEY` is now the preferred variable. `APPLE_SYNC_ENCRYPTION_KEY` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
+- OpenAI key normalization: `OPENAI_API_KEY` is now the preferred variable. `OPENAI_API_KEY_ENV_VAR` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
+- Mongo connection normalization: `MONGODB_URL` is now the preferred variable. `DATABASE_URL` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
+- Calendar feed secret normalization: `CALENDAR_FEED_SECRET` is now the preferred variable. `ADMIN_TOKEN` remains supported as the fallback path for calendar feed signing during the migration window and emits `[CONFIG_DEPRECATION]` when used.
+
+Release-note language to reuse:
+- "Phase 3 configuration standardization is now active. New deployments should prefer the target variable names above. Legacy names remain temporarily supported for compatibility and will emit deprecation warnings until the removal window."
+
 ### Phase 4 implementation tasks (documentation consolidation)
-- Update provider docs to retain provider deltas only and link back to this canonical guide.
-- Remove duplicated policy prose that can drift from this file.
-- Add a lightweight docs lint check in CI for required cross-links.
+- [x] Update provider docs to retain provider deltas only and link back to this canonical guide.
+- [x] Remove duplicated policy prose that can drift from this file.
+- [x] Add a lightweight docs lint check in CI for required cross-links.
 
 Definition of done:
 - Security/config policy is edited in one canonical file.

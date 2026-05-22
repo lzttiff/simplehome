@@ -1,0 +1,46 @@
+name: Docs Consistency Guard
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  provider-doc-link-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify provider docs link back to canonical maintainer guide
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for doc in \
+            docs/GOOGLE_CALENDAR_SYNC_SIMPLEHOME.md \
+            docs/APPLE_CALENDAR_SYNC_SIMPLEHOME.md; do
+            if ! grep -q '\[MAINTAINER_CONFIGURATION_AND_DEBUGGING.md\]' "$doc"; then
+              echo "Missing maintainer-guide link in $doc"
+              exit 1
+            fi
+            if ! grep -q 'Security Model (Provider Delta)' "$doc"; then
+              echo "Missing provider delta security section in $doc"
+              exit 1
+            fi
+          done
+
+      - name: Verify canonical policy text stays centralized
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for doc in \
+            docs/GOOGLE_CALENDAR_SYNC_SIMPLEHOME.md \
+            docs/APPLE_CALENDAR_SYNC_SIMPLEHOME.md; do
+            if grep -q 'Canonical shared security contract' "$doc"; then
+              echo "Canonical security contract text should not be duplicated in $doc"
+              exit 1
+            fi
+          done
