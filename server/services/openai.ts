@@ -1,9 +1,12 @@
 import OpenAI from "openai";
 import { AISuggestion } from "@shared/aiSuggestion";
+import { getOpenAiApiKey } from "./runtimeConfig";
+import { logWithLevel } from "./logWithLevel";
+import { redactSensitiveText } from "./securityRedaction";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "default_key"
+  apiKey: getOpenAiApiKey() || "default_key"
 });
 
 export interface PropertyAssessment {
@@ -80,7 +83,7 @@ Respond with valid JSON in this exact format:
     return result.tasks || [];
 
   } catch (error) {
-    console.error("Error generating maintenance tasks:", error);
+    logWithLevel("ERROR", "Error generating maintenance tasks:", redactSensitiveText(error, 500));
     throw new Error("Failed to generate AI maintenance suggestions");
   }
 }
@@ -133,7 +136,7 @@ Respond with valid JSON in this format:
     return result.suggestions || [];
 
   } catch (error) {
-    console.error("Error generating quick suggestions:", error);
+    logWithLevel("ERROR", "Error generating quick suggestions:", redactSensitiveText(error, 500));
     throw new Error("Failed to generate AI suggestions");
   }
 }

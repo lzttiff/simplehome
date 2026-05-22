@@ -4,9 +4,11 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { OpenAI } from "openai";
 import { normalizeDateOnly } from "../../shared/schema";
+import { getDefaultAiProvider, getOpenAiApiKey } from "./runtimeConfig";
+import { redactSensitiveText } from "./securityRedaction";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "default_key"
+  apiKey: getOpenAiApiKey() || "default_key"
 });
 
 type AiProvider = "openai" | "gemini";
@@ -413,7 +415,7 @@ Respond ONLY with valid JSON exactly matching the schema above. No explanations,
   // Support provider selection with automatic failover.
   const oneWeekFromToday = new Date();
   oneWeekFromToday.setDate(oneWeekFromToday.getDate() + 7);
-  const primaryProvider = ((item as any).provider || process.env.DEFAULT_AI_PROVIDER || "gemini") as AiProvider;
+  const primaryProvider = ((item as any).provider || getDefaultAiProvider() || "gemini") as AiProvider;
   const secondaryProvider: AiProvider = primaryProvider === "gemini" ? "openai" : "gemini";
   const providersToTry: AiProvider[] = [primaryProvider, secondaryProvider];
   let lastFailure = "Unknown AI generation failure";
@@ -443,7 +445,7 @@ Respond ONLY with valid JSON exactly matching the schema above. No explanations,
         details: normalized.error,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = redactSensitiveText(error, 500);
       lastFailure = `${provider}: ${errorMessage}`;
       pushDiagnostic({ provider, itemName: item.name, error: "Provider request failed", details: errorMessage });
     }
@@ -471,7 +473,7 @@ export async function generateCategoryMaintenanceSchedules(items: CatalogItem[])
     try {
       result = await generateMaintenanceSchedule(item);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = redactSensitiveText(error, 500);
       logWithLevel("ERROR", `[AI] Failed to generate maintenance schedule for ${item.name}: ${errorMessage}`);
       result = {
         error: "Provider request failed after retries",

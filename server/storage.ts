@@ -18,6 +18,7 @@ import {
   serializeMaintenanceSchedule,
 } from "@shared/schema";
 import { randomUUID, createHash } from "crypto";
+import { getMongoUrl } from "./services/runtimeConfig";
 
 // Generate deterministic UUID v5-like ID from a namespace and name
 function deterministicUUID(namespace: string, name: string): string {
@@ -225,7 +226,7 @@ export class MongoDBStorage implements IStorage {
   private initialized = false;
 
   constructor() {
-    const mongoUrl = process.env.MONGODB_URL || process.env.DATABASE_URL || "mongodb://localhost:27017";
+    const mongoUrl = getMongoUrl() || "mongodb://localhost:27017";
     const dbName = process.env.MONGODB_DB_NAME || "simplehome";
     this.client = new MongoClient(mongoUrl);
     // Note: actual connection happens in initialize()

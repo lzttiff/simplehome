@@ -45,6 +45,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
+import { getCalendarFeedSecret as getRuntimeCalendarFeedSecret } from "./services/runtimeConfig";
 import {
   buildCalendarTaskDescription,
   createGoogleCalendarAuthorizationUrl,
@@ -132,7 +133,7 @@ function compressedBase64UrlDecode(input: string): string {
 }
 
 function getCalendarFeedSecret(): string {
-  return process.env.CALENDAR_FEED_SECRET || process.env.ADMIN_TOKEN || "dev-calendar-feed-secret";
+  return getRuntimeCalendarFeedSecret();
 }
 
 function signFeedPayload(payload: string): string {

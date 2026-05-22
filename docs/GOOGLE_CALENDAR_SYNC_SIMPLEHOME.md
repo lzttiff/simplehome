@@ -7,6 +7,16 @@ SimpleHome supports two Google calendar flows:
 
 This document describes how the current implementation works and what data moves in each direction.
 
+## Security Model (Provider Delta)
+
+Canonical shared security policy lives in:
+- [MAINTAINER_CONFIGURATION_AND_DEBUGGING.md](MAINTAINER_CONFIGURATION_AND_DEBUGGING.md)
+
+Google-specific security delta:
+- Uses OAuth app credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) plus per-user OAuth tokens.
+- `GOOGLE_SYNC_DEBUG` is opt-in and should remain disabled in production by default.
+- OAuth callback behavior depends on correctly configured public origin (`PUBLIC_BASE_URL`) and valid session/state handling.
+
 ## Modes
 
 ### 1) Two-way direct sync
@@ -142,3 +152,7 @@ Expected result:
 Troubleshooting:
 - If you use subscription feeds, DONE is ignored (one-way mode).
 - Optional verbose sync diagnostics can be enabled with `GOOGLE_SYNC_DEBUG=true`.
+
+## Related Documentation
+
+- [MAINTAINER_CONFIGURATION_AND_DEBUGGING.md](MAINTAINER_CONFIGURATION_AND_DEBUGGING.md) - Centralized environment variable reference and debugging workflows.

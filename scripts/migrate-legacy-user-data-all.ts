@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { MongoClient } from "mongodb";
+import { getMongoDbNameForScript, getMongoUrlForScript } from "./envConfig";
 
 type Flags = {
   dryRun: boolean;
@@ -23,8 +24,8 @@ async function main() {
   const flags = parseArgs(process.argv.slice(2));
   const execute = flags.apply && !flags.dryRun;
 
-  const mongoUrl = process.env.MONGODB_URL || process.env.DATABASE_URL || "mongodb://localhost:27017";
-  const dbName = process.env.MONGODB_DB_NAME || "simplehome";
+  const mongoUrl = getMongoUrlForScript("script-migrate-legacy-user-data-all");
+  const dbName = getMongoDbNameForScript();
 
   const client = new MongoClient(mongoUrl);
   await client.connect();

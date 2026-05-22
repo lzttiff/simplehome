@@ -11,6 +11,9 @@ import {
 } from "@shared/schema";
 import { deriveDoneCompletionDates } from "./calendarDoneHandling";
 import { deriveRescheduleBacklogState } from "./googleCalendarSync";
+import { writeCalendarSyncAudit } from "./calendarSyncAudit";
+import { getAppleSyncEncryptionKey } from "./runtimeConfig";
+import { redactSensitiveText, sanitizeUnknownErrorMessage } from "./securityRedaction";
 
 type AppleSyncSelection = {
   taskId: string;
@@ -128,15 +131,7 @@ function sanitizeAppleSyncDebugMessage(raw: unknown, fallbackMessage: string): s
     return fallbackMessage;
   }
 
-  // Redact likely credentials/secrets while preserving enough diagnostics to debug.
-  const redacted = input
-    .replace(/([\w.%+-]+)@([\w.-]+\.[A-Za-z]{2,})/g, "<redacted-email>")
-    .replace(/\b(?:[A-Za-z0-9]{4}-){3}[A-Za-z0-9]{4}\b/g, "<redacted-app-password>")
-    .replace(/\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]+/gi, "<redacted-auth-header>")
-    .replace(/\b(token|secret|password|credential)\s*[:=]\s*[^\s,;]+/gi, "$1=<redacted>");
-
-  // Keep logs compact.
-  return redacted.slice(0, 280);
+  return redactSensitiveText(input, 280);
 }
 
 function errorToString(error: unknown): string {
@@ -167,35 +162,7 @@ function extractDavResponseSummary(response: unknown): string {
 }
 
 export function sanitizeAppleSyncErrorMessage(error: unknown, fallbackMessage: string): string {
-  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-  const message = (raw || "").trim();
-
-  if (!message) {
-    return fallbackMessage;
-  }
-
-  if (SAFE_APPLE_ERROR_MESSAGES.has(message)) {
-    return message;
-  }
-
-  // Defensive redaction gate: if unknown message contains obvious secret-related tokens,
-  // never return it to clients.
-  const lower = message.toLowerCase();
-  const hasSensitiveKeyword =
-    lower.includes("password") ||
-    lower.includes("authorization") ||
-    lower.includes("bearer") ||
-    lower.includes("basic ") ||
-    lower.includes("token") ||
-    lower.includes("credential") ||
-    lower.includes("secret");
-
-  if (hasSensitiveKeyword) {
-    return fallbackMessage;
-  }
-
-  // Unknown provider/library errors should not be surfaced verbatim.
-  return fallbackMessage;
+  return sanitizeUnknownErrorMessage(error, fallbackMessage, SAFE_APPLE_ERROR_MESSAGES);
 }
 
 function getUserId(req: express.Request): string {
@@ -207,7 +174,7 @@ function getUserId(req: express.Request): string {
 }
 
 function getEncryptionSecret(): string | null {
-  const configured = process.env.APPLE_SYNC_ENCRYPTION_KEY?.trim();
+  const configured = getAppleSyncEncryptionKey();
   if (configured) {
     return configured;
   }
@@ -1209,6 +1176,7 @@ export async function runAppleCalendarTwoWaySync(
   selections: AppleSyncSelection[],
 ): Promise<AppleSyncOutcome> {
   const userId = getUserId(req);
+  const syncRunId = randomBytes(8).toString("hex");
 
   if (!isAppleCalendarConfigured()) {
     throw new Error("Apple Calendar sync is not configured. Set APPLE_SYNC_ENCRYPTION_KEY.");
@@ -1237,6 +1205,17 @@ export async function runAppleCalendarTwoWaySync(
   );
 
   const { activeSelections } = await resolveActiveSyncScope(userId, selections);
+  writeCalendarSyncAudit({
+    provider: "apple",
+    event: "run_start",
+    userId,
+    syncRunId,
+    requestedSelectionCount: selections.length,
+    activeSelectionCount: activeSelections.length,
+    calendarId: connection.calendarId ?? null,
+    resolvedCalendarDisplayName,
+    resolvedCalendarUrl,
+  });
 
   let syncedTasks = 0;
   let pushedEvents = 0;
@@ -1323,6 +1302,16 @@ export async function runAppleCalendarTwoWaySync(
 
             completedFromApple += 1;
             resolvedDateOnly = completion.nextDateOnly;
+            writeCalendarSyncAudit({
+              provider: "apple",
+              event: "done_completion_applied",
+              userId,
+              syncRunId,
+              taskId: nextTask.id,
+              kind,
+              completedDateOnly: completion.completedDateOnly,
+              nextDateOnly: completion.nextDateOnly,
+            });
 
             if (existingEventId) {
               try {
@@ -1353,6 +1342,17 @@ export async function runAppleCalendarTwoWaySync(
 
           resolvedDateOnly = remoteDateOnly;
           pulledChanges += 1;
+          writeCalendarSyncAudit({
+            provider: "apple",
+            event: "remote_date_applied",
+            userId,
+            syncRunId,
+            taskId: nextTask.id,
+            kind,
+            previousDateOnly: currentDateOnly,
+            remoteDateOnly,
+            conflictWinner,
+          });
           if (transition.rescheduled) {
             rescheduledFromApple += 1;
           }
@@ -1372,9 +1372,32 @@ export async function runAppleCalendarTwoWaySync(
         if (upserted.created) {
           createdEvents += 1;
           pushedEvents += 1;
+          writeCalendarSyncAudit({
+            provider: "apple",
+            event: "calendar_object_created",
+            userId,
+            syncRunId,
+            taskId: nextTask.id,
+            kind,
+            filename: upserted.filename,
+            url: upserted.url,
+            syncedDateOnly: resolvedDateOnly,
+          });
         } else if (upserted.updated || existingSyncedDate !== resolvedDateOnly) {
           updatedEvents += 1;
           pushedEvents += 1;
+          writeCalendarSyncAudit({
+            provider: "apple",
+            event: "calendar_object_updated",
+            userId,
+            syncRunId,
+            taskId: nextTask.id,
+            kind,
+            filename: upserted.filename,
+            url: upserted.url,
+            previousSyncedDateOnly: existingSyncedDate,
+            syncedDateOnly: resolvedDateOnly,
+          });
         }
 
         nextTask = {
@@ -1392,6 +1415,19 @@ export async function runAppleCalendarTwoWaySync(
         failedOperations += 1;
         const diagnostics = getAppleSyncErrorDiagnostics(error);
         const category = categorizeAppleSyncError(error);
+        writeCalendarSyncAudit({
+          provider: "apple",
+          event: "task_kind_failed",
+          userId,
+          syncRunId,
+          taskId: selection.taskId,
+          kind,
+          category,
+          status: diagnostics.status,
+          code: diagnostics.code,
+          name: diagnostics.name,
+          message: diagnostics.message,
+        });
         logAppleSyncDebug(
           `Failed syncing task=${selection.taskId} kind=${kind} category=${category} status=${diagnostics.status ?? "n/a"} code=${diagnostics.code ?? "n/a"} name=${diagnostics.name ?? "n/a"} message=\"${diagnostics.message}\". Continuing with remaining items.`,
         );
@@ -1430,6 +1466,25 @@ export async function runAppleCalendarTwoWaySync(
   const lastSyncedAt = new Date();
   await storage.upsertAppleCalendarConnection(userId, {
     lastSyncedAt,
+    resolvedCalendarDisplayName,
+    resolvedCalendarUrl,
+  });
+
+  writeCalendarSyncAudit({
+    provider: "apple",
+    event: "run_complete",
+    userId,
+    syncRunId,
+    syncedTasks,
+    pushedEvents,
+    pulledChanges,
+    createdEvents,
+    updatedEvents,
+    completedFromApple,
+    rescheduledFromApple,
+    failedOperations,
+    lastSyncedAt: lastSyncedAt.toISOString(),
+    calendarId: connection.calendarId ?? "simplehome-maintenance",
     resolvedCalendarDisplayName,
     resolvedCalendarUrl,
   });

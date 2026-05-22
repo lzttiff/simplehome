@@ -11,6 +11,9 @@ import {
 import { storage } from "../storage";
 import { deriveDoneCompletionDates } from "./calendarDoneHandling";
 import { logWithLevel } from "./logWithLevel";
+import { writeCalendarSyncAudit } from "./calendarSyncAudit";
+import { getGoogleClientId as readGoogleClientId, getGoogleClientSecret as readGoogleClientSecret } from "./runtimeConfig";
+import { redactSensitiveText } from "./securityRedaction";
 
 export { deriveDoneCompletionDates } from "./calendarDoneHandling";
 
@@ -80,6 +83,11 @@ type ManagedEventReference = {
   eventId: string;
 };
 
+type SyncAuditContext = {
+  userId: string;
+  syncRunId: string;
+};
+
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/userinfo.email",
@@ -97,11 +105,11 @@ function logGoogleSyncDebug(message: string) {
 }
 
 function getGoogleClientId(): string | null {
-  return process.env.GOOGLE_CLIENT_ID?.trim() || null;
+  return readGoogleClientId();
 }
 
 function getGoogleClientSecret(): string | null {
-  return process.env.GOOGLE_CLIENT_SECRET?.trim() || null;
+  return readGoogleClientSecret();
 }
 
 function isGoogleCalendarConfigured(): boolean {
@@ -747,7 +755,7 @@ async function getAuthorizedCalendar(req: express.Request, userId: string) {
       scope: tokens.scope ?? connection.scope,
       tokenType: tokens.token_type ?? connection.tokenType,
     }).catch((error) => {
-      console.error("Failed to persist refreshed Google OAuth tokens:", error);
+      logWithLevel("WARN", "Failed to persist refreshed Google OAuth tokens:", redactSensitiveText(error, 400));
     });
   });
 
@@ -904,6 +912,7 @@ async function syncTaskEvent(
   kind: SyncKind,
   selectionIncluded: boolean,
   doneCandidates: Map<string, calendar_v3.Schema$Event>,
+  auditContext: SyncAuditContext,
 ): Promise<{
   task: MaintenanceTask;
   pushedEvents: number;
@@ -1002,6 +1011,16 @@ async function syncTaskEvent(
       }
 
       completedFromGoogle++;
+      writeCalendarSyncAudit({
+        provider: "google",
+        event: "done_completion_applied",
+        userId: auditContext.userId,
+        syncRunId: auditContext.syncRunId,
+        taskId: task.id,
+        kind,
+        completedDateOnly: completion.completedDateOnly,
+        nextDateOnly: completion.nextDateOnly,
+      });
 
       resolvedDateOnly = completion.nextDateOnly;
 
@@ -1036,6 +1055,16 @@ async function syncTaskEvent(
         overdueSince: setTaskOverdueSince(nextTask, { [kind]: transition.overdueSince }),
       };
       pulledChanges++;
+      writeCalendarSyncAudit({
+        provider: "google",
+        event: "remote_date_applied",
+        userId: auditContext.userId,
+        syncRunId: auditContext.syncRunId,
+        taskId: task.id,
+        kind,
+        previousDateOnly: currentDateOnly,
+        remoteDateOnly: googleDateOnly,
+      });
       if (transition.rescheduled) {
         rescheduledFromGoogle++;
       }
@@ -1060,6 +1089,16 @@ async function syncTaskEvent(
           overdueSince: setTaskOverdueSince(nextTask, { [kind]: transition.overdueSince }),
         };
         pulledChanges++;
+        writeCalendarSyncAudit({
+          provider: "google",
+          event: "remote_date_applied",
+          userId: auditContext.userId,
+          syncRunId: auditContext.syncRunId,
+          taskId: task.id,
+          kind,
+          previousDateOnly: currentDateOnly,
+          remoteDateOnly: googleDateOnly,
+        });
         if (transition.rescheduled) {
           rescheduledFromGoogle++;
         }
@@ -1077,6 +1116,17 @@ async function syncTaskEvent(
     event = inserted.data;
     pushedEvents++;
     createdEvents++;
+    writeCalendarSyncAudit({
+      provider: "google",
+      event: "calendar_event_created",
+      userId: auditContext.userId,
+      syncRunId: auditContext.syncRunId,
+      taskId: task.id,
+      kind,
+      eventId: event?.id ?? null,
+      syncedDateOnly: resolvedDateOnly,
+      calendarId,
+    });
   } else if (!googleDateOnly || googleDateOnly !== resolvedDateOnly || event.summary !== payload.summary || event.description !== payload.description) {
     const updated = await calendar.events.patch({
       calendarId,
@@ -1086,6 +1136,18 @@ async function syncTaskEvent(
     event = updated.data;
     pushedEvents++;
     updatedEvents++;
+    writeCalendarSyncAudit({
+      provider: "google",
+      event: "calendar_event_updated",
+      userId: auditContext.userId,
+      syncRunId: auditContext.syncRunId,
+      taskId: task.id,
+      kind,
+      eventId: event?.id ?? null,
+      previousDateOnly: googleDateOnly,
+      syncedDateOnly: resolvedDateOnly,
+      calendarId,
+    });
   }
 
   const link = event?.htmlLink ?? undefined;
@@ -1400,12 +1462,21 @@ export async function runGoogleCalendarTwoWaySync(
   if (!userId) {
     throw new Error("Not authenticated");
   }
+  const syncRunId = randomBytes(8).toString("hex");
 
   if (!isGoogleCalendarConfigured()) {
     throw new Error("Google Calendar sync is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.");
   }
 
   const { activeSelections } = await resolveActiveSyncScope(userId, selections);
+  writeCalendarSyncAudit({
+    provider: "google",
+    event: "run_start",
+    userId,
+    syncRunId,
+    requestedSelectionCount: selections.length,
+    activeSelectionCount: activeSelections.length,
+  });
 
   // Fetch user's timezone preference for the calendar.
   const userRecord = await storage.getUserById(userId);
@@ -1431,10 +1502,26 @@ export async function runGoogleCalendarTwoWaySync(
     }
 
     let nextTask = task;
-    const minorResult = await syncTaskEvent(calendar, calendarId, nextTask, "minor", selection.includeMinor, doneCandidates);
+    const minorResult = await syncTaskEvent(
+      calendar,
+      calendarId,
+      nextTask,
+      "minor",
+      selection.includeMinor,
+      doneCandidates,
+      { userId, syncRunId },
+    );
     nextTask = minorResult.task;
 
-    const majorResult = await syncTaskEvent(calendar, calendarId, nextTask, "major", selection.includeMajor, doneCandidates);
+    const majorResult = await syncTaskEvent(
+      calendar,
+      calendarId,
+      nextTask,
+      "major",
+      selection.includeMajor,
+      doneCandidates,
+      { userId, syncRunId },
+    );
     nextTask = majorResult.task;
 
     const totalChanges =
@@ -1480,6 +1567,22 @@ export async function runGoogleCalendarTwoWaySync(
   await storage.upsertGoogleCalendarConnection(userId, {
     calendarId,
     lastSyncedAt,
+  });
+
+  writeCalendarSyncAudit({
+    provider: "google",
+    event: "run_complete",
+    userId,
+    syncRunId,
+    syncedTasks,
+    pushedEvents,
+    pulledChanges,
+    createdEvents,
+    updatedEvents,
+    completedFromGoogle,
+    rescheduledFromGoogle,
+    lastSyncedAt: lastSyncedAt.toISOString(),
+    calendarId,
   });
 
   return {

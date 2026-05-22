@@ -12,17 +12,17 @@
  * Usage:
  *   npx tsx scripts/cleanup-backfill-templates.ts
  *
- * Set MONGODB_URL / DATABASE_URL and MONGODB_DB_NAME env vars as needed (same as the app).
+ * Set MONGODB_URL (preferred) / DATABASE_URL (legacy fallback) and MONGODB_DB_NAME env vars as needed (same as the app).
  * Run with --dry-run to preview what would be deleted without making changes.
  */
 
 import { MongoClient } from "mongodb";
+import { getMongoDbNameForScript, getMongoUrlForScript } from "./envConfig";
 
 const BACKFILL_TYPES = ["single_family", "townhouse", "condo", "commercial"] as const;
 
-const mongoUrl =
-  process.env.MONGODB_URL || process.env.DATABASE_URL || "mongodb://localhost:27017";
-const dbName = process.env.MONGODB_DB_NAME || "simplehome";
+const mongoUrl = getMongoUrlForScript("script-cleanup-backfill-templates");
+const dbName = getMongoDbNameForScript();
 const dryRun = process.argv.includes("--dry-run");
 
 async function main() {

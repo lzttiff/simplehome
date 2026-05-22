@@ -18,6 +18,7 @@
     "test:coverage": "jest --coverage",
     "recover:legacy-user-data": "tsx scripts/recover-legacy-user-data.ts",
     "migrate:legacy-user-data": "tsx scripts/migrate-legacy-user-data-all.ts",
+    "validate:env-resolution": "tsx scripts/validate-env-resolution.ts",
     "guard:legacy-userid": "tsx scripts/check-legacy-userid-data.ts",
     "test:rollout-guard": "npm run guard:legacy-userid",
     "lint": "eslint . --ext .ts,.tsx --fix",

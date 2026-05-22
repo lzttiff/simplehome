@@ -1,5 +1,6 @@
 import { logWithLevel } from "./logWithLevel";
 import axios from "axios";
+import { redactSensitiveText } from "./securityRedaction";
 
 // Store Gemini API key locally for backend use
 let localGeminiApiKey: string | undefined = process.env.GEMINI_API_KEY;
@@ -86,5 +87,9 @@ export async function generateGeminiContent(prompt: string, apiKey?: string): Pr
     }
   }
   // If both models fail, throw last error
-  throw new Error(lastError?.response?.data?.error?.message || lastError?.message || "Gemini API request failed");
+  const safeError = redactSensitiveText(
+    lastError?.response?.data?.error?.message || lastError?.message || "Gemini API request failed",
+    500,
+  );
+  throw new Error(safeError || "Gemini API request failed");
 }

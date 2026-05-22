@@ -163,3 +163,9 @@ DEFAULT_AI_PROVIDER=openai OPENAI_API_KEY="sk-..." npm test
   ```zsh
   xcode-select --install
   ```
+
+## 11) Maintainer Reference
+
+For ongoing app-service operations, full environment variable catalog, and debugging workflows, see:
+
+- `docs/MAINTAINER_CONFIGURATION_AND_DEBUGGING.md`

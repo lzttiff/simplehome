@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { MongoClient } from "mongodb";
+import { getMongoDbNameForScript, getMongoUrlForScript } from "./envConfig";
 
 type Flags = {
   email: string;
@@ -29,8 +30,8 @@ function parseArgs(argv: string[]): Flags {
 async function main() {
   const { email, dryRun, force } = parseArgs(process.argv.slice(2));
 
-  const mongoUrl = process.env.MONGODB_URL || process.env.DATABASE_URL || "mongodb://localhost:27017";
-  const dbName = process.env.MONGODB_DB_NAME || "simplehome";
+  const mongoUrl = getMongoUrlForScript("script-recover-legacy-user-data");
+  const dbName = getMongoDbNameForScript();
 
   const client = new MongoClient(mongoUrl);
   await client.connect();

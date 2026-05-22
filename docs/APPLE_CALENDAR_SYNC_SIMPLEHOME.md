@@ -12,6 +12,17 @@ This document covers setup, connection management, sync behavior, and troublesho
 - App-specific password (required; see setup below)
 - Network access to Apple CalDAV servers
 
+## Security Model (Provider Delta)
+
+Canonical shared security policy lives in:
+- [MAINTAINER_CONFIGURATION_AND_DEBUGGING.md](MAINTAINER_CONFIGURATION_AND_DEBUGGING.md)
+
+Apple-specific security delta:
+- Authentication is per-user via Apple app-specific password (no OAuth in current implementation).
+- Stored Apple credential payload is encrypted at rest using `APPLE_SYNC_ENCRYPTION_KEY`.
+- `APPLE_SYNC_DEBUG` is opt-in and should remain disabled in production by default.
+- `APPLE_CALDAV_SERVER_URL` may be overridden for advanced deployments.
+
 ## Environment Setup
 
 ### Required Variables
@@ -311,3 +322,4 @@ If you encounter issues not covered here:
 - [APPLE_CALENDAR_SYNC_DESIGN_SECURITY_DECISIONS.md](APPLE_CALENDAR_SYNC_DESIGN_SECURITY_DECISIONS.md) – Design decisions and security model.
 - [CALENDAR_EXPORT.md](CALENDAR_EXPORT.md) – General calendar export feature overview.
 - [TEST_RELIABILITY_MULTI_PHASE_PLAN.md](TEST_RELIABILITY_MULTI_PHASE_PLAN.md) – Test suite reliability notes.
+- [MAINTAINER_CONFIGURATION_AND_DEBUGGING.md](MAINTAINER_CONFIGURATION_AND_DEBUGGING.md) – Centralized environment variable reference and debugging workflows.

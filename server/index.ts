@@ -6,6 +6,7 @@ import passport from "passport";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initializeStorage } from "./storage";
+import { logStartupConfigDiagnostics } from "./services/runtimeConfig";
 import "./auth"; // initialize passport strategies
 
 const MemoryStore = createMemoryStore(session);
@@ -82,6 +83,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  logStartupConfigDiagnostics();
+
   // Initialize MongoDB storage
   await initializeStorage();
   
