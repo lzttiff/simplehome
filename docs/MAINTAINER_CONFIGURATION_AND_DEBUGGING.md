@@ -302,13 +302,18 @@ Definition of done:
 - Provider docs pass link and duplication checks.
 
 ### Phase 5 implementation tasks (validation and rollout)
-- Create a pre-release validation script/checklist for:
+- [x] Create a pre-release validation script/checklist for:
 	- secret presence and fallback behavior
 	- redaction assertions
 	- calendar audit log write/read health
 	- provider-specific failure-path checks
-- Run staging validation for one full release cycle.
-- Approve legacy-variable removal only when fallback warning count is zero for the full cycle.
+- [ ] Run staging validation for one full release cycle.
+- [ ] Approve legacy-variable removal only when fallback warning count is zero for the full cycle.
+
+Phase 5 artifacts:
+- Command: `npm run validate:phase5`
+- Deprecation-cycle command: `npm run validate:phase5:deprecations -- --log <path-to-app-log> --since <cycle-start-iso> --max-count 0`
+- Checklist: `docs/security-operations/CONFIG_SECURITY_VALIDATION_CHECKLIST.md`
 
 Definition of done:
 - Validation checklist is recorded with pass/fail outcomes.

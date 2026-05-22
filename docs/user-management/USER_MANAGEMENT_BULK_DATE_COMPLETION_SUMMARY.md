@@ -135,7 +135,7 @@ AccountEventLogger.logCalendarCleanupPartial(userId, {
 
 ### 3. Rollout Procedures & Checklists ✅
 
-**File**: `docs/PHASE_5_ROLLOUT_PROCEDURES.md`
+**File**: `docs/user-management/USER_MANAGEMENT_BULK_DATE_ROLLOUT_PROCEDURES.md`
 
 **Contents**:
 
@@ -182,14 +182,14 @@ AccountEventLogger.logCalendarCleanupPartial(userId, {
 
 ### 4. Updated Documentation ✅
 
-**File**: `docs/USER_MANAGEMENT_AND_BULK_DATE_PLAN.md`
+**File**: `docs/user-management/USER_MANAGEMENT_AND_BULK_DATE_PLAN.md`
 
 **Updates**:
 - Added new section: "Enhancement: Google Calendar ID Visibility & Quick Access"
 - Updated Phase 5 with Google Calendar tests
 - Updated operational checklist with calendar sync monitoring
 - Updated implementation slices to include PR 6 for calendar feature
-- Added dedicated bulk-fill test update tracker: `docs/BULK_MAINTENANCE_DATE_FILL_UNIT_TEST_UPDATES.md`
+- Added dedicated bulk-fill test update tracker: `docs/user-management/BULK_MAINTENANCE_DATE_FILL_UNIT_TEST_UPDATES.md`
 - All phases now documented with acceptance criteria
 
 ---
@@ -277,8 +277,8 @@ cat logs | grep "userId=<user-id>"
    - `server/services/accountEventLogger.ts` (270+ lines)
 
 3. **Documentation**:
-   - `docs/PHASE_5_ROLLOUT_PROCEDURES.md` (350+ lines)
-   - Updated `docs/USER_MANAGEMENT_AND_BULK_DATE_PLAN.md`
+   - `docs/user-management/USER_MANAGEMENT_BULK_DATE_ROLLOUT_PROCEDURES.md` (350+ lines)
+   - Updated `docs/user-management/USER_MANAGEMENT_AND_BULK_DATE_PLAN.md`
 
 ---
 
@@ -366,8 +366,8 @@ cat logs | grep "userId=<user-id>"
 ## Related Documents
 
 - [USER_MANAGEMENT_AND_BULK_DATE_PLAN.md](USER_MANAGEMENT_AND_BULK_DATE_PLAN.md) — Feature specifications
-- [USER_DATA_MIGRATION_AND_STRICT_SCOPING_RUNBOOK.md](USER_DATA_MIGRATION_AND_STRICT_SCOPING_RUNBOOK.md) — Data migration procedures
-- [PHASE_5_ROLLOUT_PROCEDURES.md](PHASE_5_ROLLOUT_PROCEDURES.md) — Detailed rollout guide
+- [USER_DATA_MIGRATION_AND_STRICT_SCOPING_RUNBOOK.md](../USER_DATA_MIGRATION_AND_STRICT_SCOPING_RUNBOOK.md) — Data migration procedures
+- [USER_MANAGEMENT_BULK_DATE_ROLLOUT_PROCEDURES.md](USER_MANAGEMENT_BULK_DATE_ROLLOUT_PROCEDURES.md) — Detailed rollout guide
 
 ---
 
@@ -376,4 +376,4 @@ cat logs | grep "userId=<user-id>"
 For questions about Phase 5 implementation:
 - Review test files: `tests/server/user-management.test.ts`, `tests/client/user-management-ui.test.tsx`
 - Review logging: `server/services/accountEventLogger.ts`
-- Review procedures: `docs/PHASE_5_ROLLOUT_PROCEDURES.md`
+- Review procedures: `USER_MANAGEMENT_BULK_DATE_ROLLOUT_PROCEDURES.md`

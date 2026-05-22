@@ -84,7 +84,7 @@ This document outlines the proposed enhancements to the bulk maintenance date fi
   - Server-side validation response shape checks for `violatingTasks` when selected date is earlier than `lastMaintenanceDate`.
 - Future updates for Phase 2 and Phase 3 should add/adjust tests in the same pull request as implementation changes.
 - Dedicated test update log:
-  - `docs/BULK_MAINTENANCE_DATE_FILL_UNIT_TEST_UPDATES.md`
+  - `docs/user-management/BULK_MAINTENANCE_DATE_FILL_UNIT_TEST_UPDATES.md`
 
 ---
 

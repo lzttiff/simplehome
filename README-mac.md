@@ -110,9 +110,9 @@ npm test
 When bulk maintenance date fill behavior changes, update unit tests in the same PR.
 
 - Proposal and implementation notes:
-  - `docs/bulk-maintenance-date-fill-enhancement.md`
+  - `docs/user-management/bulk-maintenance-date-fill-enhancement.md`
 - Dedicated unit-test update log:
-  - `docs/BULK_MAINTENANCE_DATE_FILL_UNIT_TEST_UPDATES.md`
+  - `docs/user-management/BULK_MAINTENANCE_DATE_FILL_UNIT_TEST_UPDATES.md`
 
 Recommended verification command chain:
 

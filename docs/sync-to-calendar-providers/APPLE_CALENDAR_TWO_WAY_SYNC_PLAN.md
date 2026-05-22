@@ -279,7 +279,7 @@ Response:
 
 Local reliability note:
 - If Jest crashes with OOM while running Apple server tests, use `npm run test:server:apple-sync` (memory guardrails + in-band execution).
-- Troubleshooting reference: `docs/TEST_RELIABILITY_MULTI_PHASE_PLAN.md` (Jest OOM Troubleshooting section).
+- Troubleshooting reference: `docs/unit-test/TEST_RELIABILITY_MULTI_PHASE_PLAN.md` (Jest OOM Troubleshooting section).
 
 ### Logging and Observability
 - Add provider-specific structured logs at INFO/WARN/ERROR.

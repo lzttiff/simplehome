@@ -353,7 +353,7 @@ db.logs.find({
 
 ## Related Documents
 
-- [USER_DATA_MIGRATION_AND_STRICT_SCOPING_RUNBOOK.md](USER_DATA_MIGRATION_AND_STRICT_SCOPING_RUNBOOK.md) — Legacy data migration procedures
+- [USER_DATA_MIGRATION_AND_STRICT_SCOPING_RUNBOOK.md](../USER_DATA_MIGRATION_AND_STRICT_SCOPING_RUNBOOK.md) — Legacy data migration procedures
 - [USER_MANAGEMENT_AND_BULK_DATE_PLAN.md](USER_MANAGEMENT_AND_BULK_DATE_PLAN.md) — Feature specifications
 - Test files:
   - `tests/server/user-management.test.ts` — Server API tests
