@@ -511,7 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!category || !category.items) {
         const catalogPath = path.join(__dirname, "../maintenance-template-singleFamilyHome.json");
         const catalogData = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
-  provider = provider || catalogData.provider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
+        provider = provider || catalogData.provider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
         category = catalogData.householdCatalog && Array.isArray(catalogData.householdCatalog) && catalogData.householdCatalog.length > 0
           ? catalogData.householdCatalog[0]
           : null;
