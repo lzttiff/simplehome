@@ -27,9 +27,9 @@ Out of scope:
 | --- | --- | --- | --- |
 | TD-AI-001 | Data model extension for per-user AI settings | Add aiProvider, aiAgentEnabled, aiPolicyVersion to user model and storage mappings | Completed |
 | TD-AI-002 | Authenticated endpoint to read/update user AI preferences | Add user-scoped profile API for AI settings with strict validation | Completed |
-| TD-AI-003 | Shared provider resolution helper | Centralize provider resolution and remove route-level drift | Planned |
+| TD-AI-003 | Shared provider resolution helper | Centralize provider resolution and remove route-level drift | Completed |
 | TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Implemented (pending staged execution evidence) |
-| TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Planned |
+| TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Implemented (pending rollout evidence) |
 | TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Planned |
 | TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented (first slice) |
 
@@ -112,14 +112,19 @@ Current evidence state:
 Objective:
 - provide traceability for AI setting changes and effective provider selection.
 
-Planned work:
+Delivered work:
 - emit audit log event on user AI preference update
-- redact sensitive data consistently via shared redaction utility
-- include actor, userId, old/new values (safe fields only), timestamp, and request metadata
+- redact log payloads via shared redaction utility before write
+- include actor, userId, old/new safe values, timestamp, and request metadata
+- write structured JSONL records to `data/ai-config-audit.log` (override path via `AI_CONFIG_AUDIT_PATH`)
 
 Acceptance checks:
 - audit entry generated on every AI settings mutation
 - no secrets/token-like values in logs
+
+Current evidence state:
+- Route-level unit test coverage added for `ai_preferences_updated` audit emission.
+- Staging/production retention and incident workflow evidence pending operational rollout.
 
 ### TD-AI-006 Test Coverage for Isolation and Fallback
 Objective:

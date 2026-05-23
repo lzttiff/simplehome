@@ -47,6 +47,7 @@ import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
 import { getCalendarFeedSecret as getRuntimeCalendarFeedSecret } from "./services/runtimeConfig";
 import { resolveAiProvider } from "./services/aiProviderResolver";
+import { writeAiConfigAudit } from "./services/aiConfigAudit";
 import {
   buildCalendarTaskDescription,
   createGoogleCalendarAuthorizationUrl,
@@ -412,10 +413,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userId = (req.user as User).id;
+      const previous = await storage.getUserById(userId);
+      if (!previous) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
       const updated = await storage.updateUserAiPreferences(userId, parsed.data);
       if (!updated) {
         return res.status(404).json({ message: "User not found" });
       }
+
+      writeAiConfigAudit({
+        event: "ai_preferences_updated",
+        actorUserId: userId,
+        targetUserId: userId,
+        oldValues: {
+          aiProvider: previous.aiProvider ?? null,
+          aiAgentEnabled: previous.aiAgentEnabled === true,
+          aiPolicyVersion: previous.aiPolicyVersion ?? null,
+        },
+        newValues: {
+          aiProvider: updated.aiProvider ?? null,
+          aiAgentEnabled: updated.aiAgentEnabled === true,
+          aiPolicyVersion: updated.aiPolicyVersion ?? null,
+        },
+        requestMeta: {
+          method: req.method,
+          path: req.path,
+          ip: req.ip,
+          userAgent: req.get("user-agent") || null,
+        },
+      });
 
       return res.json({
         aiProvider: updated.aiProvider ?? null,

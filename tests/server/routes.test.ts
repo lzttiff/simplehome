@@ -30,6 +30,10 @@ jest.mock('../../server/storage', () => ({
   },
 }));
 
+jest.mock('../../server/services/aiConfigAudit', () => ({
+  writeAiConfigAudit: jest.fn(),
+}));
+
 // Mock passport middleware
 jest.mock('passport', () => ({
   __esModule: true,
@@ -60,6 +64,7 @@ jest.mock('../../server/auth', () => ({
 
 const provider = (process.env.PROVIDER as 'gemini' | 'openai') || 'gemini';
 const storageMock = require('../../server/storage').storage;
+const aiAuditMock = require('../../server/services/aiConfigAudit');
 
 describe('/api/item-schedule', () => {
   let app: Express;
@@ -131,6 +136,18 @@ describe('/api/user/ai-preferences', () => {
   });
 
   it('updates user AI preferences for authenticated user', async () => {
+    storageMock.getUserById.mockResolvedValueOnce({
+      id: 'test-user-id',
+      email: 'test@example.com',
+      passwordHash: 'hash',
+      name: 'Test User',
+      timezone: null,
+      aiProvider: 'gemini',
+      aiAgentEnabled: true,
+      aiPolicyVersion: 'v1',
+      createdAt: new Date(),
+    });
+
     storageMock.updateUserAiPreferences.mockResolvedValue({
       id: 'test-user-id',
       email: 'test@example.com',
@@ -158,6 +175,16 @@ describe('/api/user/ai-preferences', () => {
       aiAgentEnabled: false,
       aiPolicyVersion: 'v2',
     });
+
+    expect(aiAuditMock.writeAiConfigAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'ai_preferences_updated',
+        actorUserId: 'test-user-id',
+        targetUserId: 'test-user-id',
+        oldValues: expect.objectContaining({ aiProvider: 'gemini', aiAgentEnabled: true, aiPolicyVersion: 'v1' }),
+        newValues: expect.objectContaining({ aiProvider: 'openai', aiAgentEnabled: false, aiPolicyVersion: 'v2' }),
+      }),
+    );
   });
 
   it('returns 400 for invalid AI provider', async () => {
