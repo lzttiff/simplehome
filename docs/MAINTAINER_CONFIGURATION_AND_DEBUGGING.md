@@ -488,6 +488,53 @@ Operational checks:
 - Alert on repeated failed admin-token attempts to detect brute-force/misconfiguration.
 - Review logs to ensure no token-like values are emitted by diagnostics handlers.
 
+#### Admin/testing override policy (recommended)
+
+Production override lane:
+- Keep request override disabled by default for normal user traffic.
+- Only allow override when both are true:
+	- caller is authenticated as admin (preferred long-term control), and/or
+	- `x-admin-token` matches `ADMIN_TOKEN` via timing-safe comparison.
+- Restrict override-capable routes to a short allowlist (diagnostics and controlled admin endpoints only).
+- Require TLS and ingress-layer protections (WAF/rate-limit/IP allowlist where possible).
+- Record override attempts (allowed/denied) as security events without logging token contents.
+
+Automated/local test lane:
+- In local dev and CI test jobs, allow request override only when explicitly enabled for tests.
+- Prefer a dedicated test token value injected by test harness/CI secrets, not developer personal tokens.
+- Avoid sharing production ADMIN_TOKEN with local or CI environments.
+- Keep override tests deterministic:
+	- positive case: valid test token applies request override
+	- negative case: missing/invalid token does not apply override and falls back to user/default resolution
+- Ensure tests cover both runtime modes:
+	- production-mode guard behavior
+	- non-production testing behavior
+
+Suggested rollout for stronger controls:
+1. Current baseline: token-gated override in production.
+2. Near term: add authenticated admin-role check and keep token as defense-in-depth.
+3. Final target: override requires admin identity; token acts as secondary control for privileged operations.
+
+Example (production override with `x-admin-token`):
+
+```bash
+curl -X POST "https://<host>/api/item-schedule" \
+	-H "Content-Type: application/json" \
+	-H "x-admin-token: ${ADMIN_TOKEN}" \
+	-d '{
+		"provider": "openai",
+		"item": {
+			"id": "water-heater",
+			"name": "Water Heater",
+			"category": "Plumbing & Water"
+		}
+	}'
+```
+
+Expected behavior:
+- with a valid `x-admin-token`, request provider override can be applied (`provider=openai`)
+- with missing/invalid token, override is rejected and provider selection falls back to user/context/default order
+
 ### Script-only (Confluence)
 | Variable | Purpose | Default/Behavior |
 |---|---|---|
