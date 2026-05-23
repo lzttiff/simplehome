@@ -489,4 +489,86 @@ describe('AI Provider Route Tests', () => {
       }
     });
   });
+
+  describe('Production override guard', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalAdminToken = process.env.ADMIN_TOKEN;
+    const originalProdOverride = process.env.AI_REQUEST_OVERRIDE_IN_PROD;
+
+    afterEach(() => {
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalNodeEnv;
+      }
+
+      if (originalAdminToken === undefined) {
+        delete process.env.ADMIN_TOKEN;
+      } else {
+        process.env.ADMIN_TOKEN = originalAdminToken;
+      }
+
+      if (originalProdOverride === undefined) {
+        delete process.env.AI_REQUEST_OVERRIDE_IN_PROD;
+      } else {
+        process.env.AI_REQUEST_OVERRIDE_IN_PROD = originalProdOverride;
+      }
+    });
+
+    it('does not apply request provider override in production by default', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.ADMIN_TOKEN = 'admin-secret';
+      delete process.env.AI_REQUEST_OVERRIDE_IN_PROD;
+
+      const { generateMaintenanceSchedule } = await import('../../server/services/maintenanceAi');
+
+      const response = await request(app)
+        .post('/api/item-schedule')
+        .set('x-admin-token', 'admin-secret')
+        .send({
+          provider: 'openai',
+          item: {
+            id: 'test-prod-guard',
+            name: 'Test Item',
+            provider: 'gemini',
+            location: 'Kitchen',
+          },
+        });
+
+      expect(response.status).toBe(200);
+      expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'gemini',
+        })
+      );
+    });
+
+    it('applies request provider override in production only when opt-in flag and valid admin token are present', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.ADMIN_TOKEN = 'admin-secret';
+      process.env.AI_REQUEST_OVERRIDE_IN_PROD = 'true';
+
+      const { generateMaintenanceSchedule } = await import('../../server/services/maintenanceAi');
+
+      const response = await request(app)
+        .post('/api/item-schedule')
+        .set('x-admin-token', 'admin-secret')
+        .send({
+          provider: 'openai',
+          item: {
+            id: 'test-prod-opt-in',
+            name: 'Test Item',
+            provider: 'gemini',
+            location: 'Kitchen',
+          },
+        });
+
+      expect(response.status).toBe(200);
+      expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'openai',
+        })
+      );
+    });
+  });
 });

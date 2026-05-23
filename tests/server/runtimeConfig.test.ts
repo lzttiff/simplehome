@@ -32,7 +32,16 @@ describe("runtimeConfig startup diagnostics", () => {
 
     expect(issues.some((issue) => issue.feature === "core" && issue.severity === "ERROR")).toBe(true);
     expect(issues.some((issue) => issue.feature === "database" && issue.severity === "ERROR")).toBe(true);
-    expect(issues.some((issue) => issue.feature === "feeds-admin")).toBe(true);
+    expect(
+      issues.some(
+        (issue) => issue.feature === "feeds-admin" && issue.variables.includes("CALENDAR_FEED_SECRET"),
+      ),
+    ).toBe(true);
+    expect(
+      issues.some(
+        (issue) => issue.feature === "feeds-admin" && issue.variables.includes("ADMIN_TOKEN"),
+      ),
+    ).toBe(true);
   });
 
   test("reports partial google configuration", () => {
@@ -75,13 +84,13 @@ describe("runtimeConfig startup diagnostics", () => {
 
     delete process.env.CALENDAR_FEED_SECRET;
     process.env.ADMIN_TOKEN = "legacy-admin-token";
-    expect(getCalendarFeedSecret()).toBe("legacy-admin-token");
+    expect(getCalendarFeedSecret()).toBe("dev-calendar-feed-secret");
 
     expect(warnSpy).toHaveBeenCalled();
     const output = warnSpy.mock.calls.map((args) => args.join(" ")).join("\n");
     expect(output).toContain("[CONFIG_DEPRECATION]");
     expect(output).toContain("APPLE_SYNC_ENCRYPTION_KEY");
-    expect(output).toContain("ADMIN_TOKEN");
+    expect(output).not.toContain("ADMIN_TOKEN");
 
     warnSpy.mockRestore();
   });

@@ -102,9 +102,22 @@ type ParsedCalendarPayload = {
 const shortCalendarFeedStore = new Map<string, ParsedCalendarPayload>();
 const shortCalendarFeedFile = path.join(process.cwd(), "data", "calendar-feeds.json");
 
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
 function canUseAiRequestOverride(req: express.Request): boolean {
   if (process.env.NODE_ENV !== "production") {
     return true;
+  }
+
+  // Production safety default: request-level overrides are disabled unless explicitly enabled.
+  if (!isTruthyEnv(process.env.AI_REQUEST_OVERRIDE_IN_PROD)) {
+    return false;
   }
 
   const adminToken = process.env.ADMIN_TOKEN?.trim();

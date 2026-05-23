@@ -112,12 +112,7 @@ export function getMongoUrl(): string | null {
 }
 
 export function getCalendarFeedSecret(): string {
-  const resolution = resolveWithLegacyFallback(
-    "CALENDAR_FEED_SECRET",
-    "ADMIN_TOKEN",
-    { component: "calendar-feed", removeByVersion: "v2026.10" },
-  );
-  return resolution.value || "dev-calendar-feed-secret";
+  return readTrimmedEnv("CALENDAR_FEED_SECRET") || "dev-calendar-feed-secret";
 }
 
 export function getDefaultAiProvider(): "gemini" | "openai" {
@@ -195,12 +190,21 @@ export function collectStartupConfigIssues(): StartupConfigIssue[] {
 
   const feedSecret = readTrimmedEnv("CALENDAR_FEED_SECRET");
   const adminToken = readTrimmedEnv("ADMIN_TOKEN");
-  if (isProd && !feedSecret && !adminToken) {
+  if (isProd && !feedSecret) {
     issues.push({
       feature: "feeds-admin",
       severity: "WARN",
-      message: "Neither CALENDAR_FEED_SECRET nor ADMIN_TOKEN is set; feed/admin protections are weak.",
-      variables: ["CALENDAR_FEED_SECRET", "ADMIN_TOKEN"],
+      message: "CALENDAR_FEED_SECRET is missing; calendar feed signing/validation will use the development fallback.",
+      variables: ["CALENDAR_FEED_SECRET"],
+    });
+  }
+
+  if (isProd && !adminToken) {
+    issues.push({
+      feature: "feeds-admin",
+      severity: "WARN",
+      message: "ADMIN_TOKEN is missing; admin/testing override controls will be unavailable.",
+      variables: ["ADMIN_TOKEN"],
     });
   }
 

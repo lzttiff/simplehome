@@ -78,17 +78,27 @@ export GEMINI_API_KEY="your_gemini_key_here"
 # Optional admin/testing override token
 export ADMIN_TOKEN="some-secret-token"
 
+# Production safety: keep request override disabled unless explicitly enabled
+# export AI_REQUEST_OVERRIDE_IN_PROD=false
+
+# Feed signing/validation secret (recommended)
+export CALENDAR_FEED_SECRET="some-strong-feed-secret"
+
 # Optional: enable verbose server debug for client requests
 # export DEBUG_CLIENT_REQUESTS=true
 
 source ~/.zshrc
 ```
 
-ADMIN_TOKEN best practice:
+CALENDAR_FEED_SECRET best practice:
 - Generate a strong value (example): `openssl rand -base64 48`
 - Keep it in local shell env or secret manager only, never in committed files
+- Use it as the primary feed signing/validation secret
+- Keep ADMIN_TOKEN separate for admin/testing override only
+
+ADMIN_TOKEN note:
 - Use only for admin/testing override paths, sent as `x-admin-token` header
-- Do not reuse it as CALENDAR_FEED_SECRET except temporary migration fallback
+- In production, request override remains disabled unless `AI_REQUEST_OVERRIDE_IN_PROD=true`
 
 Alternative: place the gemini key in a file named `gemini.key` in the project root (single-line, no extra whitespace) — the server will read it.
 

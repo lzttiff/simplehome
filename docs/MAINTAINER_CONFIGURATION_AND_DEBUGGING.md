@@ -152,7 +152,7 @@ Acceptance criteria:
 | APPLE_SYNC_ENCRYPTION_KEY | CALENDAR_CREDENTIALS_ENCRYPTION_KEY | v2026.08 | Keep APPLE_SYNC_ENCRYPTION_KEY as fallback during migration window. |
 | OPENAI_API_KEY_ENV_VAR | OPENAI_API_KEY | v2026.08 | Consolidate to one OpenAI key variable; secondary key kept only for compatibility. |
 | DATABASE_URL (fallback path) | MONGODB_URL | v2026.08 | Keep DATABASE_URL fallback for platform compatibility; prefer MONGODB_URL in docs and deployments. |
-| ADMIN_TOKEN (calendar feed fallback) | CALENDAR_FEED_SECRET (no fallback target) | evidence-based removal | Stop using ADMIN_TOKEN as implicit feed-signing fallback only after validated zero-warning rollout evidence. |
+| ADMIN_TOKEN (calendar feed fallback) | CALENDAR_FEED_SECRET (no fallback target) | completed | Calendar feed signing fallback has been removed; ADMIN_TOKEN remains for admin/testing override only. |
 
 Variables already aligned and retained as-is:
 - CALENDAR_SYNC_AUDIT_ENABLED
@@ -287,7 +287,7 @@ Use these notes in the release summary / deployment notes when communicating the
 - Apple calendar encryption key migration: `CALENDAR_CREDENTIALS_ENCRYPTION_KEY` is now the preferred variable. `APPLE_SYNC_ENCRYPTION_KEY` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
 - OpenAI key normalization: `OPENAI_API_KEY` is now the preferred variable. `OPENAI_API_KEY_ENV_VAR` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
 - Mongo connection normalization: `MONGODB_URL` is now the preferred variable. `DATABASE_URL` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
-- Calendar feed secret normalization: `CALENDAR_FEED_SECRET` is now the preferred variable. `ADMIN_TOKEN` remains supported as the fallback path for calendar feed signing during the migration window and emits `[CONFIG_DEPRECATION]` when used. Removal is evidence-based, not tied to a fixed date.
+- Calendar feed secret normalization: `CALENDAR_FEED_SECRET` is now required for feed signing in production-like environments. `ADMIN_TOKEN` no longer acts as the feed signing fallback and remains for admin/testing override only.
 
 Release-note language to reuse:
 - "Phase 3 configuration standardization is now active. New deployments should prefer the target variable names above. Legacy names remain temporarily supported for compatibility and will emit deprecation warnings until the removal window."
@@ -454,7 +454,7 @@ Recommended in production:
 ### Feed/admin and diagnostics
 | Variable | Purpose | Default/Behavior |
 |---|---|---|
-| CALENDAR_FEED_SECRET | Feed token signing/validation secret | falls back to ADMIN_TOKEN, then dev default |
+| CALENDAR_FEED_SECRET | Feed token signing/validation secret | dev fallback only when unset |
 | ADMIN_TOKEN | Auth token for admin diagnostics endpoints | none |
 | AI_REQUEST_OVERRIDE_IN_PROD | Enables request-level AI provider override in production | false unless explicitly true |
 | CALENDAR_SYNC_AUDIT_ENABLED | Enable file audit logging | true unless explicitly false |
