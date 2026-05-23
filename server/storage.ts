@@ -6,6 +6,7 @@ import {
   type DefaultTemplateType,
 } from "./services/defaultTemplateLoader";
 import { 
+  type AiProvider,
   type PropertyTemplate, 
   type InsertPropertyTemplate,
   type MaintenanceTask,
@@ -120,6 +121,10 @@ interface MongoQuestionnaireResponse extends Omit<QuestionnaireResponse, 'id'> {
 interface MongoUser extends Omit<User, 'id'> {
   _id?: ObjectId;
   id: string;
+}
+
+function normalizeAiProvider(value: unknown): AiProvider | null {
+  return value === "openai" || value === "gemini" ? value : null;
 }
 
 export interface GoogleCalendarConnection {
@@ -572,6 +577,20 @@ export class MongoDBStorage implements IStorage {
     };
   }
 
+  private toUser(doc: MongoUser): User {
+    return {
+      id: doc.id,
+      email: doc.email,
+      passwordHash: doc.passwordHash,
+      name: doc.name,
+      timezone: doc.timezone ?? null,
+      aiProvider: normalizeAiProvider(doc.aiProvider),
+      aiAgentEnabled: doc.aiAgentEnabled === true,
+      aiPolicyVersion: typeof doc.aiPolicyVersion === "string" ? doc.aiPolicyVersion : null,
+      createdAt: new Date(doc.createdAt),
+    };
+  }
+
   async createUser(user: InsertUser & { passwordHash: string }): Promise<User> {
     const newUser: MongoUser = {
       id: randomUUID(),
@@ -579,18 +598,14 @@ export class MongoDBStorage implements IStorage {
       passwordHash: user.passwordHash,
       name: user.name,
       timezone: user.timezone ?? null,
+      aiProvider: null,
+      aiAgentEnabled: false,
+      aiPolicyVersion: null,
       createdAt: new Date(),
     };
 
     await this.usersCollection.insertOne(newUser);
-    return {
-      id: newUser.id,
-      email: newUser.email,
-      passwordHash: newUser.passwordHash,
-      name: newUser.name,
-      timezone: newUser.timezone ?? null,
-      createdAt: newUser.createdAt,
-    };
+    return this.toUser(newUser);
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -599,14 +614,7 @@ export class MongoDBStorage implements IStorage {
       return undefined;
     }
 
-    return {
-      id: doc.id,
-      email: doc.email,
-      passwordHash: doc.passwordHash,
-      name: doc.name,
-      timezone: doc.timezone ?? null,
-      createdAt: new Date(doc.createdAt),
-    };
+    return this.toUser(doc);
   }
 
   async getUserById(id: string): Promise<User | undefined> {
@@ -615,14 +623,7 @@ export class MongoDBStorage implements IStorage {
       return undefined;
     }
 
-    return {
-      id: doc.id,
-      email: doc.email,
-      passwordHash: doc.passwordHash,
-      name: doc.name,
-      timezone: doc.timezone ?? null,
-      createdAt: new Date(doc.createdAt),
-    };
+    return this.toUser(doc);
   }
 
   async updateUserProfile(id: string, updates: { name?: string; timezone?: string | null }): Promise<User | undefined> {
@@ -632,14 +633,7 @@ export class MongoDBStorage implements IStorage {
       { returnDocument: 'after' },
     );
     if (!result) return undefined;
-    return {
-      id: result.id,
-      email: result.email,
-      passwordHash: result.passwordHash,
-      name: result.name,
-      timezone: result.timezone ?? null,
-      createdAt: new Date(result.createdAt),
-    };
+    return this.toUser(result);
   }
 
   async updateUserPassword(id: string, passwordHash: string): Promise<boolean> {

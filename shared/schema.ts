@@ -4,12 +4,17 @@ import { z } from "zod";
 // See shared/schemas/*.schema.json for MongoDB validation schemas
 
 // User Types
+export type AiProvider = "gemini" | "openai";
+
 export interface User {
   id: string;
   email: string;
   passwordHash: string;
   name: string;
   timezone: string | null;
+  aiProvider: AiProvider | null;
+  aiAgentEnabled: boolean;
+  aiPolicyVersion: string | null;
   createdAt: Date;
 }
 
