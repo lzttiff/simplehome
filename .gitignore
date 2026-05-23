@@ -16,3 +16,4 @@ maintenance-template-ap-obsolete.orig.json
 .env
 .env.*
 !.env.example
+test_env.sh

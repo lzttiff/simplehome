@@ -28,7 +28,7 @@ Out of scope:
 | TD-AI-001 | Data model extension for per-user AI settings | Add aiProvider, aiAgentEnabled, aiPolicyVersion to user model and storage mappings | Completed |
 | TD-AI-002 | Authenticated endpoint to read/update user AI preferences | Add user-scoped profile API for AI settings with strict validation | Completed |
 | TD-AI-003 | Shared provider resolution helper | Centralize provider resolution and remove route-level drift | Planned |
-| TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Planned |
+| TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Implemented (pending staged execution evidence) |
 | TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Planned |
 | TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Planned |
 
@@ -86,15 +86,26 @@ Acceptance checks:
 Objective:
 - safely migrate existing users to explicit per-user AI fields.
 
-Planned work:
-- add migration script to set missing fields
-- default aiAgentEnabled=false unless explicitly opted in via approved policy
-- produce migration summary output (updated/skipped counts)
+Delivered work:
+- added migration script: `scripts/migrate-user-ai-settings.ts`
+- added npm command: `npm run migrate:user-ai-settings`
+- defaults legacy users with missing `aiAgentEnabled` to `false` unless explicitly opted in
+- supports explicit opt-in lists for approved users (`--opt-in-user-ids`, `--opt-in-emails`)
+- emits migration summary output with scanned/updated/field update counts
+
+Execution examples:
+- Dry run (default): `npm run migrate:user-ai-settings`
+- Apply: `npm run migrate:user-ai-settings -- --apply`
+- Apply with approved opt-ins: `npm run migrate:user-ai-settings -- --apply --opt-in-user-ids user-1,user-2 --opt-in-emails admin@example.com`
 
 Acceptance checks:
 - script is idempotent
 - dry-run or no-op rerun produces stable output
 - rollback/backup steps documented
+
+Current evidence state:
+- Implementation complete.
+- Staging/production execution evidence to be recorded during rollout.
 
 ### TD-AI-005 Audit Logging for User-Scoped AI Changes
 Objective:
