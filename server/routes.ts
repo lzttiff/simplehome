@@ -79,6 +79,18 @@ type CalendarSelection = {
   includeMajor: boolean;
 };
 
+const updateAiPreferencesSchema = z
+  .object({
+    aiProvider: z.enum(["gemini", "openai"]).nullable().optional(),
+    aiAgentEnabled: z.boolean().optional(),
+    aiPolicyVersion: z
+      .union([z.string().trim().min(1).max(100), z.null()])
+      .optional(),
+  })
+  .refine((payload) => Object.keys(payload).length > 0, {
+    message: "At least one AI preference field is required",
+  });
+
 type ParsedCalendarPayload = {
   v: number;
   exp: number;
@@ -303,6 +315,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Update profile error:", error);
       res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.get("/api/user/ai-preferences", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      return res.json({
+        aiProvider: user.aiProvider ?? null,
+        aiAgentEnabled: user.aiAgentEnabled === true,
+        aiPolicyVersion: user.aiPolicyVersion ?? null,
+      });
+    } catch (error) {
+      console.error("Get AI preferences error:", error);
+      return res.status(500).json({ message: "Failed to load AI preferences" });
+    }
+  });
+
+  app.patch("/api/user/ai-preferences", requireAuth, async (req, res) => {
+    try {
+      const parsed = updateAiPreferencesSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid AI preferences payload", errors: parsed.error.errors });
+      }
+
+      const userId = (req.user as User).id;
+      const updated = await storage.updateUserAiPreferences(userId, parsed.data);
+      if (!updated) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      return res.json({
+        aiProvider: updated.aiProvider ?? null,
+        aiAgentEnabled: updated.aiAgentEnabled === true,
+        aiPolicyVersion: updated.aiPolicyVersion ?? null,
+      });
+    } catch (error) {
+      console.error("Update AI preferences error:", error);
+      return res.status(500).json({ message: "Failed to update AI preferences" });
     }
   });
 

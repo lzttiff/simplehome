@@ -37,6 +37,10 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
   updateUserProfile(id: string, updates: { name?: string; timezone?: string | null }): Promise<User | undefined>;
+  updateUserAiPreferences(
+    id: string,
+    updates: { aiProvider?: AiProvider | null; aiAgentEnabled?: boolean; aiPolicyVersion?: string | null },
+  ): Promise<User | undefined>;
   updateUserPassword(id: string, passwordHash: string): Promise<boolean>;
   deleteUserAccountData(userId: string): Promise<{
     deletedQuestionnaireResponses: number;
@@ -633,6 +637,42 @@ export class MongoDBStorage implements IStorage {
       { returnDocument: 'after' },
     );
     if (!result) return undefined;
+    return this.toUser(result);
+  }
+
+  async updateUserAiPreferences(
+    id: string,
+    updates: { aiProvider?: AiProvider | null; aiAgentEnabled?: boolean; aiPolicyVersion?: string | null },
+  ): Promise<User | undefined> {
+    const setUpdates: Record<string, unknown> = {};
+
+    if ("aiProvider" in updates) {
+      setUpdates.aiProvider = normalizeAiProvider(updates.aiProvider);
+    }
+    if ("aiAgentEnabled" in updates) {
+      setUpdates.aiAgentEnabled = updates.aiAgentEnabled === true;
+    }
+    if ("aiPolicyVersion" in updates) {
+      setUpdates.aiPolicyVersion =
+        typeof updates.aiPolicyVersion === "string" && updates.aiPolicyVersion.trim().length > 0
+          ? updates.aiPolicyVersion.trim()
+          : null;
+    }
+
+    if (Object.keys(setUpdates).length === 0) {
+      return this.getUserById(id);
+    }
+
+    const result = await this.usersCollection.findOneAndUpdate(
+      { id },
+      { $set: setUpdates },
+      { returnDocument: "after" },
+    );
+
+    if (!result) {
+      return undefined;
+    }
+
     return this.toUser(result);
   }
 

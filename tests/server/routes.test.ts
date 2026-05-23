@@ -25,6 +25,8 @@ jest.mock('../../server/storage', () => ({
     getAppleConnection: jest.fn(),
     saveAppleConnection: jest.fn(),
     deleteAppleConnection: jest.fn(),
+    getUserById: jest.fn(),
+    updateUserAiPreferences: jest.fn(),
   },
 }));
 
@@ -57,6 +59,7 @@ jest.mock('../../server/auth', () => ({
 }));
 
 const provider = (process.env.PROVIDER as 'gemini' | 'openai') || 'gemini';
+const storageMock = require('../../server/storage').storage;
 
 describe('/api/item-schedule', () => {
   let app: Express;
@@ -88,6 +91,83 @@ describe('/api/item-schedule', () => {
     expect(res.body.result.nextMaintenanceDates).toHaveProperty('minor');
     expect(res.body.result.nextMaintenanceDates).toHaveProperty('major');
   }, 50000); // Increase timeout for Gemini;
+});
+
+describe('/api/user/ai-preferences', () => {
+  let app: Express;
+
+  beforeAll(async () => {
+    app = express();
+    app.use(express.json());
+    await registerRoutes(app);
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns user AI preferences for authenticated user', async () => {
+    storageMock.getUserById.mockResolvedValue({
+      id: 'test-user-id',
+      email: 'test@example.com',
+      passwordHash: 'hash',
+      name: 'Test User',
+      timezone: null,
+      aiProvider: 'gemini',
+      aiAgentEnabled: true,
+      aiPolicyVersion: 'v1',
+      createdAt: new Date(),
+    });
+
+    const res = await request(app).get('/api/user/ai-preferences');
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.getUserById).toHaveBeenCalledWith('test-user-id');
+    expect(res.body).toEqual({
+      aiProvider: 'gemini',
+      aiAgentEnabled: true,
+      aiPolicyVersion: 'v1',
+    });
+  });
+
+  it('updates user AI preferences for authenticated user', async () => {
+    storageMock.updateUserAiPreferences.mockResolvedValue({
+      id: 'test-user-id',
+      email: 'test@example.com',
+      passwordHash: 'hash',
+      name: 'Test User',
+      timezone: null,
+      aiProvider: 'openai',
+      aiAgentEnabled: false,
+      aiPolicyVersion: 'v2',
+      createdAt: new Date(),
+    });
+
+    const res = await request(app)
+      .patch('/api/user/ai-preferences')
+      .send({ aiProvider: 'openai', aiAgentEnabled: false, aiPolicyVersion: 'v2' });
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.updateUserAiPreferences).toHaveBeenCalledWith('test-user-id', {
+      aiProvider: 'openai',
+      aiAgentEnabled: false,
+      aiPolicyVersion: 'v2',
+    });
+    expect(res.body).toEqual({
+      aiProvider: 'openai',
+      aiAgentEnabled: false,
+      aiPolicyVersion: 'v2',
+    });
+  });
+
+  it('returns 400 for invalid AI provider', async () => {
+    const res = await request(app)
+      .patch('/api/user/ai-preferences')
+      .send({ aiProvider: 'invalid-provider' });
+
+    expect(res.statusCode).toBe(400);
+    expect(storageMock.updateUserAiPreferences).not.toHaveBeenCalled();
+  });
 });
 
 describe('/api/calendar/apple/sync - Contract Tests', () => {

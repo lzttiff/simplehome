@@ -26,7 +26,7 @@ Out of scope:
 | ID | Title | Planned Effort | Status |
 | --- | --- | --- | --- |
 | TD-AI-001 | Data model extension for per-user AI settings | Add aiProvider, aiAgentEnabled, aiPolicyVersion to user model and storage mappings | Completed |
-| TD-AI-002 | Authenticated endpoint to read/update user AI preferences | Add user-scoped profile API for AI settings with strict validation | Planned |
+| TD-AI-002 | Authenticated endpoint to read/update user AI preferences | Add user-scoped profile API for AI settings with strict validation | Completed |
 | TD-AI-003 | Shared provider resolution helper | Centralize provider resolution and remove route-level drift | Planned |
 | TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Planned |
 | TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Planned |
@@ -51,11 +51,15 @@ Completion evidence:
 Objective:
 - provide authenticated endpoints to fetch and update per-user AI preferences.
 
-Planned work:
+Delivered work:
 - add user-scoped read API for AI settings
 - extend user profile update API (or add dedicated endpoint) for AI fields
 - validate provider enum and boolean flags
 - reject cross-account writes by deriving user id from session only
+
+Implemented endpoints:
+- GET /api/user/ai-preferences
+- PATCH /api/user/ai-preferences
 
 Acceptance checks:
 - authenticated user can only read/update own settings
