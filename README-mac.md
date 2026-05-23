@@ -75,7 +75,7 @@ export GEMINI_API_KEY="your_gemini_key_here"
 # export DEFAULT_AI_PROVIDER=openai
 # export OPENAI_API_KEY="your_openai_key_here"
 
-# Optional admin diagnostics token (for /api/admin/ai-diagnostics)
+# Optional admin/testing override token
 export ADMIN_TOKEN="some-secret-token"
 
 # Optional: enable verbose server debug for client requests
@@ -83,6 +83,12 @@ export ADMIN_TOKEN="some-secret-token"
 
 source ~/.zshrc
 ```
+
+ADMIN_TOKEN best practice:
+- Generate a strong value (example): `openssl rand -base64 48`
+- Keep it in local shell env or secret manager only, never in committed files
+- Use only for admin/testing override paths, sent as `x-admin-token` header
+- Do not reuse it as CALENDAR_FEED_SECRET except temporary migration fallback
 
 Alternative: place the gemini key in a file named `gemini.key` in the project root (single-line, no extra whitespace) — the server will read it.
 
@@ -141,6 +147,11 @@ DEFAULT_AI_PROVIDER=gemini GEMINI_API_KEY="sk-..." DEBUG_CLIENT_REQUESTS=true np
 Run tests with OpenAI:
 ```zsh
 DEFAULT_AI_PROVIDER=openai OPENAI_API_KEY="sk-..." npm test
+```
+
+Example admin-token header usage:
+```zsh
+curl -H "x-admin-token: $ADMIN_TOKEN" http://localhost:5000/api/ai/generate-tasks
 ```
 
 ## 9) Troubleshooting

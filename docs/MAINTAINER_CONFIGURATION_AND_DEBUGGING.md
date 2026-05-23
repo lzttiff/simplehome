@@ -459,6 +459,35 @@ Recommended in production:
 | CALENDAR_SYNC_AUDIT_ENABLED | Enable file audit logging | true unless explicitly false |
 | CALENDAR_SYNC_AUDIT_PATH | Audit log file path | data/calendar-sync.log |
 
+### ADMIN_TOKEN best practices
+
+Use ADMIN_TOKEN as a high-entropy secret for admin-only diagnostics and request-override controls.
+
+Recommended generation:
+- macOS/Linux: `openssl rand -base64 48`
+- Node: `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`
+
+Handling rules:
+- Store in a secret manager or deployment secret store, not in committed files.
+- Never log ADMIN_TOKEN, including partial values.
+- Never reuse ADMIN_TOKEN as a user password, API key, or feed secret long-term.
+- Keep CALENDAR_FEED_SECRET separate from ADMIN_TOKEN; use fallback only during migration windows.
+
+Runtime usage rules:
+- Send only in request header `x-admin-token`.
+- Require HTTPS in non-local environments.
+- Treat token possession as privileged access; scope supported admin-only actions narrowly.
+
+Rotation policy:
+- Rotate at least every 90 days and immediately after suspected exposure.
+- Rotate during planned windows by updating secret store first, then restarting/redeploying service.
+- After rotation, verify admin-token-gated paths with a smoke request and confirm old token no longer works.
+
+Operational checks:
+- Ensure production environments always set ADMIN_TOKEN explicitly (no empty value).
+- Alert on repeated failed admin-token attempts to detect brute-force/misconfiguration.
+- Review logs to ensure no token-like values are emitted by diagnostics handlers.
+
 ### Script-only (Confluence)
 | Variable | Purpose | Default/Behavior |
 |---|---|---|
