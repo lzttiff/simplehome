@@ -20,6 +20,10 @@ import {
 } from "@shared/schema";
 import { randomUUID, createHash } from "crypto";
 import { getMongoUrl } from "./services/runtimeConfig";
+import {
+  decryptAiUserCredential,
+  encryptAiUserCredential,
+} from "./services/aiUserCredentialsCrypto";
 
 // Generate deterministic UUID v5-like ID from a namespace and name
 function deterministicUUID(namespace: string, name: string): string {
@@ -41,6 +45,20 @@ export interface IStorage {
     id: string,
     updates: { aiProvider?: AiProvider | null; aiAgentEnabled?: boolean; aiPolicyVersion?: string | null },
   ): Promise<User | undefined>;
+  getUserAiCredentialStatus(userId: string): Promise<{
+    hasGeminiApiKey: boolean;
+    hasOpenAiApiKey: boolean;
+    updatedAt: Date | null;
+  }>;
+  upsertUserAiCredentials(
+    userId: string,
+    updates: { geminiApiKey?: string | null; openaiApiKey?: string | null },
+  ): Promise<{
+    hasGeminiApiKey: boolean;
+    hasOpenAiApiKey: boolean;
+    updatedAt: Date | null;
+  }>;
+  getUserAiCredential(userId: string, provider: AiProvider): Promise<string | null>;
   updateUserPassword(id: string, passwordHash: string): Promise<boolean>;
   deleteUserAccountData(userId: string): Promise<{
     deletedQuestionnaireResponses: number;
@@ -125,6 +143,15 @@ interface MongoQuestionnaireResponse extends Omit<QuestionnaireResponse, 'id'> {
 interface MongoUser extends Omit<User, 'id'> {
   _id?: ObjectId;
   id: string;
+}
+
+interface MongoUserAiCredentials {
+  _id?: ObjectId;
+  userId: string;
+  geminiApiKeyEncrypted: string | null;
+  openaiApiKeyEncrypted: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 function normalizeAiProvider(value: unknown): AiProvider | null {
@@ -230,6 +257,7 @@ export class MongoDBStorage implements IStorage {
   private tasksCollection!: Collection<MongoMaintenanceTask>;
   private responsesCollection!: Collection<MongoQuestionnaireResponse>;
   private usersCollection!: Collection<MongoUser>;
+  private userAiCredentialsCollection!: Collection<MongoUserAiCredentials>;
   private googleCalendarConnectionsCollection!: Collection<MongoGoogleCalendarConnection>;
   private appleCalendarConnectionsCollection!: Collection<MongoAppleCalendarConnection>;
   private initialized = false;
@@ -244,6 +272,7 @@ export class MongoDBStorage implements IStorage {
     this.tasksCollection = this.db.collection<MongoMaintenanceTask>("maintenance_tasks");
     this.responsesCollection = this.db.collection<MongoQuestionnaireResponse>("questionnaire_responses");
     this.usersCollection = this.db.collection<MongoUser>("users");
+    this.userAiCredentialsCollection = this.db.collection<MongoUserAiCredentials>("user_ai_credentials");
     this.googleCalendarConnectionsCollection = this.db.collection<MongoGoogleCalendarConnection>("google_calendar_connections");
     this.appleCalendarConnectionsCollection = this.db.collection<MongoAppleCalendarConnection>("apple_calendar_connections");
   }
@@ -262,6 +291,7 @@ export class MongoDBStorage implements IStorage {
       await this.tasksCollection.createIndex({ priority: 1 });
       await this.responsesCollection.createIndex({ sessionId: 1 }, { unique: true });
       await this.usersCollection.createIndex({ email: 1 }, { unique: true });
+      await this.userAiCredentialsCollection.createIndex({ userId: 1 }, { unique: true });
       await this.googleCalendarConnectionsCollection.createIndex({ userId: 1 }, { unique: true });
       await this.appleCalendarConnectionsCollection.createIndex({ userId: 1 }, { unique: true });
       
@@ -674,6 +704,86 @@ export class MongoDBStorage implements IStorage {
     }
 
     return this.toUser(result);
+  }
+
+  async getUserAiCredentialStatus(userId: string): Promise<{
+    hasGeminiApiKey: boolean;
+    hasOpenAiApiKey: boolean;
+    updatedAt: Date | null;
+  }> {
+    const doc = await this.userAiCredentialsCollection.findOne(
+      { userId },
+      { projection: { geminiApiKeyEncrypted: 1, openaiApiKeyEncrypted: 1, updatedAt: 1 } },
+    );
+
+    if (!doc) {
+      return {
+        hasGeminiApiKey: false,
+        hasOpenAiApiKey: false,
+        updatedAt: null,
+      };
+    }
+
+    return {
+      hasGeminiApiKey: !!doc.geminiApiKeyEncrypted,
+      hasOpenAiApiKey: !!doc.openaiApiKeyEncrypted,
+      updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
+    };
+  }
+
+  async upsertUserAiCredentials(
+    userId: string,
+    updates: { geminiApiKey?: string | null; openaiApiKey?: string | null },
+  ): Promise<{
+    hasGeminiApiKey: boolean;
+    hasOpenAiApiKey: boolean;
+    updatedAt: Date | null;
+  }> {
+    const setUpdates: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+    const setOnInsert = {
+      userId,
+      createdAt: new Date(),
+      geminiApiKeyEncrypted: null,
+      openaiApiKeyEncrypted: null,
+    };
+
+    if ("geminiApiKey" in updates) {
+      const value = typeof updates.geminiApiKey === "string" ? updates.geminiApiKey.trim() : "";
+      setUpdates.geminiApiKeyEncrypted = value.length > 0 ? encryptAiUserCredential(value) : null;
+    }
+
+    if ("openaiApiKey" in updates) {
+      const value = typeof updates.openaiApiKey === "string" ? updates.openaiApiKey.trim() : "";
+      setUpdates.openaiApiKeyEncrypted = value.length > 0 ? encryptAiUserCredential(value) : null;
+    }
+
+    await this.userAiCredentialsCollection.updateOne(
+      { userId },
+      { $set: setUpdates, $setOnInsert: setOnInsert },
+      { upsert: true },
+    );
+
+    return this.getUserAiCredentialStatus(userId);
+  }
+
+  async getUserAiCredential(userId: string, provider: AiProvider): Promise<string | null> {
+    const doc = await this.userAiCredentialsCollection.findOne(
+      { userId },
+      { projection: { geminiApiKeyEncrypted: 1, openaiApiKeyEncrypted: 1 } },
+    );
+
+    if (!doc) {
+      return null;
+    }
+
+    const encrypted = provider === "gemini" ? doc.geminiApiKeyEncrypted : doc.openaiApiKeyEncrypted;
+    if (!encrypted) {
+      return null;
+    }
+
+    return decryptAiUserCredential(encrypted);
   }
 
   async updateUserPassword(id: string, passwordHash: string): Promise<boolean> {

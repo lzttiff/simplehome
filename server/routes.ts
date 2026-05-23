@@ -139,6 +139,35 @@ function canUseAiRequestOverride(req: express.Request): boolean {
   return timingSafeEqual(provided, expected);
 }
 
+function hasExplicitProviderOverride(req: express.Request): boolean {
+  const body = req.body as { provider?: unknown } | undefined;
+  return typeof body?.provider === "string" && body.provider.trim().length > 0;
+}
+
+function hasAdminOverrideTokenHeader(req: express.Request): boolean {
+  const providedToken = req.header("x-admin-token");
+  return typeof providedToken === "string" && providedToken.trim().length > 0;
+}
+
+function ensureAiAgentEnabled(req: express.Request, res: express.Response): boolean {
+  const user = req.user as User | undefined;
+  if (!user) {
+    res.status(401).json({ message: "Not authenticated" });
+    return false;
+  }
+
+  if (user.aiAgentEnabled === true) {
+    return true;
+  }
+
+  if (hasExplicitProviderOverride(req) && hasAdminOverrideTokenHeader(req) && canUseAiRequestOverride(req)) {
+    return true;
+  }
+
+  res.status(403).json({ message: "AI agent is disabled for this user" });
+  return false;
+}
+
 function persistShortFeedStore(): void {
   try {
     const out = Object.fromEntries(shortCalendarFeedStore.entries());
@@ -1875,6 +1904,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Task Generation
   app.post("/api/ai/generate-tasks", requireAuth, async (req, res) => {
     try {
+  if (!ensureAiAgentEnabled(req, res)) {
+    return;
+  }
   const { propertyType, assessment, provider: reqProvider, geminiApiKey } = req.body;
   const user = req.user as User;
   const provider = resolveAiProvider({
@@ -1919,6 +1951,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/ai/quick-suggestions", requireAuth, async (req, res) => {
     try {
+  if (!ensureAiAgentEnabled(req, res)) {
+    return;
+  }
   const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey } = req.body;
     const user = req.user as User;
     const provider = resolveAiProvider({

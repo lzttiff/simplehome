@@ -12,7 +12,18 @@ jest.mock('../../server/services/gemini', () => ({
 }));
 
 jest.mock('../../server/auth', () => ({
-  requireAuth: (_req: any, _res: any, next: any) => next(),
+  requireAuth: (req: any, _res: any, next: any) => {
+    const headerValue = req.headers?.['x-ai-enabled'];
+    const aiAgentEnabled = headerValue !== 'false';
+    req.user = {
+      id: 'test-user-id',
+      email: 'test@example.com',
+      aiAgentEnabled,
+      aiProvider: null,
+      createdAt: new Date(),
+    };
+    next();
+  },
   hashPassword: jest.fn(async (password: string) => `hash-${password}`),
 }));
 
@@ -77,5 +88,16 @@ describe('/api/ai/generate-tasks (Gemini key support)', () => {
     expect((generateGeminiContent as jest.Mock).mock.calls.length).toBe(1);
     const calledWithKey = (generateGeminiContent as jest.Mock).mock.calls[0][1];
     expect(calledWithKey).toBe('env-key');
+  });
+
+  it('returns 403 when aiAgentEnabled is false for the authenticated user', async () => {
+    const res = await request(app)
+      .post('/api/ai/generate-tasks')
+      .set('x-ai-enabled', 'false')
+      .send({ propertyType: 'single_family', assessment: 'Needs cleaning', provider: 'gemini', geminiApiKey: 'body-key' });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/AI agent is disabled/);
+    expect(generateGeminiContent).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-# Per-User AI Tech Debt Plan (TD-AI-001 to TD-AI-006)
+# Per-User AI Tech Debt Plan (TD-AI-001 to TD-AI-007)
 
 ## Purpose
 This document is the implementation tracker for migrating AI behavior from app-wide defaults to user-scoped controls.
@@ -8,7 +8,7 @@ Primary objective:
 
 ## Scope
 In scope:
-- TD-AI-001 through TD-AI-006
+- TD-AI-001 through TD-AI-007
 - data model, API surface, routing/provider resolution, migration, auditing, and tests
 
 Out of scope:
@@ -31,6 +31,7 @@ Out of scope:
 | TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Implemented (pending staged execution evidence) |
 | TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Planned |
 | TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Planned |
+| TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented (first slice) |
 
 ## Detailed Plan
 
@@ -134,6 +135,25 @@ Acceptance checks:
 - all new tests pass in CI
 - negative tests included for unauthorized/cross-user access
 
+### TD-AI-007 Per-User Provider Credential Management
+Objective:
+- support user-owned provider API keys without exposing secrets in profile APIs.
+
+Delivered work (first slice):
+- added runtime key resolver for AI user credentials encryption (`AI_USER_CREDENTIALS_ENCRYPTION_KEY` with compatibility fallback)
+- added crypto service for encryption/decryption of per-user provider keys
+- added storage plumbing using dedicated collection (`user_ai_credentials`) to avoid exposing secrets in `User` profile payloads
+- added storage methods for:
+  - credential status (presence flags)
+  - encrypted upsert
+  - provider-specific decrypted retrieval for server-side use
+
+Pending work:
+- add authenticated endpoints to set/remove user keys and fetch key-status metadata
+- add connection/validation check endpoint per provider
+- add audit logging for key mutation operations (TD-AI-005 alignment)
+- add route/service adoption to prefer user key when policy allows
+
 ## Sequencing and Dependencies
 Recommended order:
 1. TD-AI-001 (completed)
@@ -142,11 +162,13 @@ Recommended order:
 4. TD-AI-004
 5. TD-AI-005
 6. TD-AI-006
+7. TD-AI-007
 
 Dependency notes:
 - TD-AI-003 depends on TD-AI-002 user preference availability.
 - TD-AI-005 depends on TD-AI-002 mutation path finalization.
 - TD-AI-006 should be expanded as TD-AI-002 through TD-AI-005 land.
+- TD-AI-007 storage plumbing should be in place before adding user key management endpoints.
 
 ## Risks and Mitigations
 - Risk: behavior drift across endpoints before resolver centralization.

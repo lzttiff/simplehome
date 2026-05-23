@@ -103,6 +103,14 @@ export function getOpenAiApiKey(): string | null {
   ).value;
 }
 
+export function getAiUserCredentialsEncryptionKey(): string | null {
+  return resolveWithLegacyFallback(
+    "AI_USER_CREDENTIALS_ENCRYPTION_KEY",
+    "CALENDAR_CREDENTIALS_ENCRYPTION_KEY",
+    { component: "ai", removeByVersion: "v2026.12" },
+  ).value;
+}
+
 export function getMongoUrl(): string | null {
   return resolveWithLegacyFallback(
     "MONGODB_URL",
