@@ -4,7 +4,8 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { OpenAI } from "openai";
 import { normalizeDateOnly } from "../../shared/schema";
-import { getDefaultAiProvider, getOpenAiApiKey } from "./runtimeConfig";
+import { getOpenAiApiKey } from "./runtimeConfig";
+import { resolveAiProvider } from "./aiProviderResolver";
 import { redactSensitiveText } from "./securityRedaction";
 
 const openai = new OpenAI({
@@ -415,7 +416,10 @@ Respond ONLY with valid JSON exactly matching the schema above. No explanations,
   // Support provider selection with automatic failover.
   const oneWeekFromToday = new Date();
   oneWeekFromToday.setDate(oneWeekFromToday.getDate() + 7);
-  const primaryProvider = ((item as any).provider || getDefaultAiProvider() || "gemini") as AiProvider;
+  const primaryProvider = resolveAiProvider({
+    contextProvider: (item as any).provider,
+    allowRequestOverride: false,
+  }).provider as AiProvider;
   const secondaryProvider: AiProvider = primaryProvider === "gemini" ? "openai" : "gemini";
   const providersToTry: AiProvider[] = [primaryProvider, secondaryProvider];
   let lastFailure = "Unknown AI generation failure";

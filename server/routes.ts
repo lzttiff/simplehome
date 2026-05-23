@@ -46,6 +46,7 @@ import { fileURLToPath } from "url";
 import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
 import { getCalendarFeedSecret as getRuntimeCalendarFeedSecret } from "./services/runtimeConfig";
+import { resolveAiProvider } from "./services/aiProviderResolver";
 import {
   buildCalendarTaskDescription,
   createGoogleCalendarAuthorizationUrl,
@@ -100,6 +101,30 @@ type ParsedCalendarPayload = {
 
 const shortCalendarFeedStore = new Map<string, ParsedCalendarPayload>();
 const shortCalendarFeedFile = path.join(process.cwd(), "data", "calendar-feeds.json");
+
+function canUseAiRequestOverride(req: express.Request): boolean {
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+
+  const adminToken = process.env.ADMIN_TOKEN?.trim();
+  if (!adminToken) {
+    return false;
+  }
+
+  const providedToken = req.header("x-admin-token")?.trim();
+  if (!providedToken) {
+    return false;
+  }
+
+  const provided = Buffer.from(providedToken);
+  const expected = Buffer.from(adminToken);
+  if (provided.length !== expected.length) {
+    return false;
+  }
+
+  return timingSafeEqual(provided, expected);
+}
 
 function persistShortFeedStore(): void {
   try {
@@ -524,8 +549,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         item = body as CatalogItem;
       }
 
-  // Resolve provider: request body -> item field -> env default -> fallback to gemini
-  let provider = body.provider || item?.provider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
+  const providerResolution = resolveAiProvider({
+    requestProvider: body.provider,
+    contextProvider: item?.provider,
+    allowRequestOverride: canUseAiRequestOverride(req),
+  });
+  const provider = providerResolution.provider;
       logWithLevel("INFO", `Item schedule request received for item: ${item?.name || 'undefined'}, provider: ${provider || 'undefined'}`);
       if (!item) {
         return res.status(400).json({ message: "No item provided" });
@@ -554,8 +583,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Try to get category from provided JSON
       const provided = req.body;
-  // Resolve provider: request body/category -> catalog default -> env default -> gemini
-  let provider = provided.provider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
+  const providerResolution = resolveAiProvider({
+    requestProvider: provided.provider,
+    allowRequestOverride: canUseAiRequestOverride(req),
+  });
+  let provider = providerResolution.provider;
       let category;
       if (provided.householdCatalog && Array.isArray(provided.householdCatalog) && provided.householdCatalog.length > 0) {
         // Use first category from provided JSON
@@ -566,7 +598,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!category || !category.items) {
         const catalogPath = path.join(__dirname, "../maintenance-template-singleFamilyHome.json");
         const catalogData = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
-        provider = provider || catalogData.provider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
+        provider = resolveAiProvider({
+          contextProvider: catalogData.provider,
+          userProvider: provider,
+          allowRequestOverride: false,
+        }).provider;
         category = catalogData.householdCatalog && Array.isArray(catalogData.householdCatalog) && catalogData.householdCatalog.length > 0
           ? catalogData.householdCatalog[0]
           : null;
@@ -1827,7 +1863,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/generate-tasks", requireAuth, async (req, res) => {
     try {
   const { propertyType, assessment, provider: reqProvider, geminiApiKey } = req.body;
-  const provider = reqProvider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
+  const user = req.user as User;
+  const provider = resolveAiProvider({
+    requestProvider: reqProvider,
+    userProvider: user.aiProvider,
+    allowRequestOverride: canUseAiRequestOverride(req),
+  }).provider;
       if (!propertyType || !assessment) {
         return res.status(400).json({ message: "Property type and assessment are required" });
       }
@@ -1866,7 +1907,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/quick-suggestions", requireAuth, async (req, res) => {
     try {
   const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey } = req.body;
-    const provider = reqProvider || process.env.DEFAULT_AI_PROVIDER || 'gemini';
+    const user = req.user as User;
+    const provider = resolveAiProvider({
+      requestProvider: reqProvider,
+      userProvider: user.aiProvider,
+      allowRequestOverride: canUseAiRequestOverride(req),
+    }).provider;
     let suggestions: any;
     if (provider === "gemini") {
         const keyToUse = geminiApiKey || process.env.GEMINI_API_KEY;
