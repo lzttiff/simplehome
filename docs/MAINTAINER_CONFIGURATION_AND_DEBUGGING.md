@@ -152,7 +152,7 @@ Acceptance criteria:
 | APPLE_SYNC_ENCRYPTION_KEY | CALENDAR_CREDENTIALS_ENCRYPTION_KEY | v2026.08 | Keep APPLE_SYNC_ENCRYPTION_KEY as fallback during migration window. |
 | OPENAI_API_KEY_ENV_VAR | OPENAI_API_KEY | v2026.08 | Consolidate to one OpenAI key variable; secondary key kept only for compatibility. |
 | DATABASE_URL (fallback path) | MONGODB_URL | v2026.08 | Keep DATABASE_URL fallback for platform compatibility; prefer MONGODB_URL in docs and deployments. |
-| ADMIN_TOKEN (calendar feed fallback) | CALENDAR_FEED_SECRET (no fallback target) | v2026.10 | Stop using ADMIN_TOKEN as implicit feed-signing fallback after migration. |
+| ADMIN_TOKEN (calendar feed fallback) | CALENDAR_FEED_SECRET (no fallback target) | evidence-based removal | Stop using ADMIN_TOKEN as implicit feed-signing fallback only after validated zero-warning rollout evidence. |
 
 Variables already aligned and retained as-is:
 - CALENDAR_SYNC_AUDIT_ENABLED
@@ -287,7 +287,7 @@ Use these notes in the release summary / deployment notes when communicating the
 - Apple calendar encryption key migration: `CALENDAR_CREDENTIALS_ENCRYPTION_KEY` is now the preferred variable. `APPLE_SYNC_ENCRYPTION_KEY` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
 - OpenAI key normalization: `OPENAI_API_KEY` is now the preferred variable. `OPENAI_API_KEY_ENV_VAR` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
 - Mongo connection normalization: `MONGODB_URL` is now the preferred variable. `DATABASE_URL` remains supported as a fallback during the migration window and emits `[CONFIG_DEPRECATION]` when used.
-- Calendar feed secret normalization: `CALENDAR_FEED_SECRET` is now the preferred variable. `ADMIN_TOKEN` remains supported as the fallback path for calendar feed signing during the migration window and emits `[CONFIG_DEPRECATION]` when used.
+- Calendar feed secret normalization: `CALENDAR_FEED_SECRET` is now the preferred variable. `ADMIN_TOKEN` remains supported as the fallback path for calendar feed signing during the migration window and emits `[CONFIG_DEPRECATION]` when used. Removal is evidence-based, not tied to a fixed date.
 
 Release-note language to reuse:
 - "Phase 3 configuration standardization is now active. New deployments should prefer the target variable names above. Legacy names remain temporarily supported for compatibility and will emit deprecation warnings until the removal window."
@@ -456,12 +456,13 @@ Recommended in production:
 |---|---|---|
 | CALENDAR_FEED_SECRET | Feed token signing/validation secret | falls back to ADMIN_TOKEN, then dev default |
 | ADMIN_TOKEN | Auth token for admin diagnostics endpoints | none |
+| AI_REQUEST_OVERRIDE_IN_PROD | Enables request-level AI provider override in production | false unless explicitly true |
 | CALENDAR_SYNC_AUDIT_ENABLED | Enable file audit logging | true unless explicitly false |
 | CALENDAR_SYNC_AUDIT_PATH | Audit log file path | data/calendar-sync.log |
 
-### ADMIN_TOKEN best practices
+### CALENDAR_FEED_SECRET best practices (primary)
 
-Use ADMIN_TOKEN as a high-entropy secret for admin-only diagnostics and request-override controls.
+Use CALENDAR_FEED_SECRET as the primary high-entropy secret for feed token signing and validation.
 
 Recommended generation:
 - macOS/Linux: `openssl rand -base64 48`
@@ -469,40 +470,60 @@ Recommended generation:
 
 Handling rules:
 - Store in a secret manager or deployment secret store, not in committed files.
-- Never log ADMIN_TOKEN, including partial values.
-- Never reuse ADMIN_TOKEN as a user password, API key, or feed secret long-term.
-- Keep CALENDAR_FEED_SECRET separate from ADMIN_TOKEN; use fallback only during migration windows.
+- Never log CALENDAR_FEED_SECRET, including partial values.
+- Use CALENDAR_FEED_SECRET only for feed signing/validation.
+- Keep CALENDAR_FEED_SECRET separate from ADMIN_TOKEN; ADMIN_TOKEN fallback is legacy-compatibility only.
 
 Runtime usage rules:
-- Send only in request header `x-admin-token`.
-- Require HTTPS in non-local environments.
-- Treat token possession as privileged access; scope supported admin-only actions narrowly.
+- Configure via environment/secret store only; do not send CALENDAR_FEED_SECRET in API request payloads or headers.
+- Require HTTPS for all feed URLs in non-local environments.
+- Treat feed URLs as bearer-style secrets and avoid sharing beyond intended subscribers.
 
 Rotation policy:
 - Rotate at least every 90 days and immediately after suspected exposure.
 - Rotate during planned windows by updating secret store first, then restarting/redeploying service.
-- After rotation, verify admin-token-gated paths with a smoke request and confirm old token no longer works.
+- After rotation, reissue calendar subscriptions/feed URLs and verify old feed tokens are rejected.
 
 Operational checks:
-- Ensure production environments always set ADMIN_TOKEN explicitly (no empty value).
-- Alert on repeated failed admin-token attempts to detect brute-force/misconfiguration.
-- Review logs to ensure no token-like values are emitted by diagnostics handlers.
+- Ensure production environments always set CALENDAR_FEED_SECRET explicitly (no empty value).
+- Alert on repeated feed-token validation failures to detect abuse/misconfiguration.
+- Review logs to ensure no token-like values are emitted by feed endpoints.
+
+#### ADMIN_TOKEN notes (secondary)
+
+ADMIN_TOKEN policy is subordinate to CALENDAR_FEED_SECRET policy:
+- CALENDAR_FEED_SECRET is the primary feed signing/validation secret for all environments.
+- ADMIN_TOKEN may be accepted only as temporary legacy fallback for feed secret resolution during migration windows.
+- Do not plan new deployments around ADMIN_TOKEN for feed signing.
+
+ADMIN_TOKEN usage scope:
+- Use ADMIN_TOKEN for admin/testing override controls only (for example `x-admin-token` in guarded override paths).
+- Keep ADMIN_TOKEN lifecycle separate from CALENDAR_FEED_SECRET lifecycle.
+- When CALENDAR_FEED_SECRET is rotated, treat any ADMIN_TOKEN-based feed fallback as deprecated and remove it on schedule.
 
 #### Admin/testing override policy (recommended)
 
+Primary secret boundary:
+- `CALENDAR_FEED_SECRET` is for feed signing/validation only.
+- `ADMIN_TOKEN` (sent as `x-admin-token`) is for guarded override/diagnostics only.
+- Do not send `CALENDAR_FEED_SECRET` as `x-admin-token` and do not reuse one value for both roles.
+
 Production override lane:
 - Keep request override disabled by default for normal user traffic.
-- Only allow override when both are true:
-	- caller is authenticated as admin (preferred long-term control), and/or
-	- `x-admin-token` matches `ADMIN_TOKEN` via timing-safe comparison.
+- Only allow override when all of the following are true:
+	- `AI_REQUEST_OVERRIDE_IN_PROD=true` is explicitly set,
+	- `x-admin-token` matches `ADMIN_TOKEN` via timing-safe comparison,
+	- caller is on an override-capable endpoint.
 - Restrict override-capable routes to a short allowlist (diagnostics and controlled admin endpoints only).
 - Require TLS and ingress-layer protections (WAF/rate-limit/IP allowlist where possible).
 - Record override attempts (allowed/denied) as security events without logging token contents.
+- Keep feed security independent: override controls must not weaken or replace feed token validation with `CALENDAR_FEED_SECRET`.
 
 Automated/local test lane:
 - In local dev and CI test jobs, allow request override only when explicitly enabled for tests.
 - Prefer a dedicated test token value injected by test harness/CI secrets, not developer personal tokens.
 - Avoid sharing production ADMIN_TOKEN with local or CI environments.
+- Avoid reusing production `CALENDAR_FEED_SECRET` in tests; use separate non-production test secrets.
 - Keep override tests deterministic:
 	- positive case: valid test token applies request override
 	- negative case: missing/invalid token does not apply override and falls back to user/default resolution
@@ -511,7 +532,7 @@ Automated/local test lane:
 	- non-production testing behavior
 
 Suggested rollout for stronger controls:
-1. Current baseline: token-gated override in production.
+1. Current baseline: production override disabled unless `AI_REQUEST_OVERRIDE_IN_PROD=true` and valid `x-admin-token`.
 2. Near term: add authenticated admin-role check and keep token as defense-in-depth.
 3. Final target: override requires admin identity; token acts as secondary control for privileged operations.
 
