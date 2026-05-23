@@ -360,6 +360,12 @@ Business requirement:
 - TD-AI-005: Add audit log entry for AI provider changes at user scope.
 - TD-AI-006: Update tests to validate per-user provider isolation and fallback behavior.
 
+Tracking document:
+- docs/user-management/PER_USER_AI_TECHDEBT_PLAN.md
+
+Current status:
+- TD-AI-001 completed in code (shared User model + storage defaults/hydration).
+
 ### Acceptance criteria for this tech debt
 - Changing DEFAULT_AI_PROVIDER does not alter AI behavior for users with explicit per-user settings.
 - Users with aiAgentEnabled=false cannot trigger AI generation endpoints.
