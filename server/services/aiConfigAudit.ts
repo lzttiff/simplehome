@@ -10,11 +10,13 @@ type AiConfigAuditEvent = {
     aiProvider?: string | null;
     aiAgentEnabled?: boolean;
     aiPolicyVersion?: string | null;
+    [key: string]: unknown;
   };
   newValues?: {
     aiProvider?: string | null;
     aiAgentEnabled?: boolean;
     aiPolicyVersion?: string | null;
+    [key: string]: unknown;
   };
   requestMeta?: {
     method?: string;

@@ -93,6 +93,19 @@ const updateAiPreferencesSchema = z
     message: "At least one AI preference field is required",
   });
 
+const updateAiCredentialsSchema = z
+  .object({
+    geminiApiKey: z.union([z.string().trim().min(1).max(4096), z.null()]).optional(),
+    openaiApiKey: z.union([z.string().trim().min(1).max(4096), z.null()]).optional(),
+  })
+  .refine((payload) => Object.keys(payload).length > 0, {
+    message: "At least one AI credential field is required",
+  });
+
+const providerPathSchema = z.object({
+  provider: z.enum(["gemini", "openai"]),
+});
+
 type ParsedCalendarPayload = {
   v: number;
   exp: number;
@@ -269,6 +282,27 @@ function decodeCalendarPayload(encodedPayload: string): ParsedCalendarPayload {
     return JSON.parse(compressedBase64UrlDecode(encodedPayload)) as ParsedCalendarPayload;
   } catch {
     return JSON.parse(base64UrlDecode(encodedPayload)) as ParsedCalendarPayload;
+  }
+}
+
+async function resolveStoredProviderApiKey(userId: string, provider: "gemini" | "openai"): Promise<string | null> {
+  try {
+    return await storage.getUserAiCredential(userId, provider);
+  } catch {
+    return null;
+  }
+}
+
+function readProjectGeminiKeyFile(): string | null {
+  try {
+    const candidate = path.resolve(process.cwd(), "gemini.key");
+    if (!fs.existsSync(candidate)) {
+      return null;
+    }
+    const key = fs.readFileSync(candidate, "utf-8").trim();
+    return key.length > 0 ? key : null;
+  } catch {
+    return null;
   }
 }
 // ...existing imports...
@@ -453,6 +487,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Update AI preferences error:", error);
       return res.status(500).json({ message: "Failed to update AI preferences" });
+    }
+  });
+
+  app.get("/api/user/ai-credentials", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const status = await storage.getUserAiCredentialStatus(userId);
+      return res.json({
+        hasGeminiApiKey: status.hasGeminiApiKey === true,
+        hasOpenAiApiKey: status.hasOpenAiApiKey === true,
+        updatedAt: status.updatedAt ? status.updatedAt.toISOString() : null,
+      });
+    } catch (error) {
+      console.error("Get AI credential status error:", error);
+      return res.status(500).json({ message: "Failed to load AI credential status" });
+    }
+  });
+
+  app.patch("/api/user/ai-credentials", requireAuth, async (req, res) => {
+    try {
+      const parsed = updateAiCredentialsSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid AI credential payload", errors: parsed.error.errors });
+      }
+
+      const userId = (req.user as User).id;
+      const previousStatus = await storage.getUserAiCredentialStatus(userId);
+      const updatedStatus = await storage.upsertUserAiCredentials(userId, parsed.data);
+
+      writeAiConfigAudit({
+        event: "ai_credentials_updated",
+        actorUserId: userId,
+        targetUserId: userId,
+        oldValues: {
+          hasGeminiApiKey: previousStatus.hasGeminiApiKey,
+          hasOpenAiApiKey: previousStatus.hasOpenAiApiKey,
+        },
+        newValues: {
+          hasGeminiApiKey: updatedStatus.hasGeminiApiKey,
+          hasOpenAiApiKey: updatedStatus.hasOpenAiApiKey,
+        },
+        requestMeta: {
+          method: req.method,
+          path: req.path,
+          ip: req.ip,
+          userAgent: req.get("user-agent") || null,
+        },
+      });
+
+      return res.json({
+        hasGeminiApiKey: updatedStatus.hasGeminiApiKey === true,
+        hasOpenAiApiKey: updatedStatus.hasOpenAiApiKey === true,
+        updatedAt: updatedStatus.updatedAt ? updatedStatus.updatedAt.toISOString() : null,
+      });
+    } catch (error) {
+      console.error("Update AI credentials error:", error);
+      return res.status(500).json({ message: "Failed to update AI credentials" });
+    }
+  });
+
+  app.delete("/api/user/ai-credentials/:provider", requireAuth, async (req, res) => {
+    try {
+      const parsed = providerPathSchema.safeParse(req.params);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid provider" });
+      }
+
+      const userId = (req.user as User).id;
+      const previousStatus = await storage.getUserAiCredentialStatus(userId);
+      const updates =
+        parsed.data.provider === "gemini"
+          ? { geminiApiKey: null as string | null }
+          : { openaiApiKey: null as string | null };
+      const updatedStatus = await storage.upsertUserAiCredentials(userId, updates);
+
+      writeAiConfigAudit({
+        event: "ai_credentials_removed",
+        actorUserId: userId,
+        targetUserId: userId,
+        provider: parsed.data.provider,
+        oldValues: {
+          hasGeminiApiKey: previousStatus.hasGeminiApiKey,
+          hasOpenAiApiKey: previousStatus.hasOpenAiApiKey,
+        },
+        newValues: {
+          hasGeminiApiKey: updatedStatus.hasGeminiApiKey,
+          hasOpenAiApiKey: updatedStatus.hasOpenAiApiKey,
+        },
+        requestMeta: {
+          method: req.method,
+          path: req.path,
+          ip: req.ip,
+          userAgent: req.get("user-agent") || null,
+        },
+      });
+
+      return res.json({
+        hasGeminiApiKey: updatedStatus.hasGeminiApiKey === true,
+        hasOpenAiApiKey: updatedStatus.hasOpenAiApiKey === true,
+        updatedAt: updatedStatus.updatedAt ? updatedStatus.updatedAt.toISOString() : null,
+      });
+    } catch (error) {
+      console.error("Remove AI credential error:", error);
+      return res.status(500).json({ message: "Failed to remove AI credential" });
     }
   });
 
@@ -1935,7 +2073,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   if (!ensureAiAgentEnabled(req, res)) {
     return;
   }
-  const { propertyType, assessment, provider: reqProvider, geminiApiKey } = req.body;
+  const { propertyType, assessment, provider: reqProvider, geminiApiKey, openaiApiKey } = req.body;
   const user = req.user as User;
   const provider = resolveAiProvider({
     requestProvider: reqProvider,
@@ -1949,17 +2087,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (provider === "gemini") {
         // Support passing the Gemini API key in the request body, via environment variable,
         // or via a local file named `gemini.key` at the project root.
-        let keyToUse = geminiApiKey || process.env.GEMINI_API_KEY;
-        if (!keyToUse) {
-          try {
-            const candidate = path.resolve(process.cwd(), "gemini.key");
-            if (fs.existsSync(candidate)) {
-              keyToUse = fs.readFileSync(candidate, "utf-8").trim();
-            }
-          } catch (e) {
-            // ignore file read errors and fall through to validation
-          }
-        }
+        const storedUserKey = await resolveStoredProviderApiKey(user.id, "gemini");
+        const fileKey = readProjectGeminiKeyFile();
+        const keyToUse = geminiApiKey || storedUserKey || process.env.GEMINI_API_KEY || fileKey;
         if (!keyToUse) {
           return res.status(400).json({ message: "Gemini API key required (provide geminiApiKey in request body, set GEMINI_API_KEY, or place key in project root file 'gemini.key')" });
         }
@@ -1967,7 +2097,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const geminiResponse = await generateGeminiContent(prompt, keyToUse);
         suggestions = [geminiResponse];
       } else {
-        suggestions = await generateMaintenanceTasks(propertyType, assessment);
+        const storedUserKey = await resolveStoredProviderApiKey(user.id, "openai");
+        suggestions = await generateMaintenanceTasks(propertyType, assessment, openaiApiKey || storedUserKey || undefined);
       }
       res.json({ suggestions });
     } catch (error) {
@@ -1982,7 +2113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   if (!ensureAiAgentEnabled(req, res)) {
     return;
   }
-  const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey } = req.body;
+  const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey, openaiApiKey } = req.body;
     const user = req.user as User;
     const provider = resolveAiProvider({
       requestProvider: reqProvider,
@@ -1991,7 +2122,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }).provider;
     let suggestions: any;
     if (provider === "gemini") {
-        const keyToUse = geminiApiKey || process.env.GEMINI_API_KEY;
+        const storedUserKey = await resolveStoredProviderApiKey(user.id, "gemini");
+        const fileKey = readProjectGeminiKeyFile();
+        const keyToUse = geminiApiKey || storedUserKey || process.env.GEMINI_API_KEY || fileKey;
         if (!keyToUse) {
           return res.status(400).json({ message: "Gemini API key required" });
         }
@@ -2001,7 +2134,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logWithLevel("INFO", `Generated quick suggestions using ${provider}`);
         logWithLevel("DEBUG", `Provider (${provider}) response: ${JSON.stringify(geminiResponse)}`);
       } else {
-        suggestions = await generateQuickSuggestions(existingTasks || [], propertyInfo);
+        const storedUserKey = await resolveStoredProviderApiKey(user.id, "openai");
+        suggestions = await generateQuickSuggestions(existingTasks || [], propertyInfo, openaiApiKey || storedUserKey || undefined);
       }
       if (Array.isArray(suggestions)) {
         suggestions = suggestions.flat(Infinity);

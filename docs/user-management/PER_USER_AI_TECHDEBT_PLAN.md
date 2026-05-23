@@ -31,7 +31,7 @@ Out of scope:
 | TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Implemented (pending staged execution evidence) |
 | TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Implemented (pending rollout evidence) |
 | TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Implemented (server test scope) |
-| TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented (first slice) |
+| TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented (core server scope) |
 
 ## Detailed Plan
 
@@ -148,7 +148,7 @@ Current evidence state:
 Objective:
 - support user-owned provider API keys without exposing secrets in profile APIs.
 
-Delivered work (first slice):
+Delivered work:
 - added runtime key resolver for AI user credentials encryption (`AI_USER_CREDENTIALS_ENCRYPTION_KEY` with compatibility fallback)
 - added crypto service for encryption/decryption of per-user provider keys
 - added storage plumbing using dedicated collection (`user_ai_credentials`) to avoid exposing secrets in `User` profile payloads
@@ -156,12 +156,16 @@ Delivered work (first slice):
   - credential status (presence flags)
   - encrypted upsert
   - provider-specific decrypted retrieval for server-side use
+- added authenticated credential management routes:
+  - `GET /api/user/ai-credentials` (presence/status only)
+  - `PATCH /api/user/ai-credentials` (set/rotate/remove key material)
+  - `DELETE /api/user/ai-credentials/:provider` (provider-specific remove)
+- added structured audit events for key mutation operations (`ai_credentials_updated`, `ai_credentials_removed`)
+- wired AI generation routes to prefer per-user stored provider keys before environment/file fallback
 
 Pending work:
-- add authenticated endpoints to set/remove user keys and fetch key-status metadata
 - add connection/validation check endpoint per provider
-- add audit logging for key mutation operations (TD-AI-005 alignment)
-- add route/service adoption to prefer user key when policy allows
+- expand integration coverage for full credential lifecycle and provider validation flows
 
 ## Sequencing and Dependencies
 Recommended order:

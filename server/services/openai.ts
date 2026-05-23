@@ -5,9 +5,11 @@ import { logWithLevel } from "./logWithLevel";
 import { redactSensitiveText } from "./securityRedaction";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ 
-  apiKey: getOpenAiApiKey() || "default_key"
-});
+function createOpenAiClient(apiKey?: string): OpenAI {
+  return new OpenAI({
+    apiKey: (typeof apiKey === "string" && apiKey.trim().length > 0 ? apiKey.trim() : getOpenAiApiKey()) || "default_key",
+  });
+}
 
 export interface PropertyAssessment {
   homeAge: string;
@@ -25,9 +27,11 @@ export type AITaskSuggestion = AISuggestion;
 
 export async function generateMaintenanceTasks(
   propertyType: string, 
-  assessment: PropertyAssessment
+  assessment: PropertyAssessment,
+  apiKey?: string,
 ): Promise<AITaskSuggestion[]> {
   try {
+    const openai = createOpenAiClient(apiKey);
     const prompt = `You are a home maintenance expert AI. Generate personalized maintenance tasks for a ${propertyType} property based on the following assessment:
 
 Home Age: ${assessment.homeAge}
@@ -90,9 +94,11 @@ Respond with valid JSON in this exact format:
 
 export async function generateQuickSuggestions(
   existingTasks: any[],
-  propertyInfo?: { type: string; age?: string; climate?: string }
+  propertyInfo?: { type: string; age?: string; climate?: string },
+  apiKey?: string,
 ): Promise<AITaskSuggestion[]> {
   try {
+    const openai = createOpenAiClient(apiKey);
     const taskTitles = existingTasks.map(task => task.title).join(', ');
     
     const prompt = `Based on existing maintenance items / tasks: ${taskTitles}

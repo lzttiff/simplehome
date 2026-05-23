@@ -27,6 +27,8 @@ jest.mock('../../server/storage', () => ({
     deleteAppleConnection: jest.fn(),
     getUserById: jest.fn(),
     updateUserAiPreferences: jest.fn(),
+    getUserAiCredentialStatus: jest.fn(),
+    upsertUserAiCredentials: jest.fn(),
   },
 }));
 
@@ -194,6 +196,109 @@ describe('/api/user/ai-preferences', () => {
 
     expect(res.statusCode).toBe(400);
     expect(storageMock.updateUserAiPreferences).not.toHaveBeenCalled();
+  });
+});
+
+describe('/api/user/ai-credentials', () => {
+  let app: Express;
+
+  beforeAll(async () => {
+    app = express();
+    app.use(express.json());
+    await registerRoutes(app);
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns AI credential status for authenticated user', async () => {
+    const now = new Date('2026-05-23T10:00:00.000Z');
+    storageMock.getUserAiCredentialStatus.mockResolvedValue({
+      hasGeminiApiKey: true,
+      hasOpenAiApiKey: false,
+      updatedAt: now,
+    });
+
+    const res = await request(app).get('/api/user/ai-credentials');
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.getUserAiCredentialStatus).toHaveBeenCalledWith('test-user-id');
+    expect(res.body).toEqual({
+      hasGeminiApiKey: true,
+      hasOpenAiApiKey: false,
+      updatedAt: now.toISOString(),
+    });
+  });
+
+  it('updates AI credentials and emits redacted audit event', async () => {
+    const now = new Date('2026-05-23T11:00:00.000Z');
+    storageMock.getUserAiCredentialStatus
+      .mockResolvedValueOnce({ hasGeminiApiKey: false, hasOpenAiApiKey: false, updatedAt: null });
+    storageMock.upsertUserAiCredentials.mockResolvedValue({
+      hasGeminiApiKey: true,
+      hasOpenAiApiKey: false,
+      updatedAt: now,
+    });
+
+    const res = await request(app)
+      .patch('/api/user/ai-credentials')
+      .send({ geminiApiKey: 'gemini-user-key' });
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.upsertUserAiCredentials).toHaveBeenCalledWith('test-user-id', {
+      geminiApiKey: 'gemini-user-key',
+    });
+    expect(res.body).toEqual({
+      hasGeminiApiKey: true,
+      hasOpenAiApiKey: false,
+      updatedAt: now.toISOString(),
+    });
+    expect(aiAuditMock.writeAiConfigAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'ai_credentials_updated',
+        actorUserId: 'test-user-id',
+        targetUserId: 'test-user-id',
+      }),
+    );
+  });
+
+  it('removes credential for selected provider', async () => {
+    const now = new Date('2026-05-23T12:00:00.000Z');
+    storageMock.getUserAiCredentialStatus
+      .mockResolvedValueOnce({ hasGeminiApiKey: true, hasOpenAiApiKey: true, updatedAt: null });
+    storageMock.upsertUserAiCredentials.mockResolvedValue({
+      hasGeminiApiKey: false,
+      hasOpenAiApiKey: true,
+      updatedAt: now,
+    });
+
+    const res = await request(app).delete('/api/user/ai-credentials/gemini');
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.upsertUserAiCredentials).toHaveBeenCalledWith('test-user-id', {
+      geminiApiKey: null,
+    });
+    expect(aiAuditMock.writeAiConfigAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'ai_credentials_removed',
+        provider: 'gemini',
+      }),
+    );
+    expect(res.body).toEqual({
+      hasGeminiApiKey: false,
+      hasOpenAiApiKey: true,
+      updatedAt: now.toISOString(),
+    });
+  });
+
+  it('returns 400 for invalid credential update payload', async () => {
+    const res = await request(app)
+      .patch('/api/user/ai-credentials')
+      .send({});
+
+    expect(res.statusCode).toBe(400);
+    expect(storageMock.upsertUserAiCredentials).not.toHaveBeenCalled();
   });
 });
 

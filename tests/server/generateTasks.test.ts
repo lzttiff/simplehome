@@ -27,8 +27,15 @@ jest.mock('../../server/auth', () => ({
   hashPassword: jest.fn(async (password: string) => `hash-${password}`),
 }));
 
+jest.mock('../../server/storage', () => ({
+  storage: {
+    getUserAiCredential: jest.fn().mockResolvedValue(null),
+  },
+}));
+
 import { registerRoutes } from '../../server/routes';
 import { generateGeminiContent } from '../../server/services/gemini';
+const storageMock = require('../../server/storage').storage;
 
 describe('/api/ai/generate-tasks (Gemini key support)', () => {
   let app: Express;
@@ -52,6 +59,7 @@ describe('/api/ai/generate-tasks (Gemini key support)', () => {
     // ensure env var doesn't leak between tests
     delete process.env.GEMINI_API_KEY;
     (generateGeminiContent as jest.Mock).mockClear();
+    jest.clearAllMocks();
   });
 
   it('returns 400 when provider=gemini and no key provided', async () => {
@@ -88,6 +96,20 @@ describe('/api/ai/generate-tasks (Gemini key support)', () => {
     expect((generateGeminiContent as jest.Mock).mock.calls.length).toBe(1);
     const calledWithKey = (generateGeminiContent as jest.Mock).mock.calls[0][1];
     expect(calledWithKey).toBe('env-key');
+  });
+
+  it('uses stored user credential when request and env keys are not provided', async () => {
+    storageMock.getUserAiCredential.mockResolvedValueOnce('stored-user-key');
+
+    const res = await request(app)
+      .post('/api/ai/generate-tasks')
+      .send({ propertyType: 'single_family', assessment: 'Filter maintenance needed', provider: 'gemini' });
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.getUserAiCredential).toHaveBeenCalledWith('test-user-id', 'gemini');
+    expect((generateGeminiContent as jest.Mock).mock.calls.length).toBe(1);
+    const calledWithKey = (generateGeminiContent as jest.Mock).mock.calls[0][1];
+    expect(calledWithKey).toBe('stored-user-key');
   });
 
   it('returns 403 when aiAgentEnabled is false for the authenticated user', async () => {
