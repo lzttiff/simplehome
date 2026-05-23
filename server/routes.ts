@@ -36,7 +36,7 @@ import {
   type User
 } from "@shared/schema";
 import { AISuggestion } from "@shared/aiSuggestion";
-import { generateMaintenanceTasks, generateQuickSuggestions } from "./services/openai";
+import { generateMaintenanceTasks, generateQuickSuggestions, validateOpenAiApiKey } from "./services/openai";
 import { generateGeminiContent } from "./services/gemini";
 import { z } from "zod";
 import { ZodError } from "zod";
@@ -104,6 +104,10 @@ const updateAiCredentialsSchema = z
 
 const providerPathSchema = z.object({
   provider: z.enum(["gemini", "openai"]),
+});
+
+const validateAiCredentialSchema = z.object({
+  apiKey: z.string().trim().min(1).max(4096).optional(),
 });
 
 type ParsedCalendarPayload = {
@@ -591,6 +595,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Remove AI credential error:", error);
       return res.status(500).json({ message: "Failed to remove AI credential" });
+    }
+  });
+
+  app.post("/api/user/ai-credentials/:provider/validate", requireAuth, async (req, res) => {
+    try {
+      const providerParsed = providerPathSchema.safeParse(req.params);
+      if (!providerParsed.success) {
+        return res.status(400).json({ message: "Invalid provider" });
+      }
+
+      const bodyParsed = validateAiCredentialSchema.safeParse(req.body ?? {});
+      if (!bodyParsed.success) {
+        return res.status(400).json({ message: "Invalid AI credential validation payload", errors: bodyParsed.error.errors });
+      }
+
+      const userId = (req.user as User).id;
+      const provider = providerParsed.data.provider;
+      const requestKey = bodyParsed.data.apiKey?.trim();
+      const storedKey = requestKey ? null : await storage.getUserAiCredential(userId, provider);
+      const keyToValidate = requestKey || storedKey;
+      const source = requestKey ? "request" : "stored";
+
+      if (!keyToValidate) {
+        return res.status(400).json({
+          provider,
+          valid: false,
+          source,
+          message: "No API key available to validate",
+        });
+      }
+
+      try {
+        if (provider === "gemini") {
+          await generateGeminiContent("Return exactly the word 'ok'.", keyToValidate);
+        } else {
+          await validateOpenAiApiKey(keyToValidate);
+        }
+
+        return res.json({
+          provider,
+          valid: true,
+          source,
+        });
+      } catch {
+        return res.status(400).json({
+          provider,
+          valid: false,
+          source,
+          message: "Credential validation failed",
+        });
+      }
+    } catch (error) {
+      console.error("Validate AI credential error:", error);
+      return res.status(500).json({ message: "Failed to validate AI credential" });
     }
   });
 

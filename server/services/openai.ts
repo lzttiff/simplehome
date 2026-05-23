@@ -11,6 +11,11 @@ function createOpenAiClient(apiKey?: string): OpenAI {
   });
 }
 
+export async function validateOpenAiApiKey(apiKey: string): Promise<void> {
+  const client = createOpenAiClient(apiKey);
+  await client.models.list();
+}
+
 export interface PropertyAssessment {
   homeAge: string;
   homeSize: string;

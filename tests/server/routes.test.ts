@@ -10,6 +10,12 @@ jest.mock('../../server/services/gemini', () => ({
   }),
 }));
 
+jest.mock('../../server/services/openai', () => ({
+  generateMaintenanceTasks: jest.fn(),
+  generateQuickSuggestions: jest.fn(),
+  validateOpenAiApiKey: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../../server/services/appleCalendarSync', () => ({
   connectAppleCalendar: jest.fn(),
   disconnectAppleCalendar: jest.fn(),
@@ -29,6 +35,7 @@ jest.mock('../../server/storage', () => ({
     updateUserAiPreferences: jest.fn(),
     getUserAiCredentialStatus: jest.fn(),
     upsertUserAiCredentials: jest.fn(),
+    getUserAiCredential: jest.fn(),
   },
 }));
 
@@ -67,6 +74,7 @@ jest.mock('../../server/auth', () => ({
 const provider = (process.env.PROVIDER as 'gemini' | 'openai') || 'gemini';
 const storageMock = require('../../server/storage').storage;
 const aiAuditMock = require('../../server/services/aiConfigAudit');
+const openAiMock = require('../../server/services/openai');
 
 describe('/api/item-schedule', () => {
   let app: Express;
@@ -299,6 +307,74 @@ describe('/api/user/ai-credentials', () => {
 
     expect(res.statusCode).toBe(400);
     expect(storageMock.upsertUserAiCredentials).not.toHaveBeenCalled();
+  });
+
+  it('validates gemini credential from request payload', async () => {
+    const { generateGeminiContent } = require('../../server/services/gemini');
+    (generateGeminiContent as jest.Mock).mockResolvedValueOnce({ ok: true });
+
+    const res = await request(app)
+      .post('/api/user/ai-credentials/gemini/validate')
+      .send({ apiKey: 'gemini-request-key' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({
+      provider: 'gemini',
+      valid: true,
+      source: 'request',
+    });
+    expect(storageMock.getUserAiCredential).not.toHaveBeenCalled();
+    expect(generateGeminiContent).toHaveBeenCalledWith("Return exactly the word 'ok'.", 'gemini-request-key');
+  });
+
+  it('validates openai credential from stored key when request key is absent', async () => {
+    storageMock.getUserAiCredential.mockResolvedValueOnce('stored-openai-key');
+
+    const res = await request(app)
+      .post('/api/user/ai-credentials/openai/validate')
+      .send({});
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({
+      provider: 'openai',
+      valid: true,
+      source: 'stored',
+    });
+    expect(storageMock.getUserAiCredential).toHaveBeenCalledWith('test-user-id', 'openai');
+    expect(openAiMock.validateOpenAiApiKey).toHaveBeenCalledWith('stored-openai-key');
+  });
+
+  it('returns 400 when no request key and no stored key are available', async () => {
+    storageMock.getUserAiCredential.mockResolvedValueOnce(null);
+
+    const res = await request(app)
+      .post('/api/user/ai-credentials/gemini/validate')
+      .send({});
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({
+      provider: 'gemini',
+      valid: false,
+      source: 'stored',
+      message: 'No API key available to validate',
+    });
+  });
+
+  it('returns 400 when provider validation fails', async () => {
+    const { generateGeminiContent } = require('../../server/services/gemini');
+    (generateGeminiContent as jest.Mock).mockRejectedValueOnce(new Error('Invalid key'));
+
+    const res = await request(app)
+      .post('/api/user/ai-credentials/gemini/validate')
+      .send({ apiKey: 'bad-key' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({
+      provider: 'gemini',
+      valid: false,
+      source: 'request',
+      message: 'Credential validation failed',
+    });
   });
 });
 

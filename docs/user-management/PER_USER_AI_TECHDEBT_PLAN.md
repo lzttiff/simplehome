@@ -160,11 +160,13 @@ Delivered work:
   - `GET /api/user/ai-credentials` (presence/status only)
   - `PATCH /api/user/ai-credentials` (set/rotate/remove key material)
   - `DELETE /api/user/ai-credentials/:provider` (provider-specific remove)
+- added provider credential validation route:
+  - `POST /api/user/ai-credentials/:provider/validate` (validates request key or stored key)
 - added structured audit events for key mutation operations (`ai_credentials_updated`, `ai_credentials_removed`)
 - wired AI generation routes to prefer per-user stored provider keys before environment/file fallback
+- added server tests for credential status/mutation/validation and stored-key resolution
 
 Pending work:
-- add connection/validation check endpoint per provider
 - expand integration coverage for full credential lifecycle and provider validation flows
 
 ## Sequencing and Dependencies
