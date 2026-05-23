@@ -30,7 +30,7 @@ Out of scope:
 | TD-AI-003 | Shared provider resolution helper | Centralize provider resolution and remove route-level drift | Completed |
 | TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Implemented (pending staged execution evidence) |
 | TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Implemented (pending rollout evidence) |
-| TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Planned |
+| TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Implemented (server test scope) |
 | TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented (first slice) |
 
 ## Detailed Plan
@@ -130,15 +130,19 @@ Current evidence state:
 Objective:
 - prove correctness of user-level isolation and fallback behavior.
 
-Planned work:
-- route tests for auth and user scoping
-- provider resolution tests for explicit override/user setting/default fallback
-- tests ensuring aiAgentEnabled=false blocks AI generation endpoints
-- regression tests for legacy users with null/missing settings
+Delivered work:
+- route tests for auth and user scoping on AI preference endpoints
+- provider resolution tests for explicit override and fallback behavior
+- tests ensuring `aiAgentEnabled=false` blocks AI generation endpoints
+- production override guard tests (`AI_REQUEST_OVERRIDE_IN_PROD` + valid `x-admin-token` required)
 
 Acceptance checks:
 - all new tests pass in CI
 - negative tests included for unauthorized/cross-user access
+
+Current evidence state:
+- Targeted server test suites are passing for routes/provider/fallback coverage.
+- Additional integration-level validation can be expanded in future if end-to-end user-key flows are added.
 
 ### TD-AI-007 Per-User Provider Credential Management
 Objective:
