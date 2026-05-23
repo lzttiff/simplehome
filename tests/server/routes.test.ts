@@ -376,6 +376,74 @@ describe('/api/user/ai-credentials', () => {
       message: 'Credential validation failed',
     });
   });
+
+  it('supports full gemini credential lifecycle with stored-key validation path', async () => {
+    const state: { geminiApiKey: string | null; openaiApiKey: string | null; updatedAt: Date | null } = {
+      geminiApiKey: null,
+      openaiApiKey: null,
+      updatedAt: null,
+    };
+
+    storageMock.getUserAiCredentialStatus.mockImplementation(async () => ({
+      hasGeminiApiKey: !!state.geminiApiKey,
+      hasOpenAiApiKey: !!state.openaiApiKey,
+      updatedAt: state.updatedAt,
+    }));
+
+    storageMock.upsertUserAiCredentials.mockImplementation(async (_userId: string, updates: { geminiApiKey?: string | null; openaiApiKey?: string | null }) => {
+      if (Object.prototype.hasOwnProperty.call(updates, 'geminiApiKey')) {
+        state.geminiApiKey = updates.geminiApiKey ?? null;
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, 'openaiApiKey')) {
+        state.openaiApiKey = updates.openaiApiKey ?? null;
+      }
+      state.updatedAt = new Date('2026-05-23T13:00:00.000Z');
+      return {
+        hasGeminiApiKey: !!state.geminiApiKey,
+        hasOpenAiApiKey: !!state.openaiApiKey,
+        updatedAt: state.updatedAt,
+      };
+    });
+
+    storageMock.getUserAiCredential.mockImplementation(async (_userId: string, providerName: 'gemini' | 'openai') => {
+      return providerName === 'gemini' ? state.geminiApiKey : state.openaiApiKey;
+    });
+
+    const start = await request(app).get('/api/user/ai-credentials');
+    expect(start.statusCode).toBe(200);
+    expect(start.body.hasGeminiApiKey).toBe(false);
+
+    const set = await request(app)
+      .patch('/api/user/ai-credentials')
+      .send({ geminiApiKey: 'lifecycle-gemini-key' });
+    expect(set.statusCode).toBe(200);
+    expect(set.body.hasGeminiApiKey).toBe(true);
+
+    const afterSet = await request(app).get('/api/user/ai-credentials');
+    expect(afterSet.statusCode).toBe(200);
+    expect(afterSet.body.hasGeminiApiKey).toBe(true);
+
+    const validateStored = await request(app)
+      .post('/api/user/ai-credentials/gemini/validate')
+      .send({});
+    expect(validateStored.statusCode).toBe(200);
+    expect(validateStored.body).toEqual({
+      provider: 'gemini',
+      valid: true,
+      source: 'stored',
+    });
+
+    const remove = await request(app).delete('/api/user/ai-credentials/gemini');
+    expect(remove.statusCode).toBe(200);
+    expect(remove.body.hasGeminiApiKey).toBe(false);
+
+    const finalStatus = await request(app).get('/api/user/ai-credentials');
+    expect(finalStatus.statusCode).toBe(200);
+    expect(finalStatus.body.hasGeminiApiKey).toBe(false);
+
+    expect(aiAuditMock.writeAiConfigAudit).toHaveBeenCalledWith(expect.objectContaining({ event: 'ai_credentials_updated' }));
+    expect(aiAuditMock.writeAiConfigAudit).toHaveBeenCalledWith(expect.objectContaining({ event: 'ai_credentials_removed' }));
+  });
 });
 
 describe('/api/calendar/apple/sync - Contract Tests', () => {

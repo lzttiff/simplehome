@@ -164,10 +164,10 @@ Delivered work:
   - `POST /api/user/ai-credentials/:provider/validate` (validates request key or stored key)
 - added structured audit events for key mutation operations (`ai_credentials_updated`, `ai_credentials_removed`)
 - wired AI generation routes to prefer per-user stored provider keys before environment/file fallback
-- added server tests for credential status/mutation/validation and stored-key resolution
+- added server tests for credential status/mutation/validation, stored-key resolution, and end-to-end route lifecycle flow (set -> status -> validate -> remove)
 
 Pending work:
-- expand integration coverage for full credential lifecycle and provider validation flows
+- expand non-mocked integration coverage (real provider sandbox keys and failure-mode matrix) during staging rollout
 
 ## Sequencing and Dependencies
 Recommended order:
