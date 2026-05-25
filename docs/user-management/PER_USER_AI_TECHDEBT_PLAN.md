@@ -31,7 +31,7 @@ Out of scope:
 | TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Implemented (pending staged execution evidence) |
 | TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Implemented (pending rollout evidence) |
 | TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Implemented (server test scope) |
-| TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented (core server scope) |
+| TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented |
 
 ## Detailed Plan
 
@@ -165,6 +165,10 @@ Delivered work:
 - added structured audit events for key mutation operations (`ai_credentials_updated`, `ai_credentials_removed`)
 - wired AI generation routes to prefer per-user stored provider keys before environment/file fallback
 - added server tests for credential status/mutation/validation, stored-key resolution, and end-to-end route lifecycle flow (set -> status -> validate -> remove)
+
+Current operator note:
+- per-user AI preference and key management is exposed via authenticated backend APIs and in-app user settings UI.
+- users can now configure provider, enable/disable AI agent, set/remove provider keys, and run provider validation checks from the web app.
 
 Pending work:
 - expand non-mocked integration coverage (real provider sandbox keys and failure-mode matrix) during staging rollout

@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "wouter";
 import { PropertyTemplate, User } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building, Home, Building2, Warehouse, Key, Plus } from "lucide-react";
 import AccountMenu from "@/components/account-menu";
+import UserSettingsModal from "@/components/user-settings-modal";
 import { getQueryFn } from "@/lib/queryClient";
 
 const propertyTypeIcons = {
@@ -24,6 +26,7 @@ const propertyTypeImages = {
 };
 
 export default function TemplateSelection() {
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const { data: templates, isLoading } = useQuery<PropertyTemplate[]>({
     queryKey: ["/api/templates"],
   });
@@ -63,7 +66,7 @@ export default function TemplateSelection() {
             </nav>
             {user && (
               <div className="flex items-center">
-                <AccountMenu user={user} />
+                <AccountMenu user={user} onSettingsClick={() => setShowSettingsModal(true)} />
               </div>
             )}
           </div>
@@ -130,6 +133,13 @@ export default function TemplateSelection() {
           </Link>
         </div>
       </div>
+
+      <UserSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        currentTimezone={user?.timezone ?? null}
+        currentName={user?.name ?? ""}
+      />
     </div>
   );
 }

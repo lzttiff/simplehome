@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { normalizeDateOnly, toDateOnlyFromLocalDate } from "@shared/schema";
 
 // Common IANA timezone list grouped by region
@@ -112,6 +114,18 @@ type GoogleCalendarStatus = {
   syncScopeUpdatedAt?: string | null;
 };
 
+type AiPreferencesResponse = {
+  aiProvider: "gemini" | "openai" | null;
+  aiAgentEnabled: boolean;
+  aiPolicyVersion: string | null;
+};
+
+type AiCredentialStatusResponse = {
+  hasGeminiApiKey: boolean;
+  hasOpenAiApiKey: boolean;
+  updatedAt: string | null;
+};
+
 export default function UserSettingsModal({
   isOpen,
   onClose,
@@ -123,6 +137,12 @@ export default function UserSettingsModal({
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     currentTimezone || detectBrowserTimezone(),
   );
+  const [selectedAiProvider, setSelectedAiProvider] = useState<"gemini" | "openai" | null>(null);
+  const [aiAgentEnabled, setAiAgentEnabled] = useState(false);
+  const [aiPolicyVersion, setAiPolicyVersion] = useState("");
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState("");
+  const [openAiApiKeyInput, setOpenAiApiKeyInput] = useState("");
+  const [lastValidationMessage, setLastValidationMessage] = useState<string | null>(null);
 
   const { data: googleCalendarStatus, isLoading: googleStatusLoading } = useQuery<GoogleCalendarStatus>({
     queryKey: ["/api/calendar/google/sync/status"],
@@ -132,10 +152,35 @@ export default function UserSettingsModal({
     retry: false,
   });
 
+  const { data: aiPreferences, isLoading: aiPreferencesLoading } = useQuery<AiPreferencesResponse>({
+    queryKey: ["/api/user/ai-preferences"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: isOpen,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const { data: aiCredentialStatus, isLoading: aiCredentialStatusLoading } = useQuery<AiCredentialStatusResponse>({
+    queryKey: ["/api/user/ai-credentials"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: isOpen,
+    staleTime: 15_000,
+    retry: false,
+  });
+
   // Sync selected timezone if modal re-opens with a different value
   useEffect(() => {
     setSelectedTimezone(currentTimezone || detectBrowserTimezone());
   }, [currentTimezone, isOpen]);
+
+  useEffect(() => {
+    if (!aiPreferences || !isOpen) {
+      return;
+    }
+    setSelectedAiProvider(aiPreferences.aiProvider ?? null);
+    setAiAgentEnabled(aiPreferences.aiAgentEnabled === true);
+    setAiPolicyVersion(aiPreferences.aiPolicyVersion ?? "");
+  }, [aiPreferences, isOpen]);
 
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
@@ -156,6 +201,103 @@ export default function UserSettingsModal({
       toast({
         title: "Save failed",
         description: error?.message || "Unable to save settings.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveAiPreferencesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PATCH", "/api/user/ai-preferences", {
+        aiProvider: selectedAiProvider,
+        aiAgentEnabled,
+        aiPolicyVersion: aiPolicyVersion.trim() ? aiPolicyVersion.trim() : null,
+      });
+      return res.json();
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/user/ai-preferences"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({
+        title: "AI preferences saved",
+        description: "Your AI provider and enablement settings were updated.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save failed",
+        description: error?.message || "Unable to save AI preferences.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateAiCredentialMutation = useMutation({
+    mutationFn: async (payload: { geminiApiKey?: string; openaiApiKey?: string }) => {
+      const res = await apiRequest("PATCH", "/api/user/ai-credentials", payload);
+      return res.json() as Promise<AiCredentialStatusResponse>;
+    },
+    onSuccess: async () => {
+      setGeminiApiKeyInput("");
+      setOpenAiApiKeyInput("");
+      await queryClient.invalidateQueries({ queryKey: ["/api/user/ai-credentials"] });
+      toast({
+        title: "Credential updated",
+        description: "Your provider key was updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update failed",
+        description: error?.message || "Unable to update AI credential.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeAiCredentialMutation = useMutation({
+    mutationFn: async (provider: "gemini" | "openai") => {
+      const res = await apiRequest("DELETE", `/api/user/ai-credentials/${provider}`);
+      return res.json() as Promise<AiCredentialStatusResponse>;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/user/ai-credentials"] });
+      toast({
+        title: "Credential removed",
+        description: "Stored key was removed for this provider.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Remove failed",
+        description: error?.message || "Unable to remove provider key.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const validateAiCredentialMutation = useMutation({
+    mutationFn: async (payload: { provider: "gemini" | "openai"; apiKey?: string }) => {
+      const res = await apiRequest(
+        "POST",
+        `/api/user/ai-credentials/${payload.provider}/validate`,
+        payload.apiKey ? { apiKey: payload.apiKey } : {},
+      );
+      return res.json() as Promise<{ provider: string; valid: boolean; source: string; message?: string }>;
+    },
+    onSuccess: (result) => {
+      const source = result.source === "request" ? "request key" : "stored key";
+      setLastValidationMessage(`Validation passed for ${result.provider} using ${source}.`);
+      toast({
+        title: "Credential valid",
+        description: `Provider ${result.provider} validated successfully using ${source}.`,
+      });
+    },
+    onError: (error: any) => {
+      setLastValidationMessage("Validation failed. Check the key and try again.");
+      toast({
+        title: "Validation failed",
+        description: error?.message || "Unable to validate provider key.",
         variant: "destructive",
       });
     },
@@ -191,6 +333,12 @@ export default function UserSettingsModal({
   };
 
   const googleCalendarSettingsUrl = "https://calendar.google.com/calendar/u/0/r";
+  const aiProviderValue = selectedAiProvider ?? "default";
+  const isAnyAiMutationPending =
+    saveAiPreferencesMutation.isPending ||
+    updateAiCredentialMutation.isPending ||
+    removeAiCredentialMutation.isPending ||
+    validateAiCredentialMutation.isPending;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -260,6 +408,177 @@ export default function UserSettingsModal({
               </>
             ) : (
               <p className="text-sm text-gray-500">Google Calendar is not connected.</p>
+            )}
+          </div>
+
+          <div className="space-y-3 rounded-md border border-gray-200 p-3 bg-gray-50">
+            <div>
+              <Label className="text-sm font-medium">AI Agent Settings</Label>
+              <p className="text-xs text-gray-500 mt-1">
+                Configure per-user provider behavior and feature enablement.
+              </p>
+            </div>
+
+            {aiPreferencesLoading ? (
+              <p className="text-sm text-gray-500">Loading AI preferences...</p>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="ai-provider-select" className="text-sm font-medium">Preferred AI provider</Label>
+                  <Select
+                    value={aiProviderValue}
+                    onValueChange={(value) => setSelectedAiProvider(value === "default" ? null : (value as "gemini" | "openai"))}
+                  >
+                    <SelectTrigger id="ai-provider-select" className="w-full">
+                      <SelectValue placeholder="Use app default" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Use app default</SelectItem>
+                      <SelectItem value="gemini">Gemini</SelectItem>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="ai-policy-version" className="text-sm font-medium">AI policy version (optional)</Label>
+                  <Input
+                    id="ai-policy-version"
+                    value={aiPolicyVersion}
+                    onChange={(e) => setAiPolicyVersion(e.target.value)}
+                    placeholder="v1"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2">
+                  <div>
+                    <Label htmlFor="ai-agent-enabled" className="text-sm font-medium">Enable AI agent</Label>
+                    <p className="text-xs text-gray-500">When disabled, AI generation endpoints are blocked for this user.</p>
+                  </div>
+                  <Switch
+                    id="ai-agent-enabled"
+                    checked={aiAgentEnabled}
+                    onCheckedChange={setAiAgentEnabled}
+                    disabled={saveAiPreferencesMutation.isPending}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={() => saveAiPreferencesMutation.mutate()}
+                    disabled={saveAiPreferencesMutation.isPending}
+                  >
+                    {saveAiPreferencesMutation.isPending ? "Saving AI prefs..." : "Save AI Preferences"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="space-y-3 rounded-md border border-gray-200 p-3 bg-gray-50">
+            <div>
+              <Label className="text-sm font-medium">Provider API Keys</Label>
+              <p className="text-xs text-gray-500 mt-1">
+                Keys are stored encrypted server-side and only presence status is returned.
+              </p>
+            </div>
+
+            {aiCredentialStatusLoading ? (
+              <p className="text-sm text-gray-500">Loading credential status...</p>
+            ) : (
+              <>
+                <div className="rounded-md border border-gray-200 bg-white p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Gemini API key</Label>
+                    <span className="text-xs text-gray-500">
+                      Stored: {aiCredentialStatus?.hasGeminiApiKey ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <Input
+                    type="password"
+                    placeholder="Paste new Gemini API key"
+                    value={geminiApiKeyInput}
+                    onChange={(e) => setGeminiApiKeyInput(e.target.value)}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => updateAiCredentialMutation.mutate({ geminiApiKey: geminiApiKeyInput.trim() })}
+                      disabled={!geminiApiKeyInput.trim() || isAnyAiMutationPending}
+                    >
+                      Save Gemini Key
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => validateAiCredentialMutation.mutate({ provider: "gemini", apiKey: geminiApiKeyInput.trim() || undefined })}
+                      disabled={isAnyAiMutationPending}
+                    >
+                      Validate Gemini
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => removeAiCredentialMutation.mutate("gemini")}
+                      disabled={!aiCredentialStatus?.hasGeminiApiKey || isAnyAiMutationPending}
+                    >
+                      Remove Gemini Key
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-gray-200 bg-white p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">OpenAI API key</Label>
+                    <span className="text-xs text-gray-500">
+                      Stored: {aiCredentialStatus?.hasOpenAiApiKey ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <Input
+                    type="password"
+                    placeholder="Paste new OpenAI API key"
+                    value={openAiApiKeyInput}
+                    onChange={(e) => setOpenAiApiKeyInput(e.target.value)}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => updateAiCredentialMutation.mutate({ openaiApiKey: openAiApiKeyInput.trim() })}
+                      disabled={!openAiApiKeyInput.trim() || isAnyAiMutationPending}
+                    >
+                      Save OpenAI Key
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => validateAiCredentialMutation.mutate({ provider: "openai", apiKey: openAiApiKeyInput.trim() || undefined })}
+                      disabled={isAnyAiMutationPending}
+                    >
+                      Validate OpenAI
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => removeAiCredentialMutation.mutate("openai")}
+                      disabled={!aiCredentialStatus?.hasOpenAiApiKey || isAnyAiMutationPending}
+                    >
+                      Remove OpenAI Key
+                    </Button>
+                  </div>
+                </div>
+
+                {lastValidationMessage && (
+                  <p className="text-xs text-gray-600">{lastValidationMessage}</p>
+                )}
+                {aiCredentialStatus?.updatedAt && (
+                  <p className="text-xs text-gray-500">
+                    Last credential update: {new Date(aiCredentialStatus.updatedAt).toLocaleString()}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>
