@@ -169,6 +169,7 @@ Delivered work:
 Current operator note:
 - per-user AI preference and key management is exposed via authenticated backend APIs and in-app user settings UI.
 - users can now configure provider, enable/disable AI agent, set/remove provider keys, and run provider validation checks from the web app.
+- user settings UI is organized into tabs (Profile, Calendar, AI Preferences, AI Keys) to reduce crowding and improve discoverability.
 
 Pending work:
 - expand non-mocked integration coverage (real provider sandbox keys and failure-mode matrix) during staging rollout
