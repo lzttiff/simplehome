@@ -32,6 +32,17 @@ interface TaskCardProps {
   onToggleSelected?: (taskId: string, selected: boolean) => void;
 }
 
+function pickEarlierDateOnly(existingValue: string | null, candidateValue: string | null): string | null {
+  const existing = normalizeDateOnly(existingValue);
+  const candidate = normalizeDateOnly(candidateValue);
+
+  if (existing && candidate) {
+    return compareDateOnly(existing, candidate) <= 0 ? existing : candidate;
+  }
+
+  return existing || candidate || null;
+}
+
 const categoryColors = {
   HVAC: "bg-red-500 text-white",
   Plumbing: "bg-blue-500 text-white", 
@@ -257,9 +268,14 @@ export default function TaskCard({
       const updates: any = {};
       
       if (result.nextMaintenanceDates) {
+        const currentNextMaintenance = parseMaintenanceSchedule(task.nextMaintenanceDate);
+        const aiMinor = normalizeDateOnly(result.nextMaintenanceDates.minor || null);
+        const aiMajor = normalizeDateOnly(result.nextMaintenanceDates.major || null);
+
         updates.nextMaintenanceDate = serializeMaintenanceSchedule({
-          minor: normalizeDateOnly(result.nextMaintenanceDates.minor || null),
-          major: normalizeDateOnly(result.nextMaintenanceDates.major || null),
+          // Do not postpone an already-earlier due date with a later AI suggestion.
+          minor: pickEarlierDateOnly(currentNextMaintenance.minor, aiMinor),
+          major: pickEarlierDateOnly(currentNextMaintenance.major, aiMajor),
         });
       }
       

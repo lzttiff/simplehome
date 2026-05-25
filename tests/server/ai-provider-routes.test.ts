@@ -41,9 +41,14 @@ jest.mock('../../server/services/maintenanceAi', () => ({
 // Mock the storage module
 jest.mock('../../server/storage', () => {
   const mockUpdateMaintenanceTask = jest.fn().mockResolvedValue({ id: 1 });
+  const mockGetMaintenanceTask = jest.fn(async (id: string) => ({
+    id,
+    nextMaintenanceDate: JSON.stringify({ minor: null, major: null }),
+  }));
   return {
     storage: {
       getMaintenanceTasks: jest.fn().mockResolvedValue([]),
+      getMaintenanceTask: mockGetMaintenanceTask,
       updateMaintenanceTask: mockUpdateMaintenanceTask,
       getPropertyTemplates: jest.fn().mockResolvedValue([]),
       getPropertyTemplate: jest.fn().mockResolvedValue(null),

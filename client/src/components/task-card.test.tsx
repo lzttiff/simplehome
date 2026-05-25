@@ -344,6 +344,61 @@ describe('TaskCard Component', () => {
         expect(body.provider).toBeUndefined();
       });
     });
+
+    it('should preserve earlier existing nextMaintenanceDate values when AI suggests later dates', async () => {
+      const task = createMaintenanceTaskFixture({
+        title: 'Roof',
+        nextMaintenanceDate: JSON.stringify({ minor: '2026-05-21', major: '2026-05-21' }),
+        minorTasks: null,
+        majorTasks: null,
+      });
+
+      global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('/api/auth/me')) {
+          return Promise.resolve({ ok: true, json: async () => null }) as any;
+        }
+        if (url.includes('/api/item-schedule')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              result: {
+                nextMaintenanceDates: { minor: '2026-06-01', major: '2026-06-01' },
+                maintenanceSchedule: {
+                  minorIntervalMonths: '12',
+                  majorIntervalMonths: '60',
+                  minorTasks: ['Inspect shingles'],
+                  majorTasks: ['Structural inspection'],
+                },
+              },
+            }),
+          }) as any;
+        }
+        if (url.includes(`/api/tasks/${task.id}`)) {
+          return Promise.resolve({ ok: true, json: async () => ({ success: true }) }) as any;
+        }
+        if (url.includes('/api/tasks') || url.includes('/api/stats')) {
+          return Promise.resolve({ ok: true, json: async () => ({ success: true }) }) as any;
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) }) as any;
+      }) as jest.Mock;
+
+      renderWithQueryClient(<TaskCard task={task} />);
+
+      const aiButton = screen.getByTitle(/ai .*schedule|generate ai schedule/i);
+      fireEvent.click(aiButton);
+
+      await waitFor(() => {
+        const patchCall = (global.fetch as jest.Mock).mock.calls.find(
+          (call) => String(call[0]).includes(`/api/tasks/${task.id}`) && call[1]?.method === 'PATCH',
+        );
+        expect(patchCall).toBeDefined();
+        const payload = JSON.parse(patchCall![1].body as string);
+        const schedule = JSON.parse(payload.nextMaintenanceDate);
+        expect(schedule.minor).toBe('2026-05-21');
+        expect(schedule.major).toBe('2026-05-21');
+      });
+    });
   });
 
   describe('Date Formatting', () => {

@@ -289,6 +289,17 @@ function decodeCalendarPayload(encodedPayload: string): ParsedCalendarPayload {
   }
 }
 
+function chooseEarlierDateOnly(existingValue: string | null | undefined, candidateValue: string | null | undefined): string | null {
+  const existing = normalizeDateOnly(existingValue ?? null);
+  const candidate = normalizeDateOnly(candidateValue ?? null);
+
+  if (existing && candidate) {
+    return compareDateOnly(existing, candidate) <= 0 ? existing : candidate;
+  }
+
+  return existing || candidate || null;
+}
+
 async function getAuthenticatedUserAiProvider(req: express.Request): Promise<"gemini" | "openai" | null> {
   try {
     const isAuthenticated =
@@ -951,9 +962,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Update nextMaintenanceDate with AI results
             if (result.nextMaintenanceDates) {
+              const currentTask = await storage.getMaintenanceTask(item.id, null);
+              const currentSchedule = parseMaintenanceSchedule(currentTask?.nextMaintenanceDate ?? null);
               updates.nextMaintenanceDate = JSON.stringify({
-                minor: result.nextMaintenanceDates.minor || null,
-                major: result.nextMaintenanceDates.major || null
+                minor: chooseEarlierDateOnly(currentSchedule.minor, result.nextMaintenanceDates.minor || null),
+                major: chooseEarlierDateOnly(currentSchedule.major, result.nextMaintenanceDates.major || null),
               });
             }
             
