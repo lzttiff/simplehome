@@ -126,6 +126,12 @@ type AiCredentialStatusResponse = {
   updatedAt: string | null;
 };
 
+type ValidationState = {
+  tone: "success" | "error";
+  message: string;
+  at: string;
+} | null;
+
 export default function UserSettingsModal({
   isOpen,
   onClose,
@@ -140,9 +146,8 @@ export default function UserSettingsModal({
   const [selectedAiProvider, setSelectedAiProvider] = useState<"gemini" | "openai" | null>(null);
   const [aiAgentEnabled, setAiAgentEnabled] = useState(false);
   const [aiPolicyVersion, setAiPolicyVersion] = useState("");
-  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState("");
-  const [openAiApiKeyInput, setOpenAiApiKeyInput] = useState("");
-  const [lastValidationMessage, setLastValidationMessage] = useState<string | null>(null);
+  const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
+  const [validationState, setValidationState] = useState<ValidationState>(null);
 
   const { data: googleCalendarStatus, isLoading: googleStatusLoading } = useQuery<GoogleCalendarStatus>({
     queryKey: ["/api/calendar/google/sync/status"],
@@ -181,6 +186,11 @@ export default function UserSettingsModal({
     setAiAgentEnabled(aiPreferences.aiAgentEnabled === true);
     setAiPolicyVersion(aiPreferences.aiPolicyVersion ?? "");
   }, [aiPreferences, isOpen]);
+
+  useEffect(() => {
+    setProviderApiKeyInput("");
+    setValidationState(null);
+  }, [selectedAiProvider]);
 
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
@@ -238,8 +248,7 @@ export default function UserSettingsModal({
       return res.json() as Promise<AiCredentialStatusResponse>;
     },
     onSuccess: async () => {
-      setGeminiApiKeyInput("");
-      setOpenAiApiKeyInput("");
+      setProviderApiKeyInput("");
       await queryClient.invalidateQueries({ queryKey: ["/api/user/ai-credentials"] });
       toast({
         title: "Credential updated",
@@ -287,14 +296,22 @@ export default function UserSettingsModal({
     },
     onSuccess: (result) => {
       const source = result.source === "request" ? "request key" : "stored key";
-      setLastValidationMessage(`Validation passed for ${result.provider} using ${source}.`);
+      setValidationState({
+        tone: "success",
+        message: `Validation passed for ${result.provider} using ${source}.`,
+        at: new Date().toLocaleTimeString(),
+      });
       toast({
         title: "Credential valid",
         description: `Provider ${result.provider} validated successfully using ${source}.`,
       });
     },
     onError: (error: any) => {
-      setLastValidationMessage("Validation failed. Check the key and try again.");
+      setValidationState({
+        tone: "error",
+        message: "Validation failed. Check the key/quota and try again.",
+        at: new Date().toLocaleTimeString(),
+      });
       toast({
         title: "Validation failed",
         description: error?.message || "Unable to validate provider key.",
@@ -334,6 +351,11 @@ export default function UserSettingsModal({
 
   const googleCalendarSettingsUrl = "https://calendar.google.com/calendar/u/0/r";
   const aiProviderValue = selectedAiProvider ?? "default";
+  const activeProvider = selectedAiProvider;
+  const activeProviderLabel = activeProvider === "gemini" ? "Gemini" : "OpenAI";
+  const hasStoredKeyForActiveProvider = activeProvider === "gemini"
+    ? aiCredentialStatus?.hasGeminiApiKey
+    : aiCredentialStatus?.hasOpenAiApiKey;
   const isAnyAiMutationPending =
     saveAiPreferencesMutation.isPending ||
     updateAiCredentialMutation.isPending ||
@@ -480,7 +502,7 @@ export default function UserSettingsModal({
             <div>
               <Label className="text-sm font-medium">Provider API Keys</Label>
               <p className="text-xs text-gray-500 mt-1">
-                Keys are stored encrypted server-side and only presence status is returned.
+                Manage the key for your currently selected AI provider. Keys are stored encrypted server-side.
               </p>
             </div>
 
@@ -488,90 +510,76 @@ export default function UserSettingsModal({
               <p className="text-sm text-gray-500">Loading credential status...</p>
             ) : (
               <>
-                <div className="rounded-md border border-gray-200 bg-white p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Gemini API key</Label>
-                    <span className="text-xs text-gray-500">
-                      Stored: {aiCredentialStatus?.hasGeminiApiKey ? "Yes" : "No"}
-                    </span>
+                {!activeProvider ? (
+                  <p className="text-sm text-gray-500">
+                    Select a preferred AI provider above to manage a single provider key.
+                  </p>
+                ) : (
+                  <div className="rounded-md border border-gray-200 bg-white p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">{activeProviderLabel} API key</Label>
+                      <span className="text-xs text-gray-500">
+                        Stored: {hasStoredKeyForActiveProvider ? "Yes" : "No"}
+                      </span>
+                    </div>
+                    <Input
+                      type="password"
+                      placeholder={`Paste new ${activeProviderLabel} API key`}
+                      value={providerApiKeyInput}
+                      onChange={(e) => setProviderApiKeyInput(e.target.value)}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          updateAiCredentialMutation.mutate(
+                            activeProvider === "gemini"
+                              ? { geminiApiKey: providerApiKeyInput.trim() }
+                              : { openaiApiKey: providerApiKeyInput.trim() },
+                          )
+                        }
+                        disabled={!providerApiKeyInput.trim() || isAnyAiMutationPending}
+                      >
+                        Save {activeProviderLabel} Key
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          validateAiCredentialMutation.mutate({
+                            provider: activeProvider,
+                            apiKey: providerApiKeyInput.trim() || undefined,
+                          })
+                        }
+                        disabled={isAnyAiMutationPending}
+                      >
+                        {validateAiCredentialMutation.isPending ? `Validating ${activeProviderLabel}...` : `Validate ${activeProviderLabel}`}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => removeAiCredentialMutation.mutate(activeProvider)}
+                        disabled={!hasStoredKeyForActiveProvider || isAnyAiMutationPending}
+                      >
+                        Remove {activeProviderLabel} Key
+                      </Button>
+                    </div>
                   </div>
-                  <Input
-                    type="password"
-                    placeholder="Paste new Gemini API key"
-                    value={geminiApiKeyInput}
-                    onChange={(e) => setGeminiApiKeyInput(e.target.value)}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => updateAiCredentialMutation.mutate({ geminiApiKey: geminiApiKeyInput.trim() })}
-                      disabled={!geminiApiKeyInput.trim() || isAnyAiMutationPending}
-                    >
-                      Save Gemini Key
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => validateAiCredentialMutation.mutate({ provider: "gemini", apiKey: geminiApiKeyInput.trim() || undefined })}
-                      disabled={isAnyAiMutationPending}
-                    >
-                      Validate Gemini
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => removeAiCredentialMutation.mutate("gemini")}
-                      disabled={!aiCredentialStatus?.hasGeminiApiKey || isAnyAiMutationPending}
-                    >
-                      Remove Gemini Key
-                    </Button>
-                  </div>
-                </div>
+                )}
 
-                <div className="rounded-md border border-gray-200 bg-white p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">OpenAI API key</Label>
-                    <span className="text-xs text-gray-500">
-                      Stored: {aiCredentialStatus?.hasOpenAiApiKey ? "Yes" : "No"}
-                    </span>
+                {validationState && (
+                  <div
+                    className={`rounded-md border p-2 text-xs ${
+                      validationState.tone === "success"
+                        ? "border-green-300 bg-green-50 text-green-800"
+                        : "border-red-300 bg-red-50 text-red-800"
+                    }`}
+                  >
+                    <p className="font-medium">{validationState.tone === "success" ? "Validation Succeeded" : "Validation Failed"}</p>
+                    <p>{validationState.message}</p>
+                    <p className="opacity-80">Updated at {validationState.at}</p>
                   </div>
-                  <Input
-                    type="password"
-                    placeholder="Paste new OpenAI API key"
-                    value={openAiApiKeyInput}
-                    onChange={(e) => setOpenAiApiKeyInput(e.target.value)}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => updateAiCredentialMutation.mutate({ openaiApiKey: openAiApiKeyInput.trim() })}
-                      disabled={!openAiApiKeyInput.trim() || isAnyAiMutationPending}
-                    >
-                      Save OpenAI Key
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => validateAiCredentialMutation.mutate({ provider: "openai", apiKey: openAiApiKeyInput.trim() || undefined })}
-                      disabled={isAnyAiMutationPending}
-                    >
-                      Validate OpenAI
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => removeAiCredentialMutation.mutate("openai")}
-                      disabled={!aiCredentialStatus?.hasOpenAiApiKey || isAnyAiMutationPending}
-                    >
-                      Remove OpenAI Key
-                    </Button>
-                  </div>
-                </div>
-
-                {lastValidationMessage && (
-                  <p className="text-xs text-gray-600">{lastValidationMessage}</p>
                 )}
                 {aiCredentialStatus?.updatedAt && (
                   <p className="text-xs text-gray-500">
