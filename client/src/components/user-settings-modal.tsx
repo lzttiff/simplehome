@@ -124,6 +124,10 @@ type AiPreferencesResponse = {
 type AiCredentialStatusResponse = {
   hasGeminiApiKey: boolean;
   hasOpenAiApiKey: boolean;
+  hasGeminiRuntimeFallback: boolean;
+  hasOpenAiRuntimeFallback: boolean;
+  effectiveGeminiKeySource: "stored" | "runtime" | "none";
+  effectiveOpenAiKeySource: "stored" | "runtime" | "none";
   updatedAt: string | null;
 };
 
@@ -167,7 +171,11 @@ export default function UserSettingsModal({
     retry: false,
   });
 
-  const { data: aiCredentialStatus, isLoading: aiCredentialStatusLoading } = useQuery<AiCredentialStatusResponse>({
+  const {
+    data: aiCredentialStatus,
+    isLoading: aiCredentialStatusLoading,
+    refetch: refetchAiCredentialStatus,
+  } = useQuery<AiCredentialStatusResponse>({
     queryKey: ["/api/user/ai-credentials"],
     queryFn: getQueryFn({ on401: "throw" }),
     enabled: isOpen,
@@ -199,6 +207,12 @@ export default function UserSettingsModal({
     setProviderApiKeyInput("");
     setValidationState(null);
   }, [selectedAiProvider]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === "ai-keys") {
+      refetchAiCredentialStatus();
+    }
+  }, [isOpen, activeTab, selectedAiProvider, refetchAiCredentialStatus]);
 
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
@@ -364,6 +378,12 @@ export default function UserSettingsModal({
   const hasStoredKeyForActiveProvider = activeProvider === "gemini"
     ? aiCredentialStatus?.hasGeminiApiKey
     : aiCredentialStatus?.hasOpenAiApiKey;
+  const hasRuntimeFallbackForActiveProvider = activeProvider === "gemini"
+    ? aiCredentialStatus?.hasGeminiRuntimeFallback
+    : aiCredentialStatus?.hasOpenAiRuntimeFallback;
+  const effectiveSourceForActiveProvider = activeProvider === "gemini"
+    ? aiCredentialStatus?.effectiveGeminiKeySource
+    : aiCredentialStatus?.effectiveOpenAiKeySource;
   const isAnyAiMutationPending =
     saveAiPreferencesMutation.isPending ||
     updateAiCredentialMutation.isPending ||
@@ -550,9 +570,17 @@ export default function UserSettingsModal({
                     <div className="rounded-md border border-gray-200 bg-white p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">{activeProviderLabel} API key</Label>
-                        <span className="text-xs text-gray-500">
-                          Stored: {hasStoredKeyForActiveProvider ? "Yes" : "No"}
-                        </span>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500">
+                            Stored: {hasStoredKeyForActiveProvider ? "Yes" : "No"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Runtime fallback: {hasRuntimeFallbackForActiveProvider ? "Yes" : "No"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Effective source: {effectiveSourceForActiveProvider || "none"}
+                          </p>
+                        </div>
                       </div>
                       <Input
                         type="password"

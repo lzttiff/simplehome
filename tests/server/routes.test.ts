@@ -232,11 +232,17 @@ describe('/api/user/ai-credentials', () => {
 
     expect(res.statusCode).toBe(200);
     expect(storageMock.getUserAiCredentialStatus).toHaveBeenCalledWith('test-user-id');
-    expect(res.body).toEqual({
-      hasGeminiApiKey: true,
-      hasOpenAiApiKey: false,
-      updatedAt: now.toISOString(),
-    });
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        hasGeminiApiKey: true,
+        hasOpenAiApiKey: false,
+        hasGeminiRuntimeFallback: expect.any(Boolean),
+        hasOpenAiRuntimeFallback: expect.any(Boolean),
+        effectiveGeminiKeySource: 'stored',
+        effectiveOpenAiKeySource: expect.any(String),
+        updatedAt: now.toISOString(),
+      }),
+    );
   });
 
   it('updates AI credentials and emits redacted audit event', async () => {

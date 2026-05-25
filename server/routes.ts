@@ -45,7 +45,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
-import { getCalendarFeedSecret as getRuntimeCalendarFeedSecret } from "./services/runtimeConfig";
+import {
+  getCalendarFeedSecret as getRuntimeCalendarFeedSecret,
+  getOpenAiApiKey as getRuntimeOpenAiApiKey,
+} from "./services/runtimeConfig";
 import { resolveAiProvider } from "./services/aiProviderResolver";
 import { writeAiConfigAudit } from "./services/aiConfigAudit";
 import {
@@ -532,9 +535,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as User).id;
       const status = await storage.getUserAiCredentialStatus(userId);
+      const hasGeminiRuntimeFallback =
+        !!process.env.GEMINI_API_KEY?.trim() || !!readProjectGeminiKeyFile();
+      const hasOpenAiRuntimeFallback = !!getRuntimeOpenAiApiKey();
+
       return res.json({
         hasGeminiApiKey: status.hasGeminiApiKey === true,
         hasOpenAiApiKey: status.hasOpenAiApiKey === true,
+        hasGeminiRuntimeFallback,
+        hasOpenAiRuntimeFallback,
+        effectiveGeminiKeySource: status.hasGeminiApiKey ? "stored" : hasGeminiRuntimeFallback ? "runtime" : "none",
+        effectiveOpenAiKeySource: status.hasOpenAiApiKey ? "stored" : hasOpenAiRuntimeFallback ? "runtime" : "none",
         updatedAt: status.updatedAt ? status.updatedAt.toISOString() : null,
       });
     } catch (error) {
