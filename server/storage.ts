@@ -745,8 +745,6 @@ export class MongoDBStorage implements IStorage {
     const setOnInsert = {
       userId,
       createdAt: new Date(),
-      geminiApiKeyEncrypted: null,
-      openaiApiKeyEncrypted: null,
     };
 
     if ("geminiApiKey" in updates) {

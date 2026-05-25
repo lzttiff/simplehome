@@ -503,6 +503,7 @@ export default function UserSettingsModal({
               <Label className="text-sm font-medium">Provider API Keys</Label>
               <p className="text-xs text-gray-500 mt-1">
                 Manage the key for your currently selected AI provider. Keys are stored encrypted server-side.
+                Validate checks a key but does not save it.
               </p>
             </div>
 
@@ -554,7 +555,7 @@ export default function UserSettingsModal({
                         }
                         disabled={isAnyAiMutationPending}
                       >
-                        {validateAiCredentialMutation.isPending ? `Validating ${activeProviderLabel}...` : `Validate ${activeProviderLabel}`}
+                        {validateAiCredentialMutation.isPending ? `Validating ${activeProviderLabel}...` : `Validate ${activeProviderLabel} (No Save)`}
                       </Button>
                       <Button
                         type="button"
