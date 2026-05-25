@@ -289,6 +289,29 @@ function decodeCalendarPayload(encodedPayload: string): ParsedCalendarPayload {
   }
 }
 
+async function getAuthenticatedUserAiProvider(req: express.Request): Promise<"gemini" | "openai" | null> {
+  try {
+    const isAuthenticated =
+      typeof (req as any).isAuthenticated === "function"
+        ? Boolean((req as any).isAuthenticated())
+        : Boolean((req.user as User | undefined)?.id);
+
+    if (!isAuthenticated) {
+      return null;
+    }
+
+    const userId = (req.user as User | undefined)?.id;
+    if (!userId) {
+      return null;
+    }
+
+    const persistedUser = await storage.getUserById(userId);
+    return persistedUser?.aiProvider ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveStoredProviderApiKey(userId: string, provider: "gemini" | "openai"): Promise<string | null> {
   try {
     return await storage.getUserAiCredential(userId, provider);
@@ -815,8 +838,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         item = body as CatalogItem;
       }
 
+  const userProvider = await getAuthenticatedUserAiProvider(req);
+
   const providerResolution = resolveAiProvider({
     requestProvider: body.provider,
+    userProvider,
     contextProvider: item?.provider,
     allowRequestOverride: canUseAiRequestOverride(req),
   });
@@ -849,8 +875,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Try to get category from provided JSON
       const provided = req.body;
+  const userProvider = await getAuthenticatedUserAiProvider(req);
   const providerResolution = resolveAiProvider({
     requestProvider: provided.provider,
+    userProvider,
     allowRequestOverride: canUseAiRequestOverride(req),
   });
   let provider = providerResolution.provider;
@@ -865,8 +893,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const catalogPath = path.join(__dirname, "../maintenance-template-singleFamilyHome.json");
         const catalogData = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
         provider = resolveAiProvider({
+          userProvider,
           contextProvider: catalogData.provider,
-          userProvider: provider,
           allowRequestOverride: false,
         }).provider;
         category = catalogData.householdCatalog && Array.isArray(catalogData.householdCatalog) && catalogData.householdCatalog.length > 0

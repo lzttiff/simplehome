@@ -47,6 +47,7 @@ jest.mock('../../server/storage', () => {
       updateMaintenanceTask: mockUpdateMaintenanceTask,
       getPropertyTemplates: jest.fn().mockResolvedValue([]),
       getPropertyTemplate: jest.fn().mockResolvedValue(null),
+      getUserById: jest.fn().mockResolvedValue(null),
     },
   };
 });
@@ -161,6 +162,44 @@ describe('AI Provider Route Tests', () => {
       expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'gemini',
+        })
+      );
+    });
+
+    it('should use authenticated user provider when request and item providers are absent', async () => {
+      process.env.DEFAULT_AI_PROVIDER = 'gemini';
+      const storage = await import('../../server/storage');
+      (storage.storage.getUserById as jest.Mock).mockResolvedValueOnce({
+        id: 'user-1',
+        aiProvider: 'openai',
+      });
+
+      const appWithUser = express();
+      appWithUser.use(express.json());
+      appWithUser.use((req: any, _res, next) => {
+        req.user = { id: 'user-1' };
+        req.isAuthenticated = () => true;
+        next();
+      });
+      registerRoutes(appWithUser as any);
+
+      const { generateMaintenanceSchedule } = await import('../../server/services/maintenanceAi');
+      (generateMaintenanceSchedule as jest.Mock).mockClear();
+
+      const response = await request(appWithUser)
+        .post('/api/item-schedule')
+        .send({
+          item: {
+            id: 'test-user-provider',
+            name: 'Roof',
+            location: 'Exterior',
+          },
+        });
+
+      expect(response.status).toBe(200);
+      expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'openai',
         })
       );
     });
