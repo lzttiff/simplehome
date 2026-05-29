@@ -124,10 +124,8 @@ type AiPreferencesResponse = {
 type AiCredentialStatusResponse = {
   hasGeminiApiKey: boolean;
   hasOpenAiApiKey: boolean;
-  hasGeminiRuntimeFallback: boolean;
-  hasOpenAiRuntimeFallback: boolean;
-  effectiveGeminiKeySource: "stored" | "runtime" | "none";
-  effectiveOpenAiKeySource: "stored" | "runtime" | "none";
+  effectiveGeminiKeySource: "stored" | "none";
+  effectiveOpenAiKeySource: "stored" | "none";
   updatedAt: string | null;
 };
 
@@ -378,9 +376,6 @@ export default function UserSettingsModal({
   const hasStoredKeyForActiveProvider = activeProvider === "gemini"
     ? aiCredentialStatus?.hasGeminiApiKey
     : aiCredentialStatus?.hasOpenAiApiKey;
-  const hasRuntimeFallbackForActiveProvider = activeProvider === "gemini"
-    ? aiCredentialStatus?.hasGeminiRuntimeFallback
-    : aiCredentialStatus?.hasOpenAiRuntimeFallback;
   const effectiveSourceForActiveProvider = activeProvider === "gemini"
     ? aiCredentialStatus?.effectiveGeminiKeySource
     : aiCredentialStatus?.effectiveOpenAiKeySource;
@@ -573,9 +568,6 @@ export default function UserSettingsModal({
                         <div className="text-right">
                           <p className="text-xs text-gray-500">
                             Stored: {hasStoredKeyForActiveProvider ? "Yes" : "No"}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Runtime fallback: {hasRuntimeFallbackForActiveProvider ? "Yes" : "No"}
                           </p>
                           <p className="text-xs text-gray-500">
                             Effective source: {effectiveSourceForActiveProvider || "none"}

@@ -4,12 +4,12 @@ This project intentionally ignores a few local/generated files that are useful d
 
 Ignored files (present in this repo's `.gitignore`):
 
-- `gemini.key` — local AI key used for testing with Gemini. Keep this private. Do not commit.
+- `gemini.key` — legacy local AI key file from older server-wide AI flow. Deprecated for runtime AI execution (per-user stored keys are the active model). Keep this private. Do not commit.
 - `data/debug-client.log` — client debug logs captured during local development.
 - `data/storage.json` — local file-based storage used by the development server.
 
 Why they're ignored
-- These files contain either secrets (API keys) or local runtime data that shouldn't be checked into version control. Ignoring them prevents accidental exposure and reduces noise in commits.
+- These files contain either secrets (API keys) or local runtime data that should not be checked into version control. Ignoring them prevents accidental exposure and reduces noise in commits.
 
 If a key was exposed
 - If `gemini.key` or any secret was ever pushed to a remote (public or shared), rotate the key immediately (regenerate on the provider side) and update any CI/secret stores that used it.

@@ -71,7 +71,9 @@ describe('generateMaintenanceSchedule integration', () => {
       maintenanceSchedule: { minor: 'Annual', major: 'Biannual' },
       provider: provider as 'gemini' | 'openai',
     } as any;
-    const result = await generateMaintenanceSchedule(item);
+    const result = await generateMaintenanceSchedule(item, {
+      [provider]: 'test-provider-key',
+    });
     // New shape: nextMaintenanceDates
     expect(result).toHaveProperty('nextMaintenanceDates');
     expect(result).toHaveProperty('maintenanceSchedule');

@@ -1,0 +1,579 @@
+# Per-User Tech Debt Plan (TD-AI-001 to TD-AI-007, TD-CAL-001 to TD-CAL-004, TD-UI-001 to TD-UI-004)
+
+## Purpose
+This document is the implementation tracker for migrating user-facing behavior, configuration, and related feature controls from app-wide defaults or local-only assumptions to user-scoped controls.
+
+Primary objective:
+- ensure AI provider selection, AI feature enablement, and AI credential usage are controlled per user.
+- eliminate runtime AI key fallback from server-level environment/files for request execution paths.
+- ensure Calendar Feature Toggles that affect user operations are controlled per user, not by app-wide defaults.
+- ensure overlooked user-specific UI/runtime preferences are explicitly modeled when they should persist across sessions or influence authenticated workflows.
+
+## Scope
+In scope:
+- TD-AI-001 through TD-AI-007
+- TD-CAL-001 through TD-CAL-004 (calendar feature toggles for per-user operations)
+- TD-UI-001 through TD-UI-004 (user-scoped UI/runtime preferences)
+- data model, API surface, routing/provider resolution, migration, auditing, and tests
+
+Out of scope:
+- system-wide operational configuration (logging/debug/admin/security tokens) that is intentionally global
+- transient one-session UI state that is not intended to persist, influence APIs, or alter downstream user operations
+- provider-specific prompt tuning changes
+
+## Success Criteria
+- Changing DEFAULT_AI_PROVIDER does not change behavior for users with explicit user-level AI settings.
+- Users with aiAgentEnabled=false cannot run AI generation endpoints.
+- User AI settings are strictly user-scoped and cannot be read/updated across accounts.
+- Runtime AI requests do not read provider credentials from server env/files (for example `GEMINI_API_KEY`, `gemini.key`, runtime OpenAI key).
+- AI execution endpoints return explicit 4xx errors when the selected provider key is not configured for the authenticated user.
+- All AI provider changes at user scope are auditable.
+- Automated tests cover provider isolation and strict user-key enforcement behavior.
+- Calendar feature toggles affecting sync/export/AI side-effects are persisted and enforced per user.
+- Calendar feature toggle APIs are user-scoped and cannot be read/updated across accounts.
+- User-scoped UI/runtime preferences that affect authenticated workflows are migrated away from implicit local-only behavior and have explicit API/storage ownership.
+
+## Backlog Overview
+| ID | Title | Planned Effort | Status |
+| --- | --- | --- | --- |
+| TD-AI-001 | Data model extension for per-user AI settings | Add aiProvider, aiAgentEnabled, aiPolicyVersion to user model and storage mappings | Completed |
+| TD-AI-002 | Authenticated endpoint to read/update user AI preferences | Add user-scoped profile API for AI settings with strict validation | Completed |
+| TD-AI-003 | Shared provider resolution helper | Centralize provider resolution and remove route-level drift | Completed |
+| TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Implemented (pending staged execution evidence) |
+| TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Implemented (pending rollout evidence) |
+| TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Implemented (server test scope) |
+| TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented (hardening phases in progress) |
+| TD-CAL-001 | Calendar feature toggle model | Add per-user calendar toggle fields and storage mappings | Planned |
+| TD-CAL-002 | Calendar feature toggle API | Add authenticated read/update APIs for per-user calendar toggles | Planned |
+| TD-CAL-003 | Calendar toggle enforcement | Apply per-user calendar toggles in calendar and AI side-effect routes | Planned |
+| TD-CAL-004 | Calendar toggle migration/tests | Migrate legacy defaults and add isolation/regression coverage | Planned |
+| TD-UI-001 | UI/runtime preference inventory and model | Identify overlooked per-user UI/runtime preferences and define persisted ownership model | Planned |
+| TD-UI-002 | UI preference API | Add authenticated read/update APIs for persisted per-user UI/runtime preferences | Planned |
+| TD-UI-003 | UI preference enforcement | Apply persisted user preferences in dashboard/export/settings workflows where behavior should survive sessions | Planned |
+| TD-UI-004 | UI preference migration/tests | Migrate persisted defaults and add user-isolation/regression coverage | Planned |
+
+## TD-AI-007 Phased Migration Proposal (Pre-Deploy)
+
+Rationale:
+- the app has not been deployed yet, so we can move directly to per-user AI configuration without preserving long-term runtime compatibility behavior.
+- use short phases to reduce risk and keep each review/test cycle focused.
+- scope note: these phases apply only to TD-AI-007 hardening/cutover (runtime endpoint canonicalization, alias deprecation, and strict per-user runtime behavior). They do not re-scope TD-AI-001 through TD-AI-006.
+
+### Phase 1 - Documentation and Contract Freeze (current)
+Objectives:
+- define canonical user-scoped AI API paths.
+- mark legacy `/api/ai/...` paths as deprecated in documentation.
+- publish cutover order and exit criteria.
+
+Canonical target endpoints:
+- `POST /api/user/ai/generate-tasks`
+- `POST /api/user/ai/quick-suggestions`
+
+Deprecated endpoints (documentation-only in this phase):
+- `POST /api/ai/generate-tasks` (deprecated)
+- `POST /api/ai/quick-suggestions` (deprecated)
+
+Exit criteria:
+- maintainer and user-management docs clearly identify canonical vs deprecated paths.
+- no new documentation introduces `/api/ai/...` as the preferred path.
+
+### Phase 2 - Backend Cutover with Temporary Alias
+Objectives:
+- implement canonical `/api/user/ai/...` routes.
+- keep `/api/ai/...` as temporary aliases with deprecation signaling.
+- enforce strict per-user provider/key runtime behavior.
+
+Exit criteria:
+- canonical endpoints are fully functional.
+- alias endpoints return deprecation metadata and route parity is verified.
+
+### Phase 3 - Client and Test Migration
+Objectives:
+- move frontend API calls to canonical `/api/user/ai/...` paths.
+- update tests to validate strict per-user behavior and canonical route usage.
+
+Exit criteria:
+- client code no longer depends on `/api/ai/...` paths.
+- tests pass with canonical routes as primary.
+
+### Phase 4 - Alias Removal and Legacy Cleanup
+Objectives:
+- remove deprecated `/api/ai/...` aliases.
+- remove legacy runtime AI config assumptions from docs and tests.
+
+Exit criteria:
+- no `/api/ai/...` runtime routes remain.
+- docs and tests reference only canonical user-scoped API paths.
+
+TD-AI-007 phase tracking:
+- Phase 1: In progress
+- Phase 2: Pending
+- Phase 3: Pending
+- Phase 4: Pending
+
+## API Deprecation Register
+
+Purpose:
+- provide one authoritative list of deprecated API paths during the per-user migration.
+
+| Deprecated Endpoint | Canonical Replacement | Scope | Status | Planned Removal |
+| --- | --- | --- | --- | --- |
+| `POST /api/ai/generate-tasks` | `POST /api/user/ai/generate-tasks` | TD-AI-007 runtime endpoint canonicalization | Deprecated compatibility alias | TD-AI-007 Phase 4 |
+| `POST /api/ai/quick-suggestions` | `POST /api/user/ai/quick-suggestions` | TD-AI-007 runtime endpoint canonicalization | Deprecated compatibility alias | TD-AI-007 Phase 4 |
+
+Deprecation policy:
+- deprecated endpoints remain temporarily for compatibility during Phase 2 and Phase 3.
+- new client code and documentation must use canonical `/api/user/ai/...` paths only.
+- remove deprecated endpoints in Phase 4 after client/test migration is complete.
+
+## API Namespace Policy
+
+Self-service user APIs:
+- use `/api/user/...` for the currently authenticated user.
+- derive identity from the authenticated request context only.
+- do not accept target `userId` in self-service routes.
+
+Admin/server-wide APIs:
+- reserve `/api/admin/...` for server-wide configuration or privileged admin-only operations.
+- any future cross-user admin operation must live under `/api/admin/...` with explicit authorization.
+
+User listing policy:
+- no `GET /api/admin/users` listing API is planned in this workstream.
+- database queries remain the preferred operational path when maintainers need user inventory outside the application.
+
+## Completion Tips for Remaining AI Work
+
+Use this as the short execution guide for the items that are not yet fully closed out.
+
+### TD-AI-004 Migration Script
+- Keep the migration idempotent and dry-run friendly.
+- Run dry-run first, record counts, then apply only after the guard output is clean.
+- Preserve an explicit backup/rollback path and document any opt-in exceptions.
+
+### TD-AI-005 Audit Logging
+- Verify audit payloads are redacted before writing to disk.
+- Test both the mutation event and the removal event so the lifecycle is covered.
+- Keep request metadata minimal and structured; do not leak credentials or provider secrets.
+
+### TD-AI-006 Isolation and Fallback Tests
+- Add tests that prove one user cannot see or change another user’s AI preferences/credentials.
+- Cover request override guard behavior separately from normal user preference resolution.
+- Keep the tests focused on API behavior and storage scoping rather than implementation details.
+
+### TD-AI-007 Credential Management and Cutover
+- Finish the four-phase cutover in order: docs, backend aliasing, client/test migration, alias removal.
+- Keep `/api/user/ai/...` as the canonical path and leave `/api/ai/...` as temporary compatibility only.
+- Remove runtime fallback assumptions last, after client and test callers have been moved.
+
+### Cross-cutting Completion Rule
+- If a feature changes behavior for a signed-in user across sessions or workflows, it should have an explicit user-scoped API or storage owner.
+- If it is server-wide/admin-only, keep it under `/api/admin/...` and require explicit authorization.
+
+## Detailed Plan
+
+### TD-UI-001 UI/Runtime Preference Inventory and Model
+Objective:
+- identify overlooked user-specific UI/runtime preferences and decide which ones must be explicitly persisted under user scope.
+
+Confirmed user-specific surfaces observed in the current app:
+- dashboard view preferences in `client/src/pages/dashboard.tsx`:
+  - `includeMinor`
+  - `includeMajor`
+  - `deferredOnly`
+  - `sortBy`
+  - `dateFilter`
+  - category filter selections derived from `categoryFilters`
+- export workflow preferences in `client/src/components/export-schedule-modal.tsx`:
+  - `selectedProvider`
+  - `keepOutOfScopeEvents`
+  - `activeTab`
+- settings/navigation preferences in `client/src/components/user-settings-modal.tsx`:
+  - `activeTab`
+
+Modeling rule:
+- persist only preferences that should survive sessions, influence authenticated workflows, or alter downstream operations.
+- keep purely transient one-off interaction state out of scope unless product requirements promote it to a persisted preference.
+
+Acceptance checks:
+- the plan clearly distinguishes persisted user preferences from transient local UI state.
+- each included preference has an owning API/storage path.
+
+### TD-UI-002 UI Preference API
+Objective:
+- provide authenticated API support for persisted per-user UI/runtime preferences.
+
+Planned API updates:
+- `GET /api/user/ui-preferences`
+- `PATCH /api/user/ui-preferences`
+
+Initial preference groups to evaluate:
+- dashboard preferences:
+  - `includeMinor`
+  - `includeMajor`
+  - `deferredOnly`
+  - `sortBy`
+  - `dateFilter`
+  - category filter selections
+- export workflow defaults:
+  - preferred calendar/export provider
+  - `keepOutOfScopeEvents`
+  - default export tab when reopening the workflow
+
+Acceptance checks:
+- only authenticated users can read/update their own UI preferences.
+- unknown preference keys and invalid types are rejected.
+
+### TD-UI-003 UI Preference Enforcement
+Objective:
+- apply persisted user preferences to runtime UI workflows where continuity across sessions matters.
+
+Planned enforcement areas:
+- dashboard default filter/sort/view behavior.
+- export modal default provider/tab/scope behavior.
+- any future authenticated workflow that currently relies on implicit local-only state but should become user-owned.
+
+Acceptance checks:
+- persisted preferences are applied when the user re-enters the workflow.
+- one user’s preferences never leak into another user’s session.
+
+### TD-UI-004 UI Preference Migration and Tests
+Objective:
+- backfill or safely initialize persisted UI preferences and add regression coverage.
+
+Planned work:
+- define defaults for existing users when no persisted preference document exists.
+- add route and integration tests for per-user preference isolation.
+- extend strict-scoping rollout checks to cover persisted UI/runtime preference behavior where applicable.
+
+Acceptance checks:
+- migration/default initialization is idempotent.
+- authenticated workflows remain stable when preferences are missing and are then backfilled.
+
+### TD-CAL-001 Calendar Feature Toggle Model
+Objective:
+- define and persist per-user calendar operation toggles used by runtime routes.
+
+Planned work:
+- add a user-scoped calendar feature toggle model in storage (embedded user settings or dedicated collection).
+- proposed toggle examples (final list to be confirmed during implementation):
+  - `googleSyncEnabled`
+  - `appleSyncEnabled`
+  - `calendarAutoSyncOnTaskChanges`
+  - `calendarExportEnabled`
+- default new users to safe values with explicit ownership under `userId`.
+
+Acceptance checks:
+- toggles are always resolved from authenticated user scope.
+- no app-wide default toggle is used as runtime source for user operations.
+
+### TD-CAL-002 Calendar Feature Toggle API
+Objective:
+- provide user-scoped APIs to read/update calendar feature toggles.
+
+Planned API updates:
+- `GET /api/user/calendar-feature-toggles`
+- `PATCH /api/user/calendar-feature-toggles`
+
+Validation and auth requirements:
+- requests must be authenticated.
+- payload validation rejects unknown toggle keys and invalid value types.
+- cross-account access is prohibited; user id must come from session/auth context only.
+
+Acceptance checks:
+- users can only read/update their own calendar toggle state.
+- unauthorized requests return 401.
+
+### TD-CAL-003 Calendar Toggle Enforcement
+Objective:
+- ensure runtime routes honor per-user calendar toggle settings.
+
+Planned enforcement areas:
+- calendar sync trigger paths (Google and Apple).
+- calendar export-related paths.
+- AI endpoints that create calendar side-effects indirectly through task/calendar flows.
+
+Acceptance checks:
+- disabled toggles block corresponding behavior with explicit 4xx responses.
+- enabled toggles allow behavior without requiring app-wide switch changes.
+
+### TD-CAL-004 Calendar Toggle Migration and Tests
+Objective:
+- migrate legacy calendar toggle assumptions and prevent regressions.
+
+Planned work:
+- add migration/backfill script for legacy users where toggle state is missing.
+- add server tests for user isolation and enforcement.
+- add rollout guard checks for legacy/missing toggle state in strict mode.
+
+Acceptance checks:
+- migration is idempotent and auditable.
+- strict mode does not cause user-visible calendar behavior loss due to missing toggle state.
+
+### TD-AI-001 Data Model Extension
+Objective:
+- persist per-user AI settings in the user model with backward-compatible defaults.
+
+Planned/Delivered work:
+- extend shared User type with aiProvider, aiAgentEnabled, aiPolicyVersion
+- default new users to aiProvider=null, aiAgentEnabled=false, aiPolicyVersion=null
+- normalize missing legacy fields safely when hydrating users
+
+Completion evidence:
+- implemented in storage and shared schema
+- typecheck and targeted server tests passing
+
+### TD-AI-002 Authenticated User Preference API
+Objective:
+- provide authenticated endpoints to fetch and update per-user AI preferences.
+
+Delivered work:
+- add user-scoped read API for AI settings
+- extend user profile update API (or add dedicated endpoint) for AI fields
+- validate provider enum and boolean flags
+- reject cross-account writes by deriving user id from session only
+
+Implemented endpoints:
+- GET /api/user/ai-preferences
+- PATCH /api/user/ai-preferences
+
+Acceptance checks:
+- authenticated user can only read/update own settings
+- invalid provider values return 400
+- unauthenticated requests return 401
+
+### TD-AI-003 Shared Provider Resolution
+Objective:
+- eliminate duplicated provider selection logic and enforce one canonical order.
+
+Planned work:
+- create a shared resolver used by routes and maintenance services
+- canonical order:
+  1) explicit request override (admin/testing guarded)
+  2) per-user aiProvider
+  3) DEFAULT_AI_PROVIDER fallback
+- remove direct process.env.DEFAULT_AI_PROVIDER usage from route handlers where applicable
+- note: provider resolution fallback does not imply credential fallback; execution still requires authenticated user-scoped provider credentials
+
+Acceptance checks:
+- all AI endpoints use shared resolver
+- behavior remains unchanged for users without explicit setting
+
+### TD-AI-004 Legacy User Migration
+Objective:
+- safely migrate existing users to explicit per-user AI fields.
+
+Delivered work:
+- added migration script: `scripts/migrate-user-ai-settings.ts`
+- added npm command: `npm run migrate:user-ai-settings`
+- defaults legacy users with missing `aiAgentEnabled` to `false` unless explicitly opted in
+- supports explicit opt-in lists for approved users (`--opt-in-user-ids`, `--opt-in-emails`)
+- emits migration summary output with scanned/updated/field update counts
+
+Execution examples:
+- Dry run (default): `npm run migrate:user-ai-settings`
+- Apply: `npm run migrate:user-ai-settings -- --apply`
+- Apply with approved opt-ins: `npm run migrate:user-ai-settings -- --apply --opt-in-user-ids user-1,user-2 --opt-in-emails admin@example.com`
+
+Test engineer confirmation flow:
+1. Run the dry run command first and capture the scanned/updated counts.
+2. Review the output for any unexpected opt-in or defaulting behavior.
+3. Re-run with `--apply` only after the dry-run output is accepted.
+4. Compare the before/after user records for a small sample to confirm `aiAgentEnabled=false` was set where expected.
+5. Save the command output as rollout evidence.
+
+Notes for step 4 above
+1. Set connection vars once
+
+   export MONGO_URI="${MONGODB_URL:-${DATABASE_URL:-mongodb://localhost:27017}}"
+export DB_NAME="${MONGODB_DB_NAME:-simplehome}"
+
+2. Pick a sample of candidate users (missing aiAgentEnabled before migration)
+
+   mongosh "$MONGO_URI/$DB_NAME" --quiet --eval '
+  db.users.find(
+  { aiAgentEnabled: { $exists: false } },
+  { _id: 0, id: 1, email: 1 }
+  ).limit(10).toArray().forEach(u => print(u.id))
+  '
+
+3. Save those IDs into a shell variable (comma-separated), for example
+
+   SAMPLE_IDS="user-1,user-2,user-3"
+
+4.  Capture before snapshot for exactly those users
+
+    mongosh "$MONGO_URI/$DB_NAME" --quiet --eval '
+
+    const ids = process.env.SAMPLE_IDS.split(",");
+    
+    const rows = db.users.find(
+{ id: { $in: ids } },
+{ _id: 0, id: 1, email: 1, aiAgentEnabled: 1, aiProvider: 1, aiPolicyVersion: 1 }
+).sort({ id: 1 }).toArray();
+print(JSON.stringify(rows, null, 2));
+' > /tmp/td-ai-004-before.json
+
+5. Run migration (dry-run first, then apply)
+
+   npm run migrate:user-ai-settings
+
+   npm run migrate:user-ai-settings -- --apply
+6. Capture after snapshot for the same users
+
+    mongosh "$MONGO_URI/$DB_NAME" --quiet --eval '
+
+    const ids = process.env.SAMPLE_IDS.split(",");
+
+    const rows = db.users.find(
+{ id: { $in: ids } },
+{ _id: 0, id: 1, email: 1, aiAgentEnabled: 1, aiProvider: 1, aiPolicyVersion: 1 }
+).sort({ id: 1 }).toArray();
+print(JSON.stringify(rows, null, 2));
+' > /tmp/td-ai-004-after.json
+
+7. Compare before vs after
+
+    diff -u /tmp/td-ai-004-before.json /tmp/td-ai-004-after.json
+
+Acceptance checks:
+- script is idempotent
+- dry-run or no-op rerun produces stable output
+- rollback/backup steps documented
+
+Current evidence state:
+- Implementation complete.
+- Staging/production execution evidence to be recorded during rollout.
+
+### TD-AI-005 Audit Logging for User-Scoped AI Changes
+Objective:
+- provide traceability for AI setting changes and effective provider selection.
+
+Delivered work:
+- emit audit log event on user AI preference update
+- redact log payloads via shared redaction utility before write
+- include actor, userId, old/new safe values, timestamp, and request metadata
+- write structured JSONL records to `data/ai-config-audit.log` (override path via `AI_CONFIG_AUDIT_PATH`)
+
+Acceptance checks:
+- audit entry generated on every AI settings mutation
+- no secrets/token-like values in logs
+
+Current evidence state:
+- Route-level unit test coverage added for `ai_preferences_updated` audit emission.
+- Staging/production retention and incident workflow evidence pending operational rollout.
+
+Manual test-engineer process:
+1. Update a user AI setting through the authenticated UI or API.
+2. Confirm a new record appears in the audit log file at `data/ai-config-audit.log` or the path set by `AI_CONFIG_AUDIT_PATH`.
+3. Verify the record includes actor, target userId, old/new safe values, timestamp, and request metadata.
+4. Search the emitted log entry for secrets, tokens, or raw provider keys and confirm none are present.
+5. Repeat with a remove/disable action to confirm the lifecycle emits the expected removal/update event.
+
+### TD-AI-006 Test Coverage for Isolation and Fallback
+Objective:
+- prove correctness of user-level isolation and fallback behavior.
+
+Delivered work:
+- route tests for auth and user scoping on AI preference endpoints
+- provider resolution tests for explicit override and fallback behavior
+- tests ensuring `aiAgentEnabled=false` blocks AI generation endpoints
+- production override guard tests (`AI_REQUEST_OVERRIDE_IN_PROD` + valid `x-admin-token` required)
+
+Acceptance checks:
+- all new tests pass in CI
+- negative tests included for unauthorized/cross-user access
+
+Current evidence state:
+- Targeted server test suites are passing for routes/provider/fallback coverage.
+- Additional integration-level validation can be expanded in future if end-to-end user-key flows are added.
+
+Manual test-engineer process:
+1. Sign in as user A and set AI preferences and, if applicable, stored provider credentials.
+2. Open a second session as user B and confirm user B cannot read or modify user A settings.
+3. Trigger AI generation with `aiAgentEnabled=false` and confirm the endpoint returns the expected 4xx response.
+4. Exercise the override path only in the approved test environment and confirm the production guard rejects it without the admin token.
+5. Record the request/response pairs for each case as test evidence.
+
+### TD-AI-007 Per-User Provider Credential Management
+Objective:
+- support user-owned provider API keys without exposing secrets in profile APIs.
+
+Delivered work:
+- added runtime key resolver for AI user credentials encryption (`AI_USER_CREDENTIALS_ENCRYPTION_KEY` with compatibility fallback)
+- added crypto service for encryption/decryption of per-user provider keys
+- added storage plumbing using dedicated collection (`user_ai_credentials`) to avoid exposing secrets in `User` profile payloads
+- added storage methods for:
+  - credential status (presence flags)
+  - encrypted upsert
+  - provider-specific decrypted retrieval for server-side use
+- added authenticated credential management routes:
+  - `GET /api/user/ai-credentials` (presence/status only)
+  - `PATCH /api/user/ai-credentials` (set/rotate/remove key material)
+  - `DELETE /api/user/ai-credentials/:provider` (provider-specific remove)
+- added provider credential validation route:
+  - `POST /api/user/ai-credentials/:provider/validate` (validates request key or stored key)
+- added structured audit events for key mutation operations (`ai_credentials_updated`, `ai_credentials_removed`)
+- wired AI generation routes to prefer per-user stored provider keys before environment/file fallback
+- hardened AI generation/runtime routes to strict user-scoped key mode:
+  - `/api/item-schedule` and `/api/category-schedule` require authenticated users and provider key presence in user credentials
+  - `POST /api/user/ai/generate-tasks` and `POST /api/user/ai/quick-suggestions` are the canonical user-scoped runtime endpoints
+  - `POST /api/ai/generate-tasks` and `POST /api/ai/quick-suggestions` are documented as deprecated compatibility paths during migration
+  - maintenance AI and provider service calls now require explicit provider API key injection
+  - credential status API reports effective source as `stored` or `none` only
+- added server tests for credential status/mutation/validation, stored-key resolution, and end-to-end route lifecycle flow (set -> status -> validate -> remove)
+
+Current operator note:
+- per-user AI preference and key management is exposed via authenticated backend APIs and in-app user settings UI.
+- users can now configure provider, enable/disable AI agent, set/remove provider keys, and run provider validation checks from the web app.
+- runtime fallback indicators were removed from user AI key status UX to match strict per-user credential policy.
+
+Pending work:
+- expand non-mocked integration coverage (real provider sandbox keys and failure-mode matrix) during staging rollout
+- execute TD-AI-007 phased hardening/cutover plan (Phase 1 through Phase 4) defined above
+- design and deliver TD-CAL-001 through TD-CAL-004 per-user calendar toggle workstream, including API cutover and migration coverage
+- design and deliver TD-UI-001 through TD-UI-004 per-user UI/runtime preference workstream, including API ownership and migration coverage
+
+Manual test-engineer process:
+1. Open the per-user AI credentials screen or use the authenticated credential API to set a provider key for one test account.
+2. Confirm `GET /api/user/ai-credentials` returns presence/status only, not raw secret material.
+3. Validate the stored key using `POST /api/user/ai-credentials/:provider/validate` and confirm the response reflects the correct provider.
+4. Run one AI generation request using the stored key, then remove the key with `DELETE /api/user/ai-credentials/:provider` and confirm the next request fails with the expected credential-missing error.
+5. Verify the deprecated `/api/ai/...` aliases still work only during the migration window and are marked for removal after Phase 4.
+
+## Sequencing and Dependencies
+Recommended order:
+1. TD-AI-001 (completed)
+2. TD-AI-002
+3. TD-AI-003
+4. TD-AI-004
+5. TD-AI-005
+6. TD-AI-006
+7. TD-AI-007
+
+Dependency notes:
+- TD-AI-003 depends on TD-AI-002 user preference availability.
+- TD-AI-005 depends on TD-AI-002 mutation path finalization.
+- TD-AI-006 should be expanded as TD-AI-002 through TD-AI-005 land.
+- TD-AI-007 storage plumbing should be in place before adding user key management endpoints.
+
+## Risks and Mitigations
+- Risk: behavior drift across endpoints before resolver centralization.
+  - Mitigation: prioritize TD-AI-003 immediately after TD-AI-002.
+- Risk: accidental user-wide enablement during migration.
+  - Mitigation: TD-AI-004 defaults aiAgentEnabled=false and requires explicit opt-in.
+- Risk: sensitive data exposure in audit logs.
+  - Mitigation: enforce shared redaction and add log-focused tests.
+
+## Rollout and Operational Checklist
+- implement each TD in small, reviewable commits
+- run typecheck and targeted server tests after each TD
+- document behavior changes in maintainer notes
+- verify staged behavior with mixed users:
+  - user with aiAgentEnabled=true and explicit provider
+  - user with aiAgentEnabled=false
+  - user with no explicit aiProvider
+
+## Ownership
+- Application engineering: TD-AI-001/002/003/006 implementation
+- Ops/security: TD-AI-004 migration execution controls and TD-AI-005 audit retention policy
+- QA/release: validation matrix and sign-off evidence

@@ -22,12 +22,11 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
   const queryClient = useQueryClient();
 
   const { data: suggestionsData, isLoading, error } = useQuery({
-    queryKey: ["/api/ai/quick-suggestions", existingTasks.length],
+    queryKey: ["/api/user/ai/quick-suggestions", existingTasks.length],
     queryFn: async () => {
-      const response = await apiRequest("POST", "/api/ai/quick-suggestions", {
+      const response = await apiRequest("POST", "/api/user/ai/quick-suggestions", {
         existingTasks: existingTasks.map(t => ({ title: t.title, category: t.category })),
         propertyInfo: { type: "single_family", age: "5-15 years", climate: "temperate" }
-        // Provider will be read from .env (DEFAULT_AI_PROVIDER)
       });
       return response.json();
     },

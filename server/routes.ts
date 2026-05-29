@@ -47,7 +47,6 @@ import { log } from "console";
 import { logWithLevel } from "./services/logWithLevel";
 import {
   getCalendarFeedSecret as getRuntimeCalendarFeedSecret,
-  getOpenAiApiKey as getRuntimeOpenAiApiKey,
 } from "./services/runtimeConfig";
 import { resolveAiProvider } from "./services/aiProviderResolver";
 import { writeAiConfigAudit } from "./services/aiConfigAudit";
@@ -333,19 +332,6 @@ async function resolveStoredProviderApiKey(userId: string, provider: "gemini" | 
     return null;
   }
 }
-
-function readProjectGeminiKeyFile(): string | null {
-  try {
-    const candidate = path.resolve(process.cwd(), "gemini.key");
-    if (!fs.existsSync(candidate)) {
-      return null;
-    }
-    const key = fs.readFileSync(candidate, "utf-8").trim();
-    return key.length > 0 ? key : null;
-  } catch {
-    return null;
-  }
-}
 // ...existing imports...
 //const __filename = fileURLToPath(import.meta.url);
 //const __dirname = path.dirname(__filename);
@@ -535,17 +521,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as User).id;
       const status = await storage.getUserAiCredentialStatus(userId);
-      const hasGeminiRuntimeFallback =
-        !!process.env.GEMINI_API_KEY?.trim() || !!readProjectGeminiKeyFile();
-      const hasOpenAiRuntimeFallback = !!getRuntimeOpenAiApiKey();
 
       return res.json({
         hasGeminiApiKey: status.hasGeminiApiKey === true,
         hasOpenAiApiKey: status.hasOpenAiApiKey === true,
-        hasGeminiRuntimeFallback,
-        hasOpenAiRuntimeFallback,
-        effectiveGeminiKeySource: status.hasGeminiApiKey ? "stored" : hasGeminiRuntimeFallback ? "runtime" : "none",
-        effectiveOpenAiKeySource: status.hasOpenAiApiKey ? "stored" : hasOpenAiRuntimeFallback ? "runtime" : "none",
+        effectiveGeminiKeySource: status.hasGeminiApiKey ? "stored" : "none",
+        effectiveOpenAiKeySource: status.hasOpenAiApiKey ? "stored" : "none",
         updatedAt: status.updatedAt ? status.updatedAt.toISOString() : null,
       });
     } catch (error) {
@@ -840,7 +821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // AI Maintenance Schedule for a single item
-  app.post("/api/item-schedule", async (req, res) => {
+  app.post("/api/item-schedule", requireAuth, async (req, res) => {
     try {
       const body = req.body || {};
       // Accept multiple payload shapes:
@@ -860,18 +841,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         item = body as CatalogItem;
       }
 
-  const userProvider = await getAuthenticatedUserAiProvider(req);
+      const userProvider = await getAuthenticatedUserAiProvider(req);
 
-  const providerResolution = resolveAiProvider({
-    requestProvider: body.provider,
-    userProvider,
-    contextProvider: item?.provider,
-    allowRequestOverride: canUseAiRequestOverride(req),
-  });
-  const provider = providerResolution.provider;
+      const providerResolution = resolveAiProvider({
+        requestProvider: body.provider,
+        userProvider,
+        contextProvider: item?.provider,
+        allowRequestOverride: canUseAiRequestOverride(req),
+      });
+      const provider = providerResolution.provider;
       logWithLevel("INFO", `Item schedule request received for item: ${item?.name || 'undefined'}, provider: ${provider || 'undefined'}`);
       if (!item) {
         return res.status(400).json({ message: "No item provided" });
+      }
+      const userId = (req.user as User).id;
+      const providerApiKey = await resolveStoredProviderApiKey(userId, provider);
+      if (!providerApiKey) {
+        const providerName = provider === "openai" ? "OpenAI" : "Gemini";
+        return res.status(400).json({ message: `${providerName} API key is not configured for this user` });
       }
       // Attach provider if present. Cast to CatalogItem to satisfy TypeScript in tests
       // provider may come from request body (string) so we cast defensively to the expected union type
@@ -880,7 +867,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : ({ ...item } as CatalogItem);
       // Import AI service (use dynamic ESM import to work in ESM runtime)
       const { generateMaintenanceSchedule } = await import("./services/maintenanceAi");
-      const result = await generateMaintenanceSchedule(itemWithProvider as any);
+      const result = await generateMaintenanceSchedule(itemWithProvider as any, {
+        [provider]: providerApiKey,
+      });
       // If the service returned an error-like object, return HTTP 500 with diagnostics
       if (result && typeof result === 'object' && (result.error || result.validationErrors)) {
         logWithLevel('ERROR', `AI service returned error for item ${itemWithProvider.name}: ${JSON.stringify(result)}`);
@@ -893,17 +882,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   // AI suggested maintenance Schedule 
-  app.post("/api/category-schedule", async (req, res) => {
+  app.post("/api/category-schedule", requireAuth, async (req, res) => {
     try {
       // Try to get category from provided JSON
       const provided = req.body;
-  const userProvider = await getAuthenticatedUserAiProvider(req);
-  const providerResolution = resolveAiProvider({
-    requestProvider: provided.provider,
-    userProvider,
-    allowRequestOverride: canUseAiRequestOverride(req),
-  });
-  let provider = providerResolution.provider;
+      const userProvider = await getAuthenticatedUserAiProvider(req);
+      const providerResolution = resolveAiProvider({
+        requestProvider: provided.provider,
+        userProvider,
+        allowRequestOverride: canUseAiRequestOverride(req),
+      });
+      let provider = providerResolution.provider;
       let category;
       if (provided.householdCatalog && Array.isArray(provided.householdCatalog) && provided.householdCatalog.length > 0) {
         // Use first category from provided JSON
@@ -932,9 +921,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       logWithLevel("DEBUG", `Category items: ${JSON.stringify(category.items, null, 2)}`);
     
   const items = category.items.map((item: CatalogItem) => provider ? { ...item, provider } : { ...item });
+      const userId = (req.user as User).id;
+      const providerApiKey = await resolveStoredProviderApiKey(userId, provider);
+      if (!providerApiKey) {
+        const providerName = provider === "openai" ? "OpenAI" : "Gemini";
+        return res.status(400).json({ message: `${providerName} API key is not configured for this user` });
+      }
       // Import AI service (dynamic ESM import)
       const { generateCategoryMaintenanceSchedules } = await import("./services/maintenanceAi");
-      const results = await generateCategoryMaintenanceSchedules(items as any);
+      const results = await generateCategoryMaintenanceSchedules(items as any, {
+        [provider]: providerApiKey,
+      });
 
       const itemStatuses: Array<{
         itemId: string;
@@ -2178,37 +2175,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Task Generation
-  app.post("/api/ai/generate-tasks", requireAuth, async (req, res) => {
+  const handleGenerateTasks: express.RequestHandler = async (req, res) => {
     try {
-  if (!ensureAiAgentEnabled(req, res)) {
-    return;
-  }
-  const { propertyType, assessment, provider: reqProvider, geminiApiKey, openaiApiKey } = req.body;
-  const user = req.user as User;
-  const provider = resolveAiProvider({
-    requestProvider: reqProvider,
-    userProvider: user.aiProvider,
-    allowRequestOverride: canUseAiRequestOverride(req),
-  }).provider;
+      if (!ensureAiAgentEnabled(req, res)) {
+        return;
+      }
+      const { propertyType, assessment, provider: reqProvider, geminiApiKey, openaiApiKey } = req.body;
+      const user = req.user as User;
+      const provider = resolveAiProvider({
+        requestProvider: reqProvider,
+        userProvider: user.aiProvider,
+        allowRequestOverride: canUseAiRequestOverride(req),
+      }).provider;
       if (!propertyType || !assessment) {
         return res.status(400).json({ message: "Property type and assessment are required" });
       }
       let suggestions;
       if (provider === "gemini") {
-        // Support passing the Gemini API key in the request body, via environment variable,
-        // or via a local file named `gemini.key` at the project root.
         const storedUserKey = await resolveStoredProviderApiKey(user.id, "gemini");
-        const fileKey = readProjectGeminiKeyFile();
-        const keyToUse = geminiApiKey || storedUserKey || process.env.GEMINI_API_KEY || fileKey;
+        const keyToUse = geminiApiKey || storedUserKey;
         if (!keyToUse) {
-          return res.status(400).json({ message: "Gemini API key required (provide geminiApiKey in request body, set GEMINI_API_KEY, or place key in project root file 'gemini.key')" });
+          return res.status(400).json({ message: "Gemini API key required" });
         }
         const prompt = `Generate maintenance items / tasks for property type: ${propertyType}, assessment: ${typeof assessment === 'string' ? assessment : JSON.stringify(assessment)}`;
         const geminiResponse = await generateGeminiContent(prompt, keyToUse);
         suggestions = [geminiResponse];
       } else {
         const storedUserKey = await resolveStoredProviderApiKey(user.id, "openai");
-        suggestions = await generateMaintenanceTasks(propertyType, assessment, openaiApiKey || storedUserKey || undefined);
+        const keyToUse = openaiApiKey || storedUserKey;
+        if (!keyToUse) {
+          return res.status(400).json({ message: "OpenAI API key required" });
+        }
+        suggestions = await generateMaintenanceTasks(propertyType, assessment, keyToUse);
       }
       res.json({ suggestions });
     } catch (error) {
@@ -2216,25 +2214,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errMsg = (error instanceof Error) ? error.message : "Failed to generate AI items / tasks";
       res.status(500).json({ message: errMsg });
     }
-  });
+  };
 
-  app.post("/api/ai/quick-suggestions", requireAuth, async (req, res) => {
+  const handleQuickSuggestions: express.RequestHandler = async (req, res) => {
     try {
-  if (!ensureAiAgentEnabled(req, res)) {
-    return;
-  }
-  const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey, openaiApiKey } = req.body;
-    const user = req.user as User;
-    const provider = resolveAiProvider({
-      requestProvider: reqProvider,
-      userProvider: user.aiProvider,
-      allowRequestOverride: canUseAiRequestOverride(req),
-    }).provider;
-    let suggestions: any;
-    if (provider === "gemini") {
+      if (!ensureAiAgentEnabled(req, res)) {
+        return;
+      }
+      const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey, openaiApiKey } = req.body;
+      const user = req.user as User;
+      const provider = resolveAiProvider({
+        requestProvider: reqProvider,
+        userProvider: user.aiProvider,
+        allowRequestOverride: canUseAiRequestOverride(req),
+      }).provider;
+      let suggestions: any;
+      if (provider === "gemini") {
         const storedUserKey = await resolveStoredProviderApiKey(user.id, "gemini");
-        const fileKey = readProjectGeminiKeyFile();
-        const keyToUse = geminiApiKey || storedUserKey || process.env.GEMINI_API_KEY || fileKey;
+        const keyToUse = geminiApiKey || storedUserKey;
         if (!keyToUse) {
           return res.status(400).json({ message: "Gemini API key required" });
         }
@@ -2245,34 +2242,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logWithLevel("DEBUG", `Provider (${provider}) response: ${JSON.stringify(geminiResponse)}`);
       } else {
         const storedUserKey = await resolveStoredProviderApiKey(user.id, "openai");
-        suggestions = await generateQuickSuggestions(existingTasks || [], propertyInfo, openaiApiKey || storedUserKey || undefined);
+        const keyToUse = openaiApiKey || storedUserKey;
+        if (!keyToUse) {
+          return res.status(400).json({ message: "OpenAI API key required" });
+        }
+        suggestions = await generateQuickSuggestions(existingTasks || [], propertyInfo, keyToUse);
       }
       if (Array.isArray(suggestions)) {
         suggestions = suggestions.flat(Infinity);
         logWithLevel("INFO", `Generated quick suggestions using ${provider}`);
         logWithLevel("DEBUG", `Quick suggestions (${provider}): ${JSON.stringify(suggestions)}`);
       }
-      
+
       // Validate and normalize to AISuggestion schema for both providers
       // Ensures consistent structure: title, description, category, priority, frequency, reasoning
-      const normalizedSuggestions: AISuggestion[] = Array.isArray(suggestions) 
+      const normalizedSuggestions: AISuggestion[] = Array.isArray(suggestions)
         ? suggestions.map((s: any) => ({
             title: s.title || s.Name || "Maintenance Task",
             description: s.description || s["Maintenance Schedule"]?.Minor || "Regular maintenance",
             category: s.category || "HVAC & Mechanical",
             priority: s.priority || "Medium",
             frequency: s.frequency || s["Maintenance Schedule"]?.Major || "Annual",
-            reasoning: s.reasoning || s["Maintenance Schedule"]?.reasoning || "Recommended maintenance"
+            reasoning: s.reasoning || s["Maintenance Schedule"]?.reasoning || "Recommended maintenance",
           } as AISuggestion))
         : [];
-      
+
       res.json({ suggestions: normalizedSuggestions });
     } catch (error) {
       console.error("AI quick suggestions error:", error);
       const errMsg = (error instanceof Error) ? error.message : "Failed to generate AI suggestions";
       res.status(500).json({ message: errMsg });
     }
-  });
+  };
+
+  app.post("/api/user/ai/generate-tasks", requireAuth, handleGenerateTasks);
+  app.post("/api/ai/generate-tasks", requireAuth, handleGenerateTasks);
+  app.post("/api/user/ai/quick-suggestions", requireAuth, handleQuickSuggestions);
+  app.post("/api/ai/quick-suggestions", requireAuth, handleQuickSuggestions);
 
   // Questionnaire Responses
   app.post("/api/questionnaire", requireAuth, async (req, res) => {

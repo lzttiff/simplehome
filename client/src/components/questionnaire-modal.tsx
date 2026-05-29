@@ -130,7 +130,7 @@ export default function QuestionnaireModal({ isOpen, onClose, templateId }: Ques
 
   const generateTasksMutation = useMutation({
     mutationFn: async (assessment: any) => {
-      const response = await apiRequest("POST", "/api/ai/generate-tasks", {
+      const response = await apiRequest("POST", "/api/user/ai/generate-tasks", {
         propertyType: state.propertyType,
         assessment,
       });

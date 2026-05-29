@@ -739,12 +739,15 @@ export class MongoDBStorage implements IStorage {
     hasOpenAiApiKey: boolean;
     updatedAt: Date | null;
   }> {
+    const now = new Date();
     const setUpdates: Record<string, unknown> = {
-      updatedAt: new Date(),
+      updatedAt: now,
     };
-    const setOnInsert = {
+    const setOnInsert: Record<string, unknown> = {
       userId,
-      createdAt: new Date(),
+      createdAt: now,
+      geminiApiKeyEncrypted: null,
+      openaiApiKeyEncrypted: null,
     };
 
     if ("geminiApiKey" in updates) {
@@ -755,6 +758,12 @@ export class MongoDBStorage implements IStorage {
     if ("openaiApiKey" in updates) {
       const value = typeof updates.openaiApiKey === "string" ? updates.openaiApiKey.trim() : "";
       setUpdates.openaiApiKeyEncrypted = value.length > 0 ? encryptAiUserCredential(value) : null;
+    }
+
+    // MongoDB rejects updates targeting the same path in both $set and $setOnInsert.
+    // Keep insert defaults, but drop any keys that are being explicitly updated.
+    for (const key of Object.keys(setUpdates)) {
+      delete setOnInsert[key];
     }
 
     await this.userAiCredentialsCollection.updateOne(

@@ -86,6 +86,7 @@ describe('/api/item-schedule', () => {
   });
 
   it('should return a schedule for a valid item', async () => {
+    storageMock.getUserAiCredential.mockResolvedValueOnce('user-gemini-key');
     const item = {
       id: '1',
       name: 'HVAC',
@@ -236,10 +237,8 @@ describe('/api/user/ai-credentials', () => {
       expect.objectContaining({
         hasGeminiApiKey: true,
         hasOpenAiApiKey: false,
-        hasGeminiRuntimeFallback: expect.any(Boolean),
-        hasOpenAiRuntimeFallback: expect.any(Boolean),
         effectiveGeminiKeySource: 'stored',
-        effectiveOpenAiKeySource: expect.any(String),
+        effectiveOpenAiKeySource: 'none',
         updatedAt: now.toISOString(),
       }),
     );

@@ -1,13 +1,17 @@
 import OpenAI from "openai";
 import { AISuggestion } from "@shared/aiSuggestion";
-import { getOpenAiApiKey } from "./runtimeConfig";
 import { logWithLevel } from "./logWithLevel";
 import { redactSensitiveText } from "./securityRedaction";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 function createOpenAiClient(apiKey?: string): OpenAI {
+  const normalizedApiKey = typeof apiKey === "string" ? apiKey.trim() : "";
+  if (!normalizedApiKey) {
+    throw new Error("OpenAI API key is required.");
+  }
+
   return new OpenAI({
-    apiKey: (typeof apiKey === "string" && apiKey.trim().length > 0 ? apiKey.trim() : getOpenAiApiKey()) || "default_key",
+    apiKey: normalizedApiKey,
   });
 }
 
@@ -33,7 +37,7 @@ export type AITaskSuggestion = AISuggestion;
 export async function generateMaintenanceTasks(
   propertyType: string, 
   assessment: PropertyAssessment,
-  apiKey?: string,
+  apiKey: string,
 ): Promise<AITaskSuggestion[]> {
   try {
     const openai = createOpenAiClient(apiKey);
@@ -99,8 +103,8 @@ Respond with valid JSON in this exact format:
 
 export async function generateQuickSuggestions(
   existingTasks: any[],
-  propertyInfo?: { type: string; age?: string; climate?: string },
-  apiKey?: string,
+  propertyInfo: { type: string; age?: string; climate?: string } | undefined,
+  apiKey: string,
 ): Promise<AITaskSuggestion[]> {
   try {
     const openai = createOpenAiClient(apiKey);

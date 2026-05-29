@@ -100,7 +100,8 @@ ADMIN_TOKEN note:
 - Use only for admin/testing override paths, sent as `x-admin-token` header
 - In production, request override remains disabled unless `AI_REQUEST_OVERRIDE_IN_PROD=true`
 
-Alternative: place the gemini key in a file named `gemini.key` in the project root (single-line, no extra whitespace) — the server will read it.
+Note: `gemini.key` is a legacy local file pattern and is deprecated for runtime AI execution.
+Use per-user AI key management in User Settings instead.
 
 ## 5) Start development server (with Vite HMR)
 
@@ -149,6 +150,10 @@ npm start
 
 ## 8) Quick one-liners
 
+AI API migration note:
+- Canonical endpoints are moving to `/api/user/ai/...`.
+- Legacy `/api/ai/...` endpoints are deprecated and retained only as temporary compatibility aliases during migration.
+
 Run dev with a Gemini key inline:
 ```zsh
 DEFAULT_AI_PROVIDER=gemini GEMINI_API_KEY="sk-..." DEBUG_CLIENT_REQUESTS=true npm run dev
@@ -161,6 +166,10 @@ DEFAULT_AI_PROVIDER=openai OPENAI_API_KEY="sk-..." npm test
 
 Example admin-token header usage:
 ```zsh
+# Canonical path (target during phased migration)
+curl -H "x-admin-token: $ADMIN_TOKEN" http://localhost:5000/api/user/ai/generate-tasks
+
+# Legacy compatibility path (deprecated)
 curl -H "x-admin-token: $ADMIN_TOKEN" http://localhost:5000/api/ai/generate-tasks
 ```
 
@@ -172,7 +181,7 @@ curl -H "x-admin-token: $ADMIN_TOKEN" http://localhost:5000/api/ai/generate-task
   npm install husky --save-dev
   npm run prepare
   ```
-- Gemini/OpenAI key errors: ensure `GEMINI_API_KEY` or `OPENAI_API_KEY` is exported or available in a `gemini.key` file for Gemini.
+- Gemini/OpenAI key errors: ensure the authenticated user has configured the selected provider key in User Settings.
 - If the client shows the React `NotFound` page:
   - Enable `DEBUG_CLIENT_REQUESTS=true` then reproduce and inspect server logs for `VITE-SERVE` and `[CLIENT-DBG]` lines to see the requested path and UA.
   - Open Chrome DevTools Console and check for runtime errors and `location.pathname`.

@@ -33,7 +33,7 @@ Remaining from Phase 1:
 - Security controls are still fragmented:
 	- provider-specific encryption and debug conventions are not fully unified
 	- duplicated operational guidance across provider docs
-- AI provider selection is currently global-first (DEFAULT_AI_PROVIDER), not per-user-first.
+- AI provider selection is per-user-first for runtime AI execution.
 
 ### Gap matrix (current vs target)
 
@@ -44,10 +44,10 @@ Remaining from Phase 1:
 | Logging/redaction policy | Apple has detailed sanitization path; other paths vary | One redaction standard across calendar and AI error surfaces | Need standard checklist and cross-provider enforcement points |
 | Audit trail | Calendar audit log exists and is shared | Keep shared audit path and retention policy | Need retention/rotation guidance and incident workflow |
 | Documentation topology | Security guidance split between provider docs and ops docs | One canonical maintainer security/ops doc + lightweight provider-specific pointers | Need dedup pass in provider docs |
-| AI provider configuration scope | DEFAULT_AI_PROVIDER applies app-wide unless request override is passed | Per-user AI configuration, with app-level default only as fallback | Major tech debt; requires schema/API/UI updates |
+| AI provider configuration scope | Per-user AI provider/key controls runtime execution | Per-user AI configuration only, with deprecated legacy aliases removed | Final hardening in phased migration |
 
 ### Confirmed Phase 1 findings from code
-- App-wide AI default is currently resolved via DEFAULT_AI_PROVIDER in server routes and maintenance services.
+- Runtime AI routes are moving to canonical user-scoped API paths under `/api/user/ai/...`; legacy `/api/ai/...` routes are deprecated during migration.
 - No persistent per-user AI provider preference is defined in shared User schema.
 - Calendar provider auth remains correctly per-user, but app-level trust anchors must remain in env vars.
 
@@ -349,8 +349,32 @@ Business requirement:
 2. Provider resolution order:
 	 - explicit request override (admin/testing only, guarded)
 	 - per-user aiProvider (normal path)
-	 - DEFAULT_AI_PROVIDER (final fallback)
+	 - explicit error when user provider is not configured for runtime AI calls
 3. Gate AI routes by per-user aiAgentEnabled for non-admin traffic.
+
+Runtime endpoint contract (phased migration):
+- Canonical:
+	- `POST /api/user/ai/generate-tasks`
+	- `POST /api/user/ai/quick-suggestions`
+- Deprecated compatibility aliases:
+	- `POST /api/ai/generate-tasks`
+	- `POST /api/ai/quick-suggestions`
+
+### API Deprecation Register (AI Runtime)
+
+| Deprecated Endpoint | Canonical Replacement | Status | Planned Removal |
+|---|---|---|---|
+| `POST /api/ai/generate-tasks` | `POST /api/user/ai/generate-tasks` | Deprecated compatibility alias | TD-AI-007 Phase 4 |
+| `POST /api/ai/quick-suggestions` | `POST /api/user/ai/quick-suggestions` | Deprecated compatibility alias | TD-AI-007 Phase 4 |
+
+Deprecation usage rules:
+- new client and documentation changes must use canonical `/api/user/ai/...` endpoints.
+- deprecated `/api/ai/...` endpoints exist only for temporary migration compatibility.
+
+API namespace rule:
+- use `/api/user/...` for self-service operations on the authenticated user.
+- reserve `/api/admin/...` for server-wide/admin-only configuration and any future cross-user admin actions.
+- no `/api/admin/users` listing API is planned; direct database querying remains the preferred operational path when user inventory is needed.
 
 ### Tech debt backlog items
 - TD-AI-001: Data model extension for per-user AI settings.
@@ -361,7 +385,7 @@ Business requirement:
 - TD-AI-006: Update tests to validate per-user provider isolation and fallback behavior.
 
 Tracking document:
-- docs/user-management/PER_USER_AI_TECHDEBT_PLAN.md
+- docs/user-management/PER_USER_TECHDEBT_PLAN.md
 
 Current status:
 - TD-AI-001 completed in code (shared User model + storage defaults/hydration).

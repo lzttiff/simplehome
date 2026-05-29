@@ -53,9 +53,21 @@ jest.mock('../../server/storage', () => {
       getPropertyTemplates: jest.fn().mockResolvedValue([]),
       getPropertyTemplate: jest.fn().mockResolvedValue(null),
       getUserById: jest.fn().mockResolvedValue(null),
+      getUserAiCredential: jest.fn().mockResolvedValue('test-user-key'),
     },
   };
 });
+
+jest.mock('../../server/auth', () => ({
+  requireAuth: (req: any, _res: any, next: any) => {
+    if (!req.user) {
+      req.user = { id: 'test-user-id', email: 'test@example.com', createdAt: new Date() };
+    }
+    next();
+  },
+  hashPassword: jest.fn(),
+  verifyPassword: jest.fn(),
+}));
 
 // Mock logWithLevel
 jest.mock('../../server/services/logWithLevel', () => ({
@@ -101,7 +113,8 @@ describe('AI Provider Route Tests', () => {
         expect.objectContaining({
           name: 'Test Item',
           provider: 'openai',
-        })
+        }),
+        expect.any(Object),
       );
     });
 
@@ -124,7 +137,8 @@ describe('AI Provider Route Tests', () => {
       expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'openai',
-        })
+        }),
+        expect.any(Object),
       );
     });
 
@@ -146,7 +160,8 @@ describe('AI Provider Route Tests', () => {
       expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'gemini',
-        })
+        }),
+        expect.any(Object),
       );
     });
 
@@ -167,7 +182,8 @@ describe('AI Provider Route Tests', () => {
       expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'gemini',
-        })
+        }),
+        expect.any(Object),
       );
     });
 
@@ -205,7 +221,8 @@ describe('AI Provider Route Tests', () => {
       expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'openai',
-        })
+        }),
+        expect.any(Object),
       );
     });
 
@@ -228,7 +245,8 @@ describe('AI Provider Route Tests', () => {
       expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'openai',
-        })
+        }),
+        expect.any(Object),
       );
     });
 
@@ -293,7 +311,8 @@ describe('AI Provider Route Tests', () => {
             name: 'Test Item 1',
             provider: 'openai',
           }),
-        ])
+        ]),
+        expect.any(Object),
       );
     });
 
@@ -325,7 +344,8 @@ describe('AI Provider Route Tests', () => {
           expect.objectContaining({
             provider: 'openai',
           }),
-        ])
+        ]),
+        expect.any(Object),
       );
     });
 
@@ -354,7 +374,8 @@ describe('AI Provider Route Tests', () => {
           expect.objectContaining({ name: 'Item 1', provider: 'openai' }),
           expect.objectContaining({ name: 'Item 2', provider: 'openai' }),
           expect.objectContaining({ name: 'Item 3', provider: 'openai' }),
-        ])
+        ]),
+        expect.any(Object),
       );
     });
 
@@ -378,7 +399,8 @@ describe('AI Provider Route Tests', () => {
           expect.objectContaining({
             provider: 'gemini',
           }),
-        ])
+        ]),
+        expect.any(Object),
       );
     });
 
@@ -528,7 +550,8 @@ describe('AI Provider Route Tests', () => {
         expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
           expect.objectContaining({
             provider: testCase.expected,
-          })
+          }),
+          expect.any(Object),
         );
       }
     });
@@ -583,7 +606,8 @@ describe('AI Provider Route Tests', () => {
       expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'gemini',
-        })
+        }),
+        expect.any(Object),
       );
     });
 
@@ -611,7 +635,8 @@ describe('AI Provider Route Tests', () => {
       expect(generateMaintenanceSchedule).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'openai',
-        })
+        }),
+        expect.any(Object),
       );
     });
   });

@@ -4,15 +4,25 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { OpenAI } from "openai";
 import { normalizeDateOnly } from "../../shared/schema";
-import { getOpenAiApiKey } from "./runtimeConfig";
 import { resolveAiProvider } from "./aiProviderResolver";
 import { redactSensitiveText } from "./securityRedaction";
 
-const openai = new OpenAI({
-  apiKey: getOpenAiApiKey() || "default_key"
-});
-
 type AiProvider = "openai" | "gemini";
+
+export interface ProviderApiKeys {
+  openai?: string;
+  gemini?: string;
+}
+
+function getRequiredProviderApiKey(provider: AiProvider, keys?: ProviderApiKeys): string {
+  const key = (provider === "openai" ? keys?.openai : keys?.gemini) || "";
+  const trimmed = key.trim();
+  if (!trimmed) {
+    const providerName = provider === "openai" ? "OpenAI" : "Gemini";
+    throw new Error(`${providerName} API key is required for AI generation.`);
+  }
+  return trimmed;
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -96,6 +106,7 @@ async function requestSchemaRepair(
   provider: AiProvider,
   rawText: string,
   itemName: string,
+  providerApiKeys?: ProviderApiKeys,
 ): Promise<unknown> {
   const repairPrompt = `Fix this payload so it is valid JSON and EXACTLY matches this schema. Return ONLY JSON, no markdown, no explanation.
 
@@ -121,10 +132,14 @@ ${rawText.slice(0, 12000)}`;
 
   if (provider === "gemini") {
     const { generateGeminiContent } = await import("./gemini");
+    const geminiApiKey = getRequiredProviderApiKey("gemini", providerApiKeys);
     return runWithExponentialBackoff(`Gemini schema repair for ${itemName}`, async () =>
-      generateGeminiContent(repairPrompt),
+      generateGeminiContent(repairPrompt, geminiApiKey),
     );
   }
+
+  const openaiApiKey = getRequiredProviderApiKey("openai", providerApiKeys);
+  const openai = new OpenAI({ apiKey: openaiApiKey });
 
   const repaired = await runWithExponentialBackoff(`OpenAI schema repair for ${itemName}`, async () =>
     openai.chat.completions.create({
@@ -141,11 +156,20 @@ ${rawText.slice(0, 12000)}`;
   return repaired.choices[0].message.content || "{}";
 }
 
-async function callProviderGenerate(provider: AiProvider, prompt: string, itemName: string): Promise<unknown> {
+async function callProviderGenerate(
+  provider: AiProvider,
+  prompt: string,
+  itemName: string,
+  providerApiKeys?: ProviderApiKeys,
+): Promise<unknown> {
   if (provider === "gemini") {
     const { generateGeminiContent } = await import("./gemini");
-    return runWithExponentialBackoff(`Gemini request for ${itemName}`, async () => generateGeminiContent(prompt));
+    const geminiApiKey = getRequiredProviderApiKey("gemini", providerApiKeys);
+    return runWithExponentialBackoff(`Gemini request for ${itemName}`, async () => generateGeminiContent(prompt, geminiApiKey));
   }
+
+  const openaiApiKey = getRequiredProviderApiKey("openai", providerApiKeys);
+  const openai = new OpenAI({ apiKey: openaiApiKey });
 
   const response = await runWithExponentialBackoff(`OpenAI request for ${itemName}`, async () =>
     openai.chat.completions.create({
@@ -167,6 +191,7 @@ async function normalizeWithRepair(
   rawResult: unknown,
   itemName: string,
   oneWeekFromToday: Date,
+  providerApiKeys?: ProviderApiKeys,
 ): Promise<{ normalized?: MaintenanceAiResult; repaired: boolean; error?: string }> {
   const firstPass = parseProviderJson(rawResult);
   if (firstPass.parsed && typeof firstPass.parsed === "object") {
@@ -177,7 +202,7 @@ async function normalizeWithRepair(
   }
 
   try {
-    const repairedRaw = await requestSchemaRepair(provider, firstPass.rawText, itemName);
+    const repairedRaw = await requestSchemaRepair(provider, firstPass.rawText, itemName, providerApiKeys);
     const repairedParsed = parseProviderJson(repairedRaw);
     if (repairedParsed.parsed && typeof repairedParsed.parsed === "object") {
       const repairedNormalized = normalizeToMaintenanceAiResult(repairedParsed.parsed, itemName, oneWeekFromToday);
@@ -365,7 +390,7 @@ export function clearDiagnostics() {
   diagnosticsStore.length = 0;
 }
 
-export async function generateMaintenanceSchedule(item: CatalogItem): Promise<any> {
+export async function generateMaintenanceSchedule(item: CatalogItem, providerApiKeys?: ProviderApiKeys): Promise<any> {
   // Use installationDate as fallback for missing service dates
   const minorDate = item.lastMaintenanceDates?.minor || item.installationDate;
   const majorDate = item.lastMaintenanceDates?.major || item.installationDate;
@@ -428,8 +453,8 @@ Respond ONLY with valid JSON exactly matching the schema above. No explanations,
     const provider = providersToTry[idx];
     try {
       logWithLevel("DEBUG", `[AI] Attempting provider=${provider} for item=${item.name}`);
-      const raw = await callProviderGenerate(provider, prompt, item.name);
-      const normalized = await normalizeWithRepair(provider, raw, item.name, oneWeekFromToday);
+      const raw = await callProviderGenerate(provider, prompt, item.name, providerApiKeys);
+      const normalized = await normalizeWithRepair(provider, raw, item.name, oneWeekFromToday, providerApiKeys);
       if (normalized.normalized) {
         return {
           ...normalized.normalized,
@@ -467,7 +492,7 @@ Respond ONLY with valid JSON exactly matching the schema above. No explanations,
   } as any;
 }
 
-export async function generateCategoryMaintenanceSchedules(items: CatalogItem[]): Promise<any[]> {
+export async function generateCategoryMaintenanceSchedules(items: CatalogItem[], providerApiKeys?: ProviderApiKeys): Promise<any[]> {
   const results: any[] = [];
   const oneWeekFromToday = new Date();
   oneWeekFromToday.setDate(oneWeekFromToday.getDate() + 7);
@@ -475,7 +500,7 @@ export async function generateCategoryMaintenanceSchedules(items: CatalogItem[])
   for (const item of items) {
     let result: any;
     try {
-      result = await generateMaintenanceSchedule(item);
+      result = await generateMaintenanceSchedule(item, providerApiKeys);
     } catch (error) {
       const errorMessage = redactSensitiveText(error, 500);
       logWithLevel("ERROR", `[AI] Failed to generate maintenance schedule for ${item.name}: ${errorMessage}`);

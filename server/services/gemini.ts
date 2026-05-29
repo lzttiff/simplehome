@@ -2,20 +2,10 @@ import { logWithLevel } from "./logWithLevel";
 import axios from "axios";
 import { redactSensitiveText } from "./securityRedaction";
 
-// Store Gemini API key locally for backend use
-let localGeminiApiKey: string | undefined = process.env.GEMINI_API_KEY;
-
-// Setter for local key (for testing via POST API)
-export function setLocalGeminiApiKey(key: string) {
-  localGeminiApiKey = key;
-}
-
 export async function generateGeminiContent(prompt: string, apiKey?: string): Promise<string> {
   // gemini 1.5 is deprecated
   const models = ["gemini-2.5-pro", "gemini-2.5-flash"];
-  // Prefer request-provided key first, then current process env, then local override.
-  // This avoids stale-key issues when .env changes between restarts.
-  const keyToUse = (apiKey || process.env.GEMINI_API_KEY || localGeminiApiKey || "").trim();
+  const keyToUse = (apiKey || "").trim();
   if (!keyToUse) throw new Error("Gemini API key is not set.");
 
   // Add explicit instructions for JSON output matching the frontend schema
