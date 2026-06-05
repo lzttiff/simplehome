@@ -31,6 +31,7 @@ import {
   validateInsertQuestionnaireResponse,
   registerSchema,
   loginSchema,
+  updateUserUiPreferencesSchema,
   type InsertMaintenanceTask,
   type InsertQuestionnaireResponse,
   type User,
@@ -475,6 +476,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get UI preferences error:", error);
       return res.status(500).json({ message: "Failed to load UI preferences" });
+    }
+  });
+
+  app.patch("/api/user/ui-preferences", requireAuth, async (req, res) => {
+    try {
+      const parsed = updateUserUiPreferencesSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid UI preferences payload", errors: parsed.error.errors });
+      }
+
+      const userId = (req.user as User).id;
+      const updated = await storage.updateUserUiPreferences(userId, parsed.data);
+      return res.json(updated);
+    } catch (error) {
+      console.error("Update UI preferences error:", error);
+      return res.status(500).json({ message: "Failed to update UI preferences" });
     }
   });
 

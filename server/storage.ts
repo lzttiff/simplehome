@@ -48,6 +48,7 @@ export interface IStorage {
     updates: { aiProvider?: AiProvider | null; aiAgentEnabled?: boolean; aiPolicyVersion?: string | null },
   ): Promise<User | undefined>;
   getUserUiPreferences(userId: string): Promise<UserUiPreferences>;
+  updateUserUiPreferences(userId: string, updates: Partial<UserUiPreferences>): Promise<UserUiPreferences>;
   getUserAiCredentialStatus(userId: string): Promise<{
     hasGeminiApiKey: boolean;
     hasOpenAiApiKey: boolean;
@@ -717,6 +718,17 @@ export class MongoDBStorage implements IStorage {
       return parsed.data;
     }
     return userUiPreferencesSchema.parse({});
+  }
+
+  async updateUserUiPreferences(userId: string, updates: Partial<UserUiPreferences>): Promise<UserUiPreferences> {
+    const existing = await this.getUserUiPreferences(userId);
+    const merged = {
+      ...existing,
+      ...updates,
+    };
+    const normalized = userUiPreferencesSchema.parse(merged);
+    await this.usersCollection.updateOne({ id: userId }, { $set: { uiPreferences: normalized } });
+    return normalized;
   }
 
   async getUserAiCredentialStatus(userId: string): Promise<{

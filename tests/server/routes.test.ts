@@ -34,6 +34,7 @@ jest.mock('../../server/storage', () => ({
     getUserById: jest.fn(),
     updateUserAiPreferences: jest.fn(),
     getUserUiPreferences: jest.fn(),
+    updateUserUiPreferences: jest.fn(),
     getUserAiCredentialStatus: jest.fn(),
     upsertUserAiCredentials: jest.fn(),
     getUserAiCredential: jest.fn(),
@@ -491,6 +492,53 @@ describe('/api/user/ui-preferences', () => {
         dateFilter: null,
       }),
     );
+  });
+
+  it('updates UI preferences for authenticated user', async () => {
+    storageMock.updateUserUiPreferences.mockResolvedValue({
+      includeMinor: false,
+      includeMajor: true,
+      deferredOnly: false,
+      sortBy: 'nextDate',
+      dateFilter: 30,
+      categoryFilters: ['HVAC & Mechanical'],
+      selectedProvider: 'google',
+      keepOutOfScopeEvents: true,
+      settingsActiveTab: 'calendar',
+    });
+
+    const payload = {
+      includeMinor: false,
+      sortBy: 'nextDate',
+      dateFilter: 30,
+      keepOutOfScopeEvents: true,
+      settingsActiveTab: 'calendar',
+    };
+
+    const res = await request(app)
+      .patch('/api/user/ui-preferences')
+      .send(payload);
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.updateUserUiPreferences).toHaveBeenCalledWith('test-user-id', payload);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        includeMinor: false,
+        sortBy: 'nextDate',
+        dateFilter: 30,
+        keepOutOfScopeEvents: true,
+        settingsActiveTab: 'calendar',
+      }),
+    );
+  });
+
+  it('returns 400 for invalid UI preference payload', async () => {
+    const res = await request(app)
+      .patch('/api/user/ui-preferences')
+      .send({ unknownKey: true });
+
+    expect(res.statusCode).toBe(400);
+    expect(storageMock.updateUserUiPreferences).not.toHaveBeenCalled();
   });
 });
 
