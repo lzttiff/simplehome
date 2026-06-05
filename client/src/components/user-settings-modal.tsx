@@ -173,6 +173,10 @@ export default function UserSettingsModal({
   const [aiAgentEnabled, setAiAgentEnabled] = useState(false);
   const [aiPolicyVersion, setAiPolicyVersion] = useState("");
   const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
+  const [appleIdEmailInput, setAppleIdEmailInput] = useState("");
+  const [appleAppSpecificPasswordInput, setAppleAppSpecificPasswordInput] = useState("");
+  const [appleCalendarIdInput, setAppleCalendarIdInput] = useState("");
+  const [showAppleAppSpecificPassword, setShowAppleAppSpecificPassword] = useState(false);
   const [validationState, setValidationState] = useState<ValidationState>(null);
 
   const { data: googleCalendarStatus, isLoading: googleStatusLoading } = useQuery<GoogleCalendarStatus>({
@@ -258,6 +262,13 @@ export default function UserSettingsModal({
     setProviderApiKeyInput("");
     setValidationState(null);
   }, [selectedAiProvider]);
+
+  useEffect(() => {
+    setAppleIdEmailInput("");
+    setAppleAppSpecificPasswordInput("");
+    setAppleCalendarIdInput("");
+    setShowAppleAppSpecificPassword(false);
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && activeTab === "ai-keys") {
@@ -495,18 +506,15 @@ export default function UserSettingsModal({
     validateAiCredentialMutation.isPending;
 
   const connectAppleMutation = useMutation({
-    mutationFn: async () => {
-      const appleIdEmail = window.prompt("Enter your Apple ID email for calendar sync:", "")?.trim() || "";
-      if (!appleIdEmail) {
+    mutationFn: async (payload: { appleIdEmail: string; appSpecificPassword: string; calendarId?: string }) => {
+      const appleIdEmail = payload.appleIdEmail.trim();
+      const appSpecificPassword = payload.appSpecificPassword.trim();
+      const calendarId = payload.calendarId?.trim() || undefined;
+
+      if (!appleIdEmail || !appSpecificPassword) {
         throw new Error("Apple connection cancelled.");
       }
 
-      const appSpecificPassword = window.prompt("Enter your Apple app-specific password:", "")?.trim() || "";
-      if (!appSpecificPassword) {
-        throw new Error("Apple connection cancelled.");
-      }
-
-      const calendarId = window.prompt("Optional Apple calendar ID (leave blank for default):", "")?.trim() || undefined;
       const response = await apiRequest("POST", "/api/calendar/apple/sync/connect", {
         appleIdEmail,
         appSpecificPassword,
@@ -515,6 +523,9 @@ export default function UserSettingsModal({
       return response.json() as Promise<AppleCalendarStatus>;
     },
     onSuccess: async () => {
+      setAppleIdEmailInput("");
+      setAppleAppSpecificPasswordInput("");
+      setAppleCalendarIdInput("");
       await queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] });
       toast({
         title: "Apple Calendar Connected",
@@ -668,30 +679,99 @@ export default function UserSettingsModal({
                     <Button type="button" variant="outline" size="sm" onClick={copyAppleCalendarId}>
                       Copy Calendar ID
                     </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => connectAppleMutation.mutate()}>
-                      {connectAppleMutation.isPending ? "Connecting Apple..." : "Reconnect Apple Calendar"}
-                    </Button>
-                    <Button type="button" variant="destructive" size="sm" onClick={() => disconnectAppleMutation.mutate()} disabled={disconnectAppleMutation.isPending}>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => disconnectAppleMutation.mutate()}
+                      disabled={disconnectAppleMutation.isPending}
+                    >
                       {disconnectAppleMutation.isPending ? "Disconnecting..." : "Disconnect Apple Calendar"}
                     </Button>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Apple Calendar settings: <a href={appleCalendarSettingsUrl} target="_blank" rel="noreferrer" className="underline">Open Apple Calendar</a>
                   </div>
                 </>
               ) : (
-                <>
-                  <p className="text-sm text-gray-500">Apple Calendar is not connected.</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => connectAppleMutation.mutate()} disabled={connectAppleMutation.isPending}>
-                      {connectAppleMutation.isPending ? "Connecting Apple..." : "Connect Apple Calendar"}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => disconnectAppleMutation.mutate()} disabled={disconnectAppleMutation.isPending}>
-                      {disconnectAppleMutation.isPending ? "Disconnecting..." : "Disconnect Apple Calendar"}
+                <p className="text-sm text-gray-500">Apple Calendar is not connected.</p>
+              )}
+
+              <div className="space-y-2 rounded border border-dashed border-gray-300 bg-white p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="apple-id-email" className="text-sm font-medium">
+                    Apple ID email
+                  </Label>
+                  <Input
+                    id="apple-id-email"
+                    type="email"
+                    value={appleIdEmailInput}
+                    onChange={(event) => setAppleIdEmailInput(event.target.value)}
+                    placeholder="name@example.com"
+                    autoComplete="username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apple-app-specific-password" className="text-sm font-medium">
+                    Apple app-specific password
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="apple-app-specific-password"
+                      type={showAppleAppSpecificPassword ? "text" : "password"}
+                      value={appleAppSpecificPasswordInput}
+                      onChange={(event) => setAppleAppSpecificPasswordInput(event.target.value)}
+                      placeholder="Enter app-specific password"
+                      autoComplete="current-password"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAppleAppSpecificPassword((current) => !current)}
+                    >
+                      {showAppleAppSpecificPassword ? "Hide" : "Show"}
                     </Button>
                   </div>
-                </>
-              )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apple-calendar-id" className="text-sm font-medium">
+                    Optional Apple calendar ID
+                  </Label>
+                  <Input
+                    id="apple-calendar-id"
+                    value={appleCalendarIdInput}
+                    onChange={(event) => setAppleCalendarIdInput(event.target.value)}
+                    placeholder="Leave blank for default"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      connectAppleMutation.mutate({
+                        appleIdEmail: appleIdEmailInput,
+                        appSpecificPassword: appleAppSpecificPasswordInput,
+                        calendarId: appleCalendarIdInput,
+                      })
+                    }
+                    disabled={connectAppleMutation.isPending}
+                  >
+                    {connectAppleMutation.isPending ? "Connecting Apple..." : appleCalendarStatus?.connected ? "Reconnect Apple Calendar" : "Connect Apple Calendar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => disconnectAppleMutation.mutate()}
+                    disabled={disconnectAppleMutation.isPending}
+                  >
+                    {disconnectAppleMutation.isPending ? "Disconnecting..." : "Disconnect Apple Calendar"}
+                  </Button>
+                </div>
+                <div className="text-xs text-gray-500">
+                  Apple Calendar settings: <a href={appleCalendarSettingsUrl} target="_blank" rel="noreferrer" className="underline">Open Apple Calendar</a>
+                </div>
+              </div>
             </div>
           </TabsContent>
 

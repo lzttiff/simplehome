@@ -285,6 +285,7 @@ Implementation status note (2026-06-05):
 - TD-UI-003C settings modal tab/default persistence is implemented in `client/src/components/user-settings-modal.tsx` via persisted `settingsActiveTab` hydration and debounced save.
 - Evidence: passing focused test run `./node_modules/.bin/jest --runInBand --silent --config ./jest.config.js --testMatch='**/client/src/components/user-settings-modal.test.tsx'`, plus passing `npm run test:client:targeted` and `npm run check`.
 - TD-UI-003D settings modal Apple Calendar connection setup is implemented in `client/src/components/user-settings-modal.tsx` with Apple sync status, connect/disconnect actions, and calendar ID display alongside Google.
+- TD-UI-003D now also includes a masked Apple app-specific password field with a reveal/hide toggle so users can verify what they typed without showing it by default.
 - Evidence: passing focused test run `./node_modules/.bin/jest --runInBand --silent --config ./jest.config.js --testMatch='**/client/src/components/user-settings-modal.test.tsx'`, plus passing `npm run check`.
 - TD-UI-004A UI preference backfill/default migration script is implemented in `scripts/migrate-user-ui-preferences.ts` with dry-run default behavior and idempotent apply mode.
 - Evidence: migration command `npm run migrate:user-ui-preferences` (dry-run) and `npm run migrate:user-ui-preferences -- --apply`; code validation by passing `npm run check`.

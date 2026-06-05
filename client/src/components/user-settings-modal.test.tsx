@@ -308,13 +308,6 @@ describe('UserSettingsModal UI preferences (TD-UI-003C)', () => {
     }) as jest.Mock;
 
     global.fetch = fetchMock;
-    const promptSpy = jest.spyOn(window, 'prompt');
-    promptSpy
-      .mockReturnValueOnce('apple@example.com')
-      .mockReturnValueOnce('app-specific-password')
-      .mockReturnValueOnce('');
-
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(
       <QueryClientProvider client={createQueryClient()}>
@@ -328,6 +321,10 @@ describe('UserSettingsModal UI preferences (TD-UI-003C)', () => {
 
     expect(screen.getByText(/apple calendar is not connected/i)).toBeTruthy();
 
+    fireEvent.change(screen.getByLabelText(/apple id email/i), { target: { value: 'apple@example.com' } });
+    fireEvent.change(screen.getByLabelText(/apple app-specific password/i), { target: { value: 'app-specific-password' } });
+    fireEvent.change(screen.getByLabelText(/optional apple calendar id/i), { target: { value: 'calendar-1' } });
+
     fireEvent.click(screen.getByRole('button', { name: /^connect apple calendar$/i }));
 
     await waitFor(() => {
@@ -337,10 +334,77 @@ describe('UserSettingsModal UI preferences (TD-UI-003C)', () => {
       expect(connectCalls.length).toBeGreaterThan(0);
     });
 
-    expect(promptSpy).toHaveBeenCalled();
-    expect(confirmSpy).not.toHaveBeenCalled();
+    const connectCall = fetchMock.mock.calls.find(
+      ([url, config]) => String(url).includes('/api/calendar/apple/sync/connect') && (config as RequestInit | undefined)?.method === 'POST',
+    ) as [RequestInfo | URL, RequestInit] | undefined;
+    expect(connectCall).toBeTruthy();
+    const body = connectCall?.[1].body ? JSON.parse(String(connectCall[1].body)) : {};
+    expect(body).toEqual({
+      appleIdEmail: 'apple@example.com',
+      appSpecificPassword: 'app-specific-password',
+      calendarId: 'calendar-1',
+    });
+  });
 
-    promptSpy.mockRestore();
-    confirmSpy.mockRestore();
+  it('can reveal and re-hide the Apple app-specific password field', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/user/ui-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ settingsActiveTab: 'calendar' }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ aiProvider: null, aiAgentEnabled: false, aiPolicyVersion: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-credentials')) {
+        return {
+          ok: true,
+          json: async () => ({
+            hasGeminiApiKey: false,
+            hasOpenAiApiKey: false,
+            effectiveGeminiKeySource: 'none',
+            effectiveOpenAiKeySource: 'none',
+            updatedAt: null,
+          }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.Mock;
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserSettingsModal isOpen={true} onClose={() => {}} currentTimezone="UTC" currentName="Tester" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /calendar/i }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    const passwordInput = screen.getByLabelText(/apple app-specific password/i);
+    expect(passwordInput.getAttribute('type')).toBe('password');
+
+    fireEvent.click(screen.getByRole('button', { name: /^show$/i }));
+    expect(screen.getByLabelText(/apple app-specific password/i).getAttribute('type')).toBe('text');
+
+    fireEvent.click(screen.getByRole('button', { name: /^hide$/i }));
+    expect(screen.getByLabelText(/apple app-specific password/i).getAttribute('type')).toBe('password');
   });
 });
