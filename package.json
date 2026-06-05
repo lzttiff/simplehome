@@ -12,6 +12,7 @@
     "test:server": "NODE_OPTIONS=--max-old-space-size=4096 jest --runInBand tests/server",
     "test:server:apple-sync": "NODE_OPTIONS=--max-old-space-size=4096 jest --runInBand tests/server/appleCalendarSync.test.ts",
     "test:client:targeted": "NODE_OPTIONS=--max-old-space-size=4096 jest --runInBand --silent --testMatch='**/client/src/components/task-card.test.tsx' --testMatch='**/client/src/pages/dashboard.test.tsx'",
+    "test:client:ui-preferences": "NODE_OPTIONS=--max-old-space-size=4096 jest --runInBand --silent --testMatch='**/client/src/pages/dashboard.test.tsx' --testMatch='**/client/src/components/export-schedule-modal.test.tsx' --testMatch='**/client/src/components/user-settings-modal.test.tsx'",
     "test:client:stability": "./scripts/verify-client-test-stability.sh 3",
     "test:changed": "NODE_OPTIONS=--max-old-space-size=4096 jest -o --maxWorkers=50%",
     "test:highmem": "NODE_OPTIONS=--max-old-space-size=6144 jest",

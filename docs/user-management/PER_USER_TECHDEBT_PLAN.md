@@ -287,6 +287,8 @@ Implementation status note (2026-06-05):
 - Evidence: migration command `npm run migrate:user-ui-preferences` (dry-run) and `npm run migrate:user-ui-preferences -- --apply`; code validation by passing `npm run check`.
 - TD-UI-004B server tests for auth/validation/isolation are expanded in `tests/server/routes.test.ts` for `/api/user/ui-preferences`, including unauthenticated 401 and cross-user payload rejection coverage.
 - Evidence: passing `npm run test:server -- routes.test.ts` and passing `npm run check`.
+- TD-UI-004C client tests for load/apply/save persistence loops are covered across dashboard/export/settings in `client/src/pages/dashboard.test.tsx`, `client/src/components/export-schedule-modal.test.tsx`, and `client/src/components/user-settings-modal.test.tsx`.
+- Evidence: passing `npm run test:client:ui-preferences` and passing `npm run check`.
 
 Suggested execution order:
 1. TD-UI-001A
