@@ -51,6 +51,7 @@ Out of scope:
 | TD-UI-002 | UI preference API | Add authenticated read/update APIs for persisted per-user UI/runtime preferences | Planned |
 | TD-UI-003 | UI preference enforcement | Apply persisted user preferences in dashboard/export/settings workflows where behavior should survive sessions | Planned |
 | TD-UI-003E | Dashboard unsaved preference warning behavior | Warn on browser/tab/page exit when dashboard preferences changed but not yet persisted | Planned |
+| TD-UI-003F | AI query readiness gating and setup prompt | Block AI queries when provider/credentials are missing and guide user to AI setup | Completed |
 | TD-UI-004 | UI preference migration/tests | Migrate persisted defaults and add user-isolation/regression coverage | Planned |
 
 ## TD-AI-007 Phased Migration Proposal (Pre-Deploy)
@@ -271,6 +272,7 @@ Completion gate:
 | TD-UI-003C | Settings modal tab/default preference persistence | Frontend | 0.5 day | TD-UI-002B, TD-UI-002C | Re-entering settings restores persisted tab/default behavior |
 | TD-UI-003D | Settings modal Apple Calendar connection setup | Frontend | 0.5 day | TD-UI-003C | Apple Calendar setup is available in Settings alongside Google and can connect/disconnect from the same user-facing surface |
 | TD-UI-003E | Dashboard unsaved preference warning behavior | Frontend | 0.5 day | TD-UI-003A | Browser warns on reload/close/navigate-away when dashboard preference snapshot differs from last saved server snapshot |
+| TD-UI-003F | AI query readiness gating and setup prompt | Frontend | 0.5 day | TD-UI-002B, TD-UI-003C | AI query entry points block execution when preferred provider or required credential is missing and show a clear setup path |
 | TD-UI-004A | UI preference backfill/default migration script | Backend | 1 day | TD-UI-001B | Dry-run and apply modes work; rerun is idempotent |
 | TD-UI-004B | Server tests for auth/validation/isolation | QA + Backend | 1 day | TD-UI-002B, TD-UI-002C | Route tests pass for 401/400/isolation cases |
 | TD-UI-004C | Client tests for load/apply/save loops | QA + Frontend | 1 day | TD-UI-003A, TD-UI-003B, TD-UI-003C | Client tests pass for persistence across session reloads |
@@ -282,6 +284,10 @@ Implementation status note (2026-06-05):
 - No separate TD-UI-002C-only commit is required unless release bookkeeping later requires ticket-isolated commit history.
 - TD-UI-003A dashboard load/apply/save wiring is implemented in `client/src/pages/dashboard.tsx` and validated by targeted client tests.
 - Evidence: passing `npm run test:client:targeted` (includes `client/src/pages/dashboard.test.tsx`) and passing `npm run check`.
+- TD-UI-003F AI readiness gating is implemented for interactive AI query entry points and now routes users to AI Preferences setup.
+- Evidence: client readiness checks in AI query components plus server-side provider-selection guard to prevent provider fallback when user setup is incomplete.
+- TD-UI-003F follow-up hardening: item/category AI schedule generation now avoids cross-provider fallback when the secondary provider has no configured user key, so provider-mismatch errors no longer mask the selected provider failure path.
+- Evidence: passing `npm run check` and passing `npm run test:server -- maintenanceAi.test.ts ai-provider-routes.test.ts` after the fallback guard update in `server/services/maintenanceAi.ts`.
 - TD-UI-003B export modal load/apply/save wiring is implemented in `client/src/components/export-schedule-modal.tsx` for persisted `selectedProvider` and `keepOutOfScopeEvents`.
 - Evidence: passing focused test run `./node_modules/.bin/jest --config /tmp/jest.client.single.cjs --runInBand --silent`, plus passing `npm run test:client:targeted` and `npm run check`.
 - TD-UI-003C settings modal tab/default persistence is implemented in `client/src/components/user-settings-modal.tsx` via persisted `settingsActiveTab` hydration and debounced save.
@@ -314,10 +320,11 @@ Suggested execution order:
 8. TD-UI-003C
 9. TD-UI-003D
 10. TD-UI-003E
-11. TD-UI-004A
-12. TD-UI-004B
-13. TD-UI-004C
-14. TD-UI-004D
+11. TD-UI-003F
+12. TD-UI-004A
+13. TD-UI-004B
+14. TD-UI-004C
+15. TD-UI-004D
 
 ### TD-UI-001A Approval Artifact
 
@@ -428,6 +435,30 @@ Scope notes:
 Acceptance checks:
 - warning appears on tab close, window close, reload, and external navigation while unsaved dashboard preference changes exist.
 - warning does not appear when there are no unsaved dashboard preference changes.
+
+### TD-UI-003F AI Query Readiness Gating and Setup Prompt
+Objective:
+- prevent AI query execution when required user AI setup is incomplete, and direct the user to complete provider and credential configuration.
+
+Delivered work:
+- added shared client readiness checks for AI agent enabled status, provider selection, and provider credential presence.
+- blocked AI query execution in interactive AI entry points when readiness checks fail.
+- added actionable setup prompts that open Settings directly to AI Preferences.
+- added server-side provider-selection enforcement for AI query endpoints to prevent execution when no provider is configured.
+
+Behavior to track:
+- before running AI query actions, validate that AI agent is enabled, a preferred provider is selected, and required provider credential is available.
+- if readiness checks fail, block the AI request at the UI layer and show a clear setup prompt.
+- setup prompt should route users to the AI Preferences setup flow in settings.
+
+Scope notes:
+- this ticket is UI gating and setup guidance only; backend authorization and strict credential enforcement remain server-side.
+- applies to all interactive AI query entry points where user-initiated AI generation can occur.
+
+Acceptance checks:
+- AI actions are disabled or blocked with actionable messaging when provider selection is missing.
+- AI actions are disabled or blocked with actionable messaging when required credential is missing.
+- user can navigate directly from the prompt to the setup surface and retry successfully after configuration.
 
 ### TD-UI-004 UI Preference Migration and Tests
 Objective:
