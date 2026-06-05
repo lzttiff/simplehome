@@ -446,7 +446,17 @@ Respond ONLY with valid JSON exactly matching the schema above. No explanations,
     allowRequestOverride: false,
   }).provider as AiProvider;
   const secondaryProvider: AiProvider = primaryProvider === "gemini" ? "openai" : "gemini";
-  const providersToTry: AiProvider[] = [primaryProvider, secondaryProvider];
+
+  const hasProviderKey = (provider: AiProvider): boolean => {
+    const key = provider === "openai" ? providerApiKeys?.openai : providerApiKeys?.gemini;
+    return typeof key === "string" && key.trim().length > 0;
+  };
+
+  // Try fallback provider only when that provider has a configured key.
+  // This avoids masking the primary-provider failure with a secondary missing-key error.
+  const providersToTry: AiProvider[] = hasProviderKey(secondaryProvider)
+    ? [primaryProvider, secondaryProvider]
+    : [primaryProvider];
   let lastFailure = "Unknown AI generation failure";
 
   for (let idx = 0; idx < providersToTry.length; idx++) {
