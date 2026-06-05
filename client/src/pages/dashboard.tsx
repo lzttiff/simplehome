@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
 import {
@@ -8,6 +8,7 @@ import {
   parseMaintenanceSchedule,
   toDateOnlyFromLocalDate,
   User,
+  type UserUiPreferences,
 } from "@shared/schema";
 import { TaskStats, CategoryFilter } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,6 +61,10 @@ export default function Dashboard() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [showBulkFillModal, setShowBulkFillModal] = useState(false);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [preferredCategories, setPreferredCategories] = useState<string[] | null>(null);
+  const [uiPreferencesReady, setUiPreferencesReady] = useState(false);
+  const lastSavedUiPrefRef = useRef<string | null>(null);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchWithBackoff = async (url: string, init: RequestInit, maxAttempts = 3): Promise<Response> => {
     let lastError: unknown;
@@ -110,6 +115,63 @@ export default function Dashboard() {
     queryKey: ["/api/stats", { templateId }],
   });
 
+  const { data: uiPreferencesData } = useQuery<Partial<UserUiPreferences> | null>({
+    queryKey: ["/api/user/ui-preferences"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (uiPreferencesData === undefined) {
+      return;
+    }
+
+    const includeMinorPref = uiPreferencesData?.includeMinor;
+    const includeMajorPref = uiPreferencesData?.includeMajor;
+    const deferredOnlyPref = uiPreferencesData?.deferredOnly;
+    const sortByPref = uiPreferencesData?.sortBy;
+    const dateFilterPref = uiPreferencesData?.dateFilter;
+    const categoryFiltersPref = uiPreferencesData?.categoryFilters;
+
+    if (typeof includeMinorPref === "boolean") {
+      setIncludeMinor(includeMinorPref);
+    }
+    if (typeof includeMajorPref === "boolean") {
+      setIncludeMajor(includeMajorPref);
+    }
+    if (typeof deferredOnlyPref === "boolean") {
+      setDeferredOnly(deferredOnlyPref);
+    }
+    if (sortByPref === "default" || sortByPref === "nextDate") {
+      setSortBy(sortByPref);
+    }
+    if (dateFilterPref === null || (typeof dateFilterPref === "number" && Number.isInteger(dateFilterPref) && dateFilterPref >= 0)) {
+      setDateFilter(dateFilterPref);
+    }
+    if (Array.isArray(categoryFiltersPref)) {
+      setPreferredCategories(categoryFiltersPref.filter((entry): entry is string => typeof entry === "string"));
+    } else {
+      setPreferredCategories(null);
+    }
+
+    const initialSnapshot = {
+      includeMinor: typeof includeMinorPref === "boolean" ? includeMinorPref : true,
+      includeMajor: typeof includeMajorPref === "boolean" ? includeMajorPref : true,
+      deferredOnly: typeof deferredOnlyPref === "boolean" ? deferredOnlyPref : false,
+      sortBy: sortByPref === "nextDate" ? "nextDate" : "default",
+      dateFilter:
+        dateFilterPref === null || (typeof dateFilterPref === "number" && Number.isInteger(dateFilterPref) && dateFilterPref >= 0)
+          ? dateFilterPref
+          : null,
+      categoryFilters: Array.isArray(categoryFiltersPref)
+        ? categoryFiltersPref.filter((entry): entry is string => typeof entry === "string")
+        : [],
+    };
+    lastSavedUiPrefRef.current = JSON.stringify(initialSnapshot);
+    setUiPreferencesReady(true);
+  }, [uiPreferencesData]);
+
   // Update category filters when tasks change
   // Note: tasks are already filtered by templateId from the backend API
   useEffect(() => {
@@ -133,14 +195,32 @@ export default function Dashboard() {
 
     // Only update if the categories have actually changed
     setCategoryFilters(prev => {
-      if (prev.length === 0) return newFilters;
+      const preferred = preferredCategories;
+      if (prev.length === 0) {
+        if (!preferred) {
+          return newFilters;
+        }
+        return newFilters.map((filter) => ({
+          ...filter,
+          checked: preferred.includes(filter.category),
+        }));
+      }
       
       // Check if categories changed by comparing category names
       const prevCategories = prev.map(f => f.category).sort().join(',');
       const newCategories = newFilters.map(f => f.category).sort().join(',');
       
       if (prevCategories !== newCategories) {
-        return newFilters;
+        if (!preferred) {
+          return newFilters;
+        }
+        return newFilters.map((filter) => {
+          const existing = prev.find((entry) => entry.category === filter.category);
+          return {
+            ...filter,
+            checked: existing ? existing.checked : preferred.includes(filter.category),
+          };
+        });
       }
       
       // Update counts only, preserve checked state
@@ -153,7 +233,54 @@ export default function Dashboard() {
       const changed = updated.some((f, idx) => f.count !== prev[idx]?.count || f.checked !== prev[idx]?.checked);
       return changed ? updated : prev;
     });
-  }, [tasks]);
+  }, [tasks, preferredCategories]);
+
+  useEffect(() => {
+    if (!uiPreferencesReady || tasksLoading) {
+      return;
+    }
+
+    const payload = {
+      includeMinor,
+      includeMajor,
+      deferredOnly,
+      sortBy,
+      dateFilter,
+      categoryFilters: categoryFilters.filter((entry) => entry.checked).map((entry) => entry.category),
+    };
+    const snapshot = JSON.stringify(payload);
+    if (snapshot === lastSavedUiPrefRef.current) {
+      return;
+    }
+
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = setTimeout(async () => {
+      try {
+        await apiRequest("PATCH", "/api/user/ui-preferences", payload);
+        lastSavedUiPrefRef.current = snapshot;
+      } catch (error) {
+        console.error("Failed to persist dashboard UI preferences:", error);
+      }
+    }, 350);
+
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+    };
+  }, [
+    uiPreferencesReady,
+    tasksLoading,
+    includeMinor,
+    includeMajor,
+    deferredOnly,
+    sortBy,
+    dateFilter,
+    categoryFilters,
+  ]);
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilters(prev => 

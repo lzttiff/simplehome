@@ -273,6 +273,13 @@ Completion gate:
 | TD-UI-004C | Client tests for load/apply/save loops | QA + Frontend | 1 day | TD-UI-003A, TD-UI-003B, TD-UI-003C | Client tests pass for persistence across session reloads |
 | TD-UI-004D | Rollout evidence capture and sign-off | QA/Release | 0.5 day | TD-UI-004A, TD-UI-004B, TD-UI-004C | Evidence bundle includes migration output, test output, and manual two-user verification |
 
+Implementation status note (2026-06-05):
+- TD-UI-002C storage scope (read/update methods and patch persistence behavior) is implemented and verified as part of TD-UI-002A and TD-UI-002B delivery.
+- Evidence: commits `c15ecdf` (TD-UI-002A), `71bc341` (TD-UI-002B), and passing `npm run check` plus `npm run test:server -- routes.test.ts`.
+- No separate TD-UI-002C-only commit is required unless release bookkeeping later requires ticket-isolated commit history.
+- TD-UI-003A dashboard load/apply/save wiring is implemented in `client/src/pages/dashboard.tsx` and validated by targeted client tests.
+- Evidence: passing `npm run test:client:targeted` (includes `client/src/pages/dashboard.test.tsx`) and passing `npm run check`.
+
 Suggested execution order:
 1. TD-UI-001A
 2. TD-UI-001B

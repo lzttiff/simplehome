@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Dashboard from './dashboard';
 import { createMaintenanceTaskFixture } from '@/test/fixtures';
 import { mockJsonFetch, renderWithQueryClient } from '@/test/test-utils';
@@ -309,6 +309,116 @@ describe('Dashboard Filtering', () => {
         const dateInput = getDateInput();
         expect(dateInput).toHaveValue(0);
       });
+    });
+  });
+
+  describe('TD-UI-003A persistence wiring', () => {
+    it('hydrates dashboard controls from /api/user/ui-preferences', async () => {
+      global.fetch = jest.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/api/auth/me')) {
+          return Promise.resolve({ ok: true, json: async () => null });
+        }
+        if (url.includes('/api/tasks')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [
+              createMaintenanceTaskFixture({ id: '1', title: 'Task 1', category: 'Appliances', templateId: 'test-template' }),
+            ],
+          });
+        }
+        if (url.includes('/api/stats')) {
+          return Promise.resolve({ ok: true, json: async () => ({ total: 1, dueNext30Days: 0, overdue: 0 }) });
+        }
+        if (url.includes('/api/user/ui-preferences')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              includeMinor: false,
+              includeMajor: true,
+              deferredOnly: true,
+              sortBy: 'nextDate',
+              dateFilter: 7,
+              categoryFilters: ['Appliances'],
+            }),
+          });
+        }
+
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      }) as jest.Mock;
+
+      renderWithQueryClient(<Dashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('checkbox', { name: /minor/i })).toHaveAttribute('aria-checked', 'false');
+      });
+
+      expect(screen.getByRole('checkbox', { name: /major/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('checkbox', { name: /deferred only/i })).toHaveAttribute('aria-checked', 'true');
+      expect(getDateInput()).toHaveValue(7);
+    });
+
+    it('persists dashboard preference changes via debounced PATCH', async () => {
+      jest.useFakeTimers();
+
+      const fetchMock = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('/api/auth/me')) {
+          return Promise.resolve({ ok: true, json: async () => null });
+        }
+        if (url.includes('/api/tasks')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [
+              createMaintenanceTaskFixture({ id: '1', title: 'Task 1', category: 'Appliances', templateId: 'test-template' }),
+            ],
+          });
+        }
+        if (url.includes('/api/stats')) {
+          return Promise.resolve({ ok: true, json: async () => ({ total: 1, dueNext30Days: 0, overdue: 0 }) });
+        }
+        if (url.includes('/api/user/ui-preferences') && (!init?.method || init.method === 'GET')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              includeMinor: true,
+              includeMajor: true,
+              deferredOnly: false,
+              sortBy: 'default',
+              dateFilter: null,
+              categoryFilters: ['Appliances'],
+            }),
+          });
+        }
+        if (url.includes('/api/user/ui-preferences') && init?.method === 'PATCH') {
+          return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+        }
+
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      }) as jest.Mock;
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      renderWithQueryClient(<Dashboard />);
+
+      const minorCheckbox = await screen.findByRole('checkbox', { name: /minor/i });
+      fireEvent.click(minorCheckbox);
+
+      await act(async () => {
+        jest.advanceTimersByTime(450);
+      });
+
+      await waitFor(() => {
+        const patchCalls = fetchMock.mock.calls.filter(
+          ([url, init]) => String(url).includes('/api/user/ui-preferences') && (init as RequestInit | undefined)?.method === 'PATCH',
+        );
+        expect(patchCalls.length).toBeGreaterThan(0);
+
+        const latestPatch = patchCalls[patchCalls.length - 1] as [RequestInfo | URL, RequestInit];
+        const body = latestPatch[1].body ? JSON.parse(String(latestPatch[1].body)) : {};
+        expect(body.includeMinor).toBe(false);
+      });
+
+      jest.useRealTimers();
     });
   });
 
