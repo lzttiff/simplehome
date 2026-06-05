@@ -72,6 +72,7 @@ import {
   runAppleCalendarTwoWaySync,
   sanitizeAppleSyncErrorMessage,
   setAppleCalendarSyncScope,
+  updateAppleCalendarId,
 } from "./services/appleCalendarSync";
 import { initializeUserDefaultTemplates } from "./services/userTemplateInit";
 import passport from "passport";
@@ -1599,6 +1600,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid connect payload", issues: error.issues });
       }
       res.status(500).json({ message: sanitizeAppleSyncErrorMessage(error, "Failed to connect Apple Calendar") });
+    }
+  });
+
+  app.patch("/api/calendar/apple/sync/calendar", requireAuth, async (req, res) => {
+    try {
+      const bodySchema = z.object({
+        calendarId: z.string().optional(),
+      });
+
+      const { calendarId } = bodySchema.parse(req.body ?? {});
+      const status = await updateAppleCalendarId(req, { calendarId });
+      res.json(status);
+    } catch (error: any) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ message: "Invalid Apple calendar update payload", issues: error.issues });
+      }
+
+      const rawMessage = typeof error?.message === "string" ? error.message : "";
+      const safeMessage = sanitizeAppleSyncErrorMessage(error, "Failed to update Apple Calendar ID");
+      const status = rawMessage.includes("not connected") || safeMessage.includes("not connected") ? 409 : 500;
+      res.status(status).json({ message: safeMessage });
     }
   });
 

@@ -24,6 +24,7 @@ jest.mock('../../server/services/appleCalendarSync', () => ({
   runAppleCalendarTwoWaySync: jest.fn(),
   sanitizeAppleSyncErrorMessage: (error: any, defaultMsg: string) => defaultMsg,
   setAppleCalendarSyncScope: jest.fn(),
+  updateAppleCalendarId: jest.fn(),
 }));
 
 jest.mock('../../server/storage', () => ({
@@ -680,6 +681,39 @@ describe('/api/calendar/apple/sync - Contract Tests', () => {
       expect(res.statusCode).toBe(500);
       expect(res.body.message).toBeDefined();
       expect(res.body.message).toBe('Failed to connect Apple Calendar');
+    });
+  });
+
+  describe('PATCH /api/calendar/apple/sync/calendar', () => {
+    it('should return 200 with updated status when calendar selection is updated', async () => {
+      mockAppleSync.updateAppleCalendarId.mockResolvedValue({
+        connected: true,
+        accountEmail: 'user@icloud.com',
+        calendarId: 'home-maintenance',
+      });
+
+      const res = await request(app)
+        .patch('/api/calendar/apple/sync/calendar')
+        .send({ calendarId: 'home-maintenance' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.calendarId).toBe('home-maintenance');
+      expect(mockAppleSync.updateAppleCalendarId).toHaveBeenCalledWith(expect.anything(), {
+        calendarId: 'home-maintenance',
+      });
+    });
+
+    it('should return 409 when Apple Calendar is not connected', async () => {
+      mockAppleSync.updateAppleCalendarId.mockRejectedValue(
+        new Error('Apple Calendar is not connected.')
+      );
+
+      const res = await request(app)
+        .patch('/api/calendar/apple/sync/calendar')
+        .send({ calendarId: 'home-maintenance' });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.body.message).toBe('Failed to update Apple Calendar ID');
     });
   });
 

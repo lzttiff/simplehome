@@ -66,6 +66,10 @@ type ConnectAppleCalendarInput = {
   calendarId?: string | null;
 };
 
+type UpdateAppleCalendarIdInput = {
+  calendarId?: string | null;
+};
+
 type SyncScopeOutcome = {
   activeSelections: AppleSyncSelection[];
   initializedFromRequest: boolean;
@@ -1073,19 +1077,85 @@ export async function connectAppleCalendar(
       `Connected Apple sync using calendar \"${selectedCalendarDisplayName || "(unnamed)"}\" (${selectedCalendarUrl || "no-url"}).`,
     );
   } catch (error) {
+    const rawMessage = sanitizeAppleSyncDebugMessage(error, "Apple CalDAV login failed");
+    const responseSummary = extractDavResponseSummary((error as any)?.response);
+    logAppleSyncDebug(
+      `Apple connect validation failed for email=${email} calendarId=${calendarId}: ${rawMessage}; ${responseSummary}`,
+    );
     throw new Error("Unable to authenticate Apple CalDAV credentials. Check Apple ID and app-specific password.");
   }
 
-  const encryptedPassword = encryptSecret(password);
+  try {
+    const encryptedPassword = encryptSecret(password);
+
+    await storage.upsertAppleCalendarConnection(userId, {
+      email,
+      calendarId,
+      resolvedCalendarDisplayName: selectedCalendarDisplayName,
+      resolvedCalendarUrl: selectedCalendarUrl,
+      appSpecificPasswordEncrypted: encryptedPassword,
+      connectedAt: new Date(),
+    });
+
+    return getAppleCalendarSyncStatus(req);
+  } catch (error) {
+    const details = sanitizeAppleSyncDebugMessage(error, "Apple connect persistence failed");
+    logAppleSyncDebug(`Apple connect persistence failed for user=${userId} email=${email} calendarId=${calendarId}: ${details}`);
+    throw error;
+  }
+}
+
+export async function updateAppleCalendarId(
+  req: express.Request,
+  input: UpdateAppleCalendarIdInput,
+): Promise<AppleCalendarSyncStatus> {
+  const userId = getUserId(req);
+
+  if (!isAppleCalendarConfigured()) {
+    throw new Error("Apple Calendar sync is not configured. Set APPLE_SYNC_ENCRYPTION_KEY.");
+  }
+
+  const connection = await storage.getAppleCalendarConnection(userId);
+  if (!connection) {
+    throw new Error("Apple Calendar is not connected.");
+  }
+
+  if (!connection.appSpecificPasswordEncrypted) {
+    throw new Error("Apple Calendar credentials are missing. Reconnect Apple Calendar.");
+  }
+
+  const calendarId = input.calendarId?.trim() || "simplehome-maintenance";
+  const decryptedPassword = decryptSecret(connection.appSpecificPasswordEncrypted);
+
+  let selectedCalendarDisplayName: string | null = null;
+  let selectedCalendarUrl: string | null = null;
+  try {
+    const client = await createAppleDavClient(connection.email || "", decryptedPassword);
+    const calendars = await client.fetchCalendars();
+    if (!calendars || calendars.length === 0) {
+      throw new Error("No Apple calendars were found for this account.");
+    }
+    const selected = selectCalendar(calendars, calendarId);
+    selectedCalendarDisplayName = String(selected.calendar.displayName || "").trim() || null;
+    selectedCalendarUrl = String(selected.calendar.url || "").trim() || null;
+  } catch (error) {
+    const rawMessage = sanitizeAppleSyncDebugMessage(error, "Apple calendar ID update failed");
+    const responseSummary = extractDavResponseSummary((error as any)?.response);
+    logAppleSyncDebug(
+      `Apple calendar ID update failed for email=${connection.email || "unknown-account"} calendarId=${calendarId}: ${rawMessage}; ${responseSummary}`,
+    );
+    throw new Error("Unable to validate Apple calendar selection. Reconnect Apple Calendar if credentials changed.");
+  }
 
   await storage.upsertAppleCalendarConnection(userId, {
-    email,
     calendarId,
     resolvedCalendarDisplayName: selectedCalendarDisplayName,
     resolvedCalendarUrl: selectedCalendarUrl,
-    appSpecificPasswordEncrypted: encryptedPassword,
-    connectedAt: new Date(),
   });
+
+  logAppleSyncInfo(
+    `Updated Apple calendar selection to "${selectedCalendarDisplayName || "(unnamed)"}" (${selectedCalendarUrl || "no-url"}).`,
+  );
 
   return getAppleCalendarSyncStatus(req);
 }
@@ -1131,10 +1201,24 @@ export async function setAppleCalendarSyncScope(
       const calendar = selected.calendar;
 
       for (const removal of removals) {
-        const filename = buildEventFilename(removal.taskId, removal.kind);
-        const removed = await deleteAppleCalendarObjectIfExists(client, calendar, filename);
-        if (removed) {
-          removedEvents += 1;
+        const candidateFilenames = new Set<string>();
+        candidateFilenames.add(buildEventFilename(removal.taskId, removal.kind));
+
+        // Prefer deleting by the exact filename previously recorded in task export metadata
+        // so older/stale mappings are cleaned up even when naming conventions changed.
+        const task = await storage.getMaintenanceTask(removal.taskId, userId);
+        const exportRecord = task ? getAppleSyncExport(task) : undefined;
+        const previousEventId = exportRecord?.eventIds?.[removal.kind];
+        if (previousEventId && previousEventId.trim()) {
+          candidateFilenames.add(previousEventId.trim());
+        }
+
+        for (const filename of Array.from(candidateFilenames)) {
+          const removed = await deleteAppleCalendarObjectIfExists(client, calendar, filename);
+          if (removed) {
+            removedEvents += 1;
+            break;
+          }
         }
       }
     } catch (error) {
