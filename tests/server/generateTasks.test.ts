@@ -13,11 +13,13 @@ jest.mock('../../server/auth', () => ({
   requireAuth: (req: any, _res: any, next: any) => {
     const headerValue = req.headers?.['x-ai-enabled'];
     const aiAgentEnabled = headerValue !== 'false';
+    const aiProviderHeader = req.headers?.['x-ai-provider'];
+    const aiProvider = aiProviderHeader === 'gemini' || aiProviderHeader === 'openai' ? aiProviderHeader : null;
     req.user = {
       id: 'test-user-id',
       email: 'test@example.com',
       aiAgentEnabled,
-      aiProvider: null,
+      aiProvider,
       createdAt: new Date(),
     };
     next();
@@ -49,10 +51,21 @@ describe('/api/user/ai/generate-tasks (strict per-user key mode)', () => {
     jest.clearAllMocks();
   });
 
+  it('returns 400 when aiProvider is not configured', async () => {
+    const res = await request(app)
+      .post('/api/user/ai/generate-tasks')
+      .send({ propertyType: 'single_family', assessment: 'All looks good' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/AI provider is not configured/);
+    expect(generateGeminiContent).not.toHaveBeenCalled();
+  });
+
   it('returns 400 when provider=gemini and no key provided', async () => {
     const res = await request(app)
       .post('/api/user/ai/generate-tasks')
-      .send({ propertyType: 'single_family', assessment: 'All looks good', provider: 'gemini' });
+      .set('x-ai-provider', 'gemini')
+      .send({ propertyType: 'single_family', assessment: 'All looks good' });
 
     expect(res.statusCode).toBe(400);
     expect(res.body.message).toMatch(/Gemini API key required/);
@@ -62,7 +75,8 @@ describe('/api/user/ai/generate-tasks (strict per-user key mode)', () => {
   it('accepts geminiApiKey in request body and calls Gemini service', async () => {
     const res = await request(app)
       .post('/api/user/ai/generate-tasks')
-      .send({ propertyType: 'single_family', assessment: 'Needs cleaning', provider: 'gemini', geminiApiKey: 'body-key' });
+      .set('x-ai-provider', 'gemini')
+      .send({ propertyType: 'single_family', assessment: 'Needs cleaning', geminiApiKey: 'body-key' });
 
     expect(res.statusCode).toBe(200);
     expect(res.body.suggestions).toBeDefined();
@@ -78,7 +92,8 @@ describe('/api/user/ai/generate-tasks (strict per-user key mode)', () => {
 
     const res = await request(app)
       .post('/api/user/ai/generate-tasks')
-      .send({ propertyType: 'single_family', assessment: 'Filter maintenance needed', provider: 'gemini' });
+      .set('x-ai-provider', 'gemini')
+      .send({ propertyType: 'single_family', assessment: 'Filter maintenance needed' });
 
     expect(res.statusCode).toBe(200);
     expect(storageMock.getUserAiCredential).toHaveBeenCalledWith('test-user-id', 'gemini');
@@ -91,7 +106,8 @@ describe('/api/user/ai/generate-tasks (strict per-user key mode)', () => {
     const res = await request(app)
       .post('/api/user/ai/generate-tasks')
       .set('x-ai-enabled', 'false')
-      .send({ propertyType: 'single_family', assessment: 'Needs cleaning', provider: 'gemini', geminiApiKey: 'body-key' });
+      .set('x-ai-provider', 'gemini')
+      .send({ propertyType: 'single_family', assessment: 'Needs cleaning', geminiApiKey: 'body-key' });
 
     expect(res.statusCode).toBe(403);
     expect(res.body.message).toMatch(/AI agent is disabled/);

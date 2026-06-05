@@ -191,6 +191,23 @@ function ensureAiAgentEnabled(req: express.Request, res: express.Response): bool
   return false;
 }
 
+function ensureAiProviderSelected(req: express.Request, res: express.Response): boolean {
+  const user = req.user as User | undefined;
+  if (!user) {
+    res.status(401).json({ message: "Not authenticated" });
+    return false;
+  }
+
+  if (user.aiProvider === "gemini" || user.aiProvider === "openai") {
+    return true;
+  }
+
+  res.status(400).json({
+    message: "AI provider is not configured. Please select a provider in AI Preferences.",
+  });
+  return false;
+}
+
 function persistShortFeedStore(): void {
   try {
     const out = Object.fromEntries(shortCalendarFeedStore.entries());
@@ -2231,6 +2248,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ensureAiAgentEnabled(req, res)) {
         return;
       }
+      if (!ensureAiProviderSelected(req, res)) {
+        return;
+      }
       const { propertyType, assessment, provider: reqProvider, geminiApiKey, openaiApiKey } = req.body;
       const user = req.user as User;
       const provider = resolveAiProvider({
@@ -2270,6 +2290,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const handleQuickSuggestions: express.RequestHandler = async (req, res) => {
     try {
       if (!ensureAiAgentEnabled(req, res)) {
+        return;
+      }
+      if (!ensureAiProviderSelected(req, res)) {
         return;
       }
       const { existingTasks, propertyInfo, provider: reqProvider, geminiApiKey, openaiApiKey } = req.body;
