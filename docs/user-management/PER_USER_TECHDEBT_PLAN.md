@@ -39,10 +39,10 @@ Out of scope:
 | TD-AI-001 | Data model extension for per-user AI settings | Add aiProvider, aiAgentEnabled, aiPolicyVersion to user model and storage mappings | Completed |
 | TD-AI-002 | Authenticated endpoint to read/update user AI preferences | Add user-scoped profile API for AI settings with strict validation | Completed |
 | TD-AI-003 | Shared provider resolution helper | Centralize provider resolution and remove route-level drift | Completed |
-| TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Implemented (pending staged execution evidence) |
-| TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Implemented (pending rollout evidence) |
-| TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Implemented (server test scope) |
-| TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Implemented (hardening phases in progress) |
+| TD-AI-004 | Existing user migration script | Backfill legacy users with safe defaults (aiAgentEnabled=false) | Completed |
+| TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Completed |
+| TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Completed |
+| TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Completed |
 | TD-CAL-001 | Calendar feature toggle model | Add per-user calendar toggle fields and storage mappings | Planned |
 | TD-CAL-002 | Calendar feature toggle API | Add authenticated read/update APIs for per-user calendar toggles | Planned |
 | TD-CAL-003 | Calendar toggle enforcement | Apply per-user calendar toggles in calendar and AI side-effect routes | Planned |
@@ -106,10 +106,10 @@ Exit criteria:
 - docs and tests reference only canonical user-scoped API paths.
 
 TD-AI-007 phase tracking:
-- Phase 1: In progress
-- Phase 2: Pending
-- Phase 3: Pending
-- Phase 4: Pending
+- Phase 1: Completed
+- Phase 2: Completed
+- Phase 3: Completed
+- Phase 4: Completed
 
 ## API Deprecation Register
 
@@ -170,6 +170,149 @@ Use this as the short execution guide for the items that are not yet fully close
 - If it is server-wide/admin-only, keep it under `/api/admin/...` and require explicit authorization.
 
 ## Detailed Plan
+
+## TD-UI Completion Playbook
+
+Use this execution order to complete TD-UI-001 through TD-UI-004 with clean scope boundaries and test evidence.
+
+### Step 1 - Freeze persisted preference contract (TD-UI-001)
+Actions:
+- finalize the persisted keys that should survive sessions (and explicitly reject transient-only state).
+- define one canonical shape for user UI preferences in shared types.
+- document default values for missing preference documents.
+
+Implementation targets:
+- `shared/schema.ts` for the contract type and validation schema.
+- `docs/user-management/PER_USER_TECHDEBT_PLAN.md` TD-UI sections for final accepted keys.
+
+Done when:
+- each persisted key has a type, default, and owning workflow.
+- transient-only keys are explicitly listed as out of scope.
+
+### Step 2 - Implement user-scoped API and storage (TD-UI-002)
+Actions:
+- add `GET /api/user/ui-preferences` and `PATCH /api/user/ui-preferences`.
+- enforce auth scope from session user only (no target user id in payload/path).
+- reject unknown keys and invalid value types.
+- add storage methods for read/update with partial patch behavior.
+
+Implementation targets:
+- `server/routes.ts` for endpoints and validation wiring.
+- `server/storage.ts` for persistence methods.
+
+Done when:
+- authenticated users can read/update only their own preferences.
+- 400 is returned for schema violations and 401 for unauthenticated requests.
+
+### Step 3 - Wire UI workflows to persisted preferences (TD-UI-003)
+Actions:
+- load persisted preferences on dashboard/settings/export entry points.
+- apply defaults from API for initial state.
+- persist preference changes after user actions that should survive sessions.
+- keep transient UI-only state local and unpersisted.
+
+Implementation targets:
+- `client/src/pages/dashboard.tsx`
+- `client/src/components/export-schedule-modal.tsx`
+- `client/src/components/user-settings-modal.tsx`
+
+Done when:
+- user sees stable preference behavior after refresh/re-login.
+- one user's preference changes never affect another user session.
+
+### Step 4 - Add migration and regression coverage (TD-UI-004)
+Actions:
+- add backfill/default initialization for existing users with missing preference records.
+- make migration idempotent and dry-run friendly.
+- add route tests for auth, validation, and cross-user isolation.
+- add UI tests for preference load/apply/save loops.
+
+Implementation targets:
+- `scripts/` migration script for UI preferences.
+- `tests/server/` route/isolation tests.
+- `tests/client/` workflow persistence tests.
+
+Done when:
+- re-running migration does not produce unintended changes.
+- tests verify isolation, validation, and continuity across sessions.
+
+### Step 5 - Execute rollout evidence checklist
+1. Capture pre-migration sample user preference state.
+2. Run dry-run migration and save output.
+3. Run apply migration and capture before/after diff for sample users.
+4. Run server and client targeted tests.
+5. Perform manual QA pass with two concurrent test users.
+6. Attach command output and screenshots/logs to release evidence.
+
+Suggested validation commands:
+- `npm run test:server`
+- `npm run test:client:targeted`
+- `npm run check`
+
+### Step 6 - Mark TD-UI tickets complete
+Completion gate:
+- TD-UI-001 complete after contract/default sign-off.
+- TD-UI-002 complete after API auth/validation/isolation tests pass.
+- TD-UI-003 complete after UI load/apply/save behavior is verified.
+- TD-UI-004 complete after migration idempotency and evidence capture are done.
+
+### TD-UI Ticket Breakdown (Execution-Ready)
+
+| Ticket | Scope | Suggested Owner | Estimate | Depends On | Acceptance Test |
+| --- | --- | --- | --- | --- | --- |
+| TD-UI-001A | Finalize persisted preference key list and defaults | Product + Backend | 0.5 day | None | Approved key/default matrix is documented and signed off |
+| TD-UI-001B | Add shared schema/types for persisted UI preferences | Backend | 0.5 day | TD-UI-001A | Typecheck passes and invalid keys/types fail schema validation |
+| TD-UI-002A | Add `GET /api/user/ui-preferences` route | Backend | 0.5 day | TD-UI-001B | Authenticated user gets only own preferences; unauthenticated returns 401 |
+| TD-UI-002B | Add `PATCH /api/user/ui-preferences` route with strict validation | Backend | 1 day | TD-UI-002A | Valid payload persists, invalid payload returns 400, cross-user write is impossible |
+| TD-UI-002C | Storage read/update methods for UI preferences | Backend | 0.5 day | TD-UI-001B | Preference patching is persisted and read back correctly |
+| TD-UI-003A | Dashboard preference load/apply/save wiring | Frontend | 1 day | TD-UI-002B, TD-UI-002C | Preferences survive refresh/re-login and match persisted values |
+| TD-UI-003B | Export modal preference load/apply/save wiring | Frontend | 1 day | TD-UI-002B, TD-UI-002C | Provider/tab/scope defaults reload correctly for same user |
+| TD-UI-003C | Settings modal tab/default preference persistence | Frontend | 0.5 day | TD-UI-002B, TD-UI-002C | Re-entering settings restores persisted tab/default behavior |
+| TD-UI-004A | UI preference backfill/default migration script | Backend | 1 day | TD-UI-001B | Dry-run and apply modes work; rerun is idempotent |
+| TD-UI-004B | Server tests for auth/validation/isolation | QA + Backend | 1 day | TD-UI-002B, TD-UI-002C | Route tests pass for 401/400/isolation cases |
+| TD-UI-004C | Client tests for load/apply/save loops | QA + Frontend | 1 day | TD-UI-003A, TD-UI-003B, TD-UI-003C | Client tests pass for persistence across session reloads |
+| TD-UI-004D | Rollout evidence capture and sign-off | QA/Release | 0.5 day | TD-UI-004A, TD-UI-004B, TD-UI-004C | Evidence bundle includes migration output, test output, and manual two-user verification |
+
+Suggested execution order:
+1. TD-UI-001A
+2. TD-UI-001B
+3. TD-UI-002C
+4. TD-UI-002A
+5. TD-UI-002B
+6. TD-UI-003A
+7. TD-UI-003B
+8. TD-UI-003C
+9. TD-UI-004A
+10. TD-UI-004B
+11. TD-UI-004C
+12. TD-UI-004D
+
+### TD-UI-001A Approval Artifact
+
+Approval document:
+- use this file as the source of truth: `docs/user-management/PER_USER_TECHDEBT_PLAN.md`.
+- keep the approved matrix directly in this section so product, backend, and QA sign off on the same artifact.
+
+Matrix to approve for TD-UI-001A:
+
+| Preference Key | Workflow Surface | Persisted (Y/N) | Default | Storage Owner | API Owner | Validation Rule | Reason |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `includeMinor` | Dashboard | Y | `true` | User UI preferences document | `PATCH /api/user/ui-preferences` | boolean only | Affects recurring dashboard filtering across sessions |
+| `includeMajor` | Dashboard | Y | `true` | User UI preferences document | `PATCH /api/user/ui-preferences` | boolean only | Affects recurring dashboard filtering across sessions |
+| `deferredOnly` | Dashboard | Y | `false` | User UI preferences document | `PATCH /api/user/ui-preferences` | boolean only | Affects recurring dashboard filtering across sessions |
+| `sortBy` | Dashboard | Y | `dueDateAsc` | User UI preferences document | `PATCH /api/user/ui-preferences` | enum only | Maintains consistent view ordering per user |
+| `dateFilter` | Dashboard | Y | `all` | User UI preferences document | `PATCH /api/user/ui-preferences` | enum only | Controls recurring date scope across sessions |
+| `categoryFilters` | Dashboard | Y | `[]` | User UI preferences document | `PATCH /api/user/ui-preferences` | string array only | Keeps user-specific category view preferences |
+| `selectedProvider` | Export modal | Y | `google` | User UI preferences document | `PATCH /api/user/ui-preferences` | enum only | Keeps export workflow default provider per user |
+| `keepOutOfScopeEvents` | Export modal | Y | `false` | User UI preferences document | `PATCH /api/user/ui-preferences` | boolean only | Controls repeated export behavior choice |
+| `activeTab` (settings) | Settings modal | Y | `profile` | User UI preferences document | `PATCH /api/user/ui-preferences` | enum only | Improves continuity in frequently revisited settings flow |
+| `activeTab` (export modal) | Export modal | N | N/A | Local component state | N/A | N/A | Transient navigation state; no cross-session requirement |
+
+Sign-off checklist for TD-UI-001A:
+1. Product confirms persisted keys and defaults.
+2. Backend confirms storage owner and API validation feasibility.
+3. QA confirms each persisted key has an observable behavior for regression tests.
+4. Out-of-scope transient keys are explicitly marked `Persisted (Y/N)=N`.
 
 ### TD-UI-001 UI/Runtime Preference Inventory and Model
 Objective:

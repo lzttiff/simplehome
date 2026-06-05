@@ -25,6 +25,37 @@ export interface InsertUser {
   timezone?: string | null;
 }
 
+// User UI Preference Types
+export const uiSortBySchema = z.enum(["default", "nextDate"]);
+export const uiExportProviderSchema = z.enum(["google", "apple"]);
+export const uiSettingsTabSchema = z.enum(["profile", "calendar", "ai-preferences", "ai-keys"]);
+
+export const userUiPreferencesSchema = z
+  .object({
+    includeMinor: z.boolean().default(true),
+    includeMajor: z.boolean().default(true),
+    deferredOnly: z.boolean().default(false),
+    sortBy: uiSortBySchema.default("default"),
+    dateFilter: z.number().int().min(0).nullable().default(null),
+    categoryFilters: z.array(z.string().trim().min(1)).default([]),
+    selectedProvider: uiExportProviderSchema.nullable().default(null),
+    keepOutOfScopeEvents: z.boolean().default(false),
+    settingsActiveTab: uiSettingsTabSchema.default("profile"),
+  })
+  .strict();
+
+export const updateUserUiPreferencesSchema = userUiPreferencesSchema
+  .partial()
+  .refine((payload) => Object.keys(payload).length > 0, {
+    message: "At least one UI preference field is required",
+  });
+
+export type UiSortBy = z.infer<typeof uiSortBySchema>;
+export type UiExportProvider = z.infer<typeof uiExportProviderSchema>;
+export type UiSettingsTab = z.infer<typeof uiSettingsTabSchema>;
+export type UserUiPreferences = z.infer<typeof userUiPreferencesSchema>;
+export type UpdateUserUiPreferencesInput = z.infer<typeof updateUserUiPreferencesSchema>;
+
 // Property Template Types
 export interface PropertyTemplate {
   id: string;
@@ -383,5 +414,16 @@ export function validateInsertQuestionnaireResponse(data: unknown): { valid: boo
   return { 
     valid: false, 
     errors: result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+  };
+}
+
+export function validateUpdateUserUiPreferences(data: unknown): { valid: boolean; errors?: string[] } {
+  const result = updateUserUiPreferencesSchema.safeParse(data);
+  if (result.success) {
+    return { valid: true };
+  }
+  return {
+    valid: false,
+    errors: result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`),
   };
 }
