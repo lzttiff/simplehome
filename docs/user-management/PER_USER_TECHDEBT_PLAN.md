@@ -289,6 +289,8 @@ Implementation status note (2026-06-05):
 - Evidence: passing `npm run test:server -- routes.test.ts` and passing `npm run check`.
 - TD-UI-004C client tests for load/apply/save persistence loops are covered across dashboard/export/settings in `client/src/pages/dashboard.test.tsx`, `client/src/components/export-schedule-modal.test.tsx`, and `client/src/components/user-settings-modal.test.tsx`.
 - Evidence: passing `npm run test:client:ui-preferences` and passing `npm run check`.
+- TD-UI-004D rollout evidence artifact is tracked in `docs/user-management/TD-UI-004D_EVIDENCE.md` with migration dry-run output, server/client/typecheck pass records, and manual two-user verification checklist.
+- Current status: automated evidence complete; final TD-UI-004D sign-off pending manual two-user QA execution artifacts.
 
 Suggested execution order:
 1. TD-UI-001A
