@@ -33,7 +33,8 @@ import {
   loginSchema,
   type InsertMaintenanceTask,
   type InsertQuestionnaireResponse,
-  type User
+  type User,
+  type UserUiPreferences,
 } from "@shared/schema";
 import { AISuggestion } from "@shared/aiSuggestion";
 import { generateMaintenanceTasks, generateQuickSuggestions, validateOpenAiApiKey } from "./services/openai";
@@ -463,6 +464,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get AI preferences error:", error);
       return res.status(500).json({ message: "Failed to load AI preferences" });
+    }
+  });
+
+  app.get("/api/user/ui-preferences", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const preferences = (await storage.getUserUiPreferences(userId)) as UserUiPreferences;
+      return res.json(preferences);
+    } catch (error) {
+      console.error("Get UI preferences error:", error);
+      return res.status(500).json({ message: "Failed to load UI preferences" });
     }
   });
 

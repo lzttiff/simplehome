@@ -33,6 +33,7 @@ jest.mock('../../server/storage', () => ({
     deleteAppleConnection: jest.fn(),
     getUserById: jest.fn(),
     updateUserAiPreferences: jest.fn(),
+    getUserUiPreferences: jest.fn(),
     getUserAiCredentialStatus: jest.fn(),
     upsertUserAiCredentials: jest.fn(),
     getUserAiCredential: jest.fn(),
@@ -448,6 +449,48 @@ describe('/api/user/ai-credentials', () => {
 
     expect(aiAuditMock.writeAiConfigAudit).toHaveBeenCalledWith(expect.objectContaining({ event: 'ai_credentials_updated' }));
     expect(aiAuditMock.writeAiConfigAudit).toHaveBeenCalledWith(expect.objectContaining({ event: 'ai_credentials_removed' }));
+  });
+});
+
+describe('/api/user/ui-preferences', () => {
+  let app: Express;
+
+  beforeAll(async () => {
+    app = express();
+    app.use(express.json());
+    await registerRoutes(app);
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns UI preferences for authenticated user', async () => {
+    storageMock.getUserUiPreferences.mockResolvedValue({
+      includeMinor: true,
+      includeMajor: true,
+      deferredOnly: false,
+      sortBy: 'default',
+      dateFilter: null,
+      categoryFilters: [],
+      selectedProvider: null,
+      keepOutOfScopeEvents: false,
+      settingsActiveTab: 'profile',
+    });
+
+    const res = await request(app).get('/api/user/ui-preferences');
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.getUserUiPreferences).toHaveBeenCalledWith('test-user-id');
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        includeMinor: true,
+        includeMajor: true,
+        deferredOnly: false,
+        sortBy: 'default',
+        dateFilter: null,
+      }),
+    );
   });
 });
 

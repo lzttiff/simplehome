@@ -7,6 +7,7 @@ import {
 } from "./services/defaultTemplateLoader";
 import { 
   type AiProvider,
+  type UserUiPreferences,
   type PropertyTemplate, 
   type InsertPropertyTemplate,
   type MaintenanceTask,
@@ -17,6 +18,7 @@ import {
   type InsertUser,
   parseMaintenanceSchedule,
   serializeMaintenanceSchedule,
+  userUiPreferencesSchema,
 } from "@shared/schema";
 import { randomUUID, createHash } from "crypto";
 import { getMongoUrl } from "./services/runtimeConfig";
@@ -45,6 +47,7 @@ export interface IStorage {
     id: string,
     updates: { aiProvider?: AiProvider | null; aiAgentEnabled?: boolean; aiPolicyVersion?: string | null },
   ): Promise<User | undefined>;
+  getUserUiPreferences(userId: string): Promise<UserUiPreferences>;
   getUserAiCredentialStatus(userId: string): Promise<{
     hasGeminiApiKey: boolean;
     hasOpenAiApiKey: boolean;
@@ -143,6 +146,7 @@ interface MongoQuestionnaireResponse extends Omit<QuestionnaireResponse, 'id'> {
 interface MongoUser extends Omit<User, 'id'> {
   _id?: ObjectId;
   id: string;
+  uiPreferences?: unknown;
 }
 
 interface MongoUserAiCredentials {
@@ -704,6 +708,15 @@ export class MongoDBStorage implements IStorage {
     }
 
     return this.toUser(result);
+  }
+
+  async getUserUiPreferences(userId: string): Promise<UserUiPreferences> {
+    const doc = await this.usersCollection.findOne({ id: userId }, { projection: { uiPreferences: 1 } });
+    const parsed = userUiPreferencesSchema.safeParse(doc?.uiPreferences ?? {});
+    if (parsed.success) {
+      return parsed.data;
+    }
+    return userUiPreferencesSchema.parse({});
   }
 
   async getUserAiCredentialStatus(userId: string): Promise<{
