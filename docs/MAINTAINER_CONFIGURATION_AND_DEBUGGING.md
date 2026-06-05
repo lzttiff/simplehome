@@ -475,6 +475,10 @@ Recommended in production:
 | APPLE_CALDAV_SERVER_URL | Override CalDAV endpoint | https://caldav.icloud.com |
 | APPLE_SYNC_DEBUG | Verbose Apple sync logs | false |
 
+Operational safety recommendation:
+- Configure a dedicated Apple calendar ID for SimpleHome sync instead of a shared personal calendar.
+- Scope cleanup and disconnect flows can delete out-of-scope mapped events; using a dedicated calendar reduces risk of affecting unrelated personal events.
+
 ### Feed/admin and diagnostics
 | Variable | Purpose | Default/Behavior |
 |---|---|---|

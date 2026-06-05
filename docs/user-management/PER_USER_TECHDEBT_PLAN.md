@@ -50,6 +50,7 @@ Out of scope:
 | TD-UI-001 | UI/runtime preference inventory and model | Identify overlooked per-user UI/runtime preferences and define persisted ownership model | Planned |
 | TD-UI-002 | UI preference API | Add authenticated read/update APIs for persisted per-user UI/runtime preferences | Planned |
 | TD-UI-003 | UI preference enforcement | Apply persisted user preferences in dashboard/export/settings workflows where behavior should survive sessions | Planned |
+| TD-UI-003E | Dashboard unsaved preference warning behavior | Warn on browser/tab/page exit when dashboard preferences changed but not yet persisted | Planned |
 | TD-UI-004 | UI preference migration/tests | Migrate persisted defaults and add user-isolation/regression coverage | Planned |
 
 ## TD-AI-007 Phased Migration Proposal (Pre-Deploy)
@@ -269,6 +270,7 @@ Completion gate:
 | TD-UI-003B | Export modal preference load/apply/save wiring | Frontend | 1 day | TD-UI-002B, TD-UI-002C | Provider/tab/scope defaults reload correctly for same user |
 | TD-UI-003C | Settings modal tab/default preference persistence | Frontend | 0.5 day | TD-UI-002B, TD-UI-002C | Re-entering settings restores persisted tab/default behavior |
 | TD-UI-003D | Settings modal Apple Calendar connection setup | Frontend | 0.5 day | TD-UI-003C | Apple Calendar setup is available in Settings alongside Google and can connect/disconnect from the same user-facing surface |
+| TD-UI-003E | Dashboard unsaved preference warning behavior | Frontend | 0.5 day | TD-UI-003A | Browser warns on reload/close/navigate-away when dashboard preference snapshot differs from last saved server snapshot |
 | TD-UI-004A | UI preference backfill/default migration script | Backend | 1 day | TD-UI-001B | Dry-run and apply modes work; rerun is idempotent |
 | TD-UI-004B | Server tests for auth/validation/isolation | QA + Backend | 1 day | TD-UI-002B, TD-UI-002C | Route tests pass for 401/400/isolation cases |
 | TD-UI-004C | Client tests for load/apply/save loops | QA + Frontend | 1 day | TD-UI-003A, TD-UI-003B, TD-UI-003C | Client tests pass for persistence across session reloads |
@@ -286,7 +288,12 @@ Implementation status note (2026-06-05):
 - Evidence: passing focused test run `./node_modules/.bin/jest --runInBand --silent --config ./jest.config.js --testMatch='**/client/src/components/user-settings-modal.test.tsx'`, plus passing `npm run test:client:targeted` and `npm run check`.
 - TD-UI-003D settings modal Apple Calendar connection setup is implemented in `client/src/components/user-settings-modal.tsx` with Apple sync status, connect/disconnect actions, and calendar ID display alongside Google.
 - TD-UI-003D now also includes a masked Apple app-specific password field with a reveal/hide toggle so users can verify what they typed without showing it by default.
+- TD-UI-003D now includes a safety recommendation to set a dedicated Apple calendar ID for SimpleHome to reduce risk of affecting unrelated personal events during scope cleanup.
 - Evidence: passing focused test run `./node_modules/.bin/jest --runInBand --silent --config ./jest.config.js --testMatch='**/client/src/components/user-settings-modal.test.tsx'`, plus passing `npm run check`.
+- TD-UI-003E dashboard unsaved preference warning behavior is implemented in `client/src/pages/dashboard.tsx` using `beforeunload` when the in-memory preference snapshot differs from the last persisted snapshot.
+- TD-UI-003E behavior note: browser-native warning appears on tab close, window close, reload, and external navigation; browser text is generic and not customizable.
+- TD-UI-003E behavior note: this warning covers browser exit/navigation and does not replace autosave debounced persistence semantics.
+- Evidence: passing `npm run check` after implementing the dashboard `beforeunload` guard.
 - TD-UI-004A UI preference backfill/default migration script is implemented in `scripts/migrate-user-ui-preferences.ts` with dry-run default behavior and idempotent apply mode.
 - Evidence: migration command `npm run migrate:user-ui-preferences` (dry-run) and `npm run migrate:user-ui-preferences -- --apply`; code validation by passing `npm run check`.
 - TD-UI-004B server tests for auth/validation/isolation are expanded in `tests/server/routes.test.ts` for `/api/user/ui-preferences`, including unauthenticated 401 and cross-user payload rejection coverage.
@@ -306,10 +313,11 @@ Suggested execution order:
 7. TD-UI-003B
 8. TD-UI-003C
 9. TD-UI-003D
-10. TD-UI-004A
-11. TD-UI-004B
-12. TD-UI-004C
-13. TD-UI-004D
+10. TD-UI-003E
+11. TD-UI-004A
+12. TD-UI-004B
+13. TD-UI-004C
+14. TD-UI-004D
 
 ### TD-UI-001A Approval Artifact
 
@@ -403,6 +411,23 @@ Planned enforcement areas:
 Acceptance checks:
 - persisted preferences are applied when the user re-enters the workflow.
 - one user’s preferences never leak into another user’s session.
+
+### TD-UI-003E Dashboard Unsaved Preference Warning Behavior
+Objective:
+- make unsaved dashboard preference state visible and safer by warning users before browser exit/navigation when local changes have not yet been persisted.
+
+Behavior to track:
+- dashboard preference persistence remains debounced (currently 350ms) to coalesce rapid edits.
+- when current dashboard preference snapshot differs from the last successful persisted snapshot, register a `beforeunload` warning.
+- warning is cleared after successful persistence (snapshot parity restored).
+
+Scope notes:
+- this ticket is specifically for browser exit/navigation warning semantics.
+- browser warning copy is user-agent controlled and not customizable.
+
+Acceptance checks:
+- warning appears on tab close, window close, reload, and external navigation while unsaved dashboard preference changes exist.
+- warning does not appear when there are no unsaved dashboard preference changes.
 
 ### TD-UI-004 UI Preference Migration and Tests
 Objective:

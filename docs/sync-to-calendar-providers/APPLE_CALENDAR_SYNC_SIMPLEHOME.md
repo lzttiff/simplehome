@@ -76,6 +76,10 @@ APPLE_CALDAV_SERVER_URL=https://caldav.icloud.com
 5. Click **"Connect"**.
 6. SimpleHome validates the connection and retrieves your available calendars.
 
+Safety recommendation:
+- Set a dedicated Apple calendar ID for SimpleHome (for example, a calendar named "SimpleHome Maintenance") instead of using a general personal calendar.
+- Scope cleanup and disconnect flows can remove mapped events; a dedicated calendar helps avoid affecting unrelated personal events.
+
 #### Connection Validation
 
 On successful connection, you will see:
@@ -202,6 +206,9 @@ If you need to remove just some events without fully disconnecting:
 1. In the **Select Scope** dialog, uncheck the task kinds you want to remove.
 2. Click **"Sync Now"**.
 3. SimpleHome detects scope reduction and attempts to delete the out-of-scope events from Apple Calendar.
+
+Best practice:
+- Perform this only on a dedicated SimpleHome Apple calendar to keep cleanup actions isolated from non-SimpleHome events.
 
 ## Troubleshooting
 
