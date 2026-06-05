@@ -285,6 +285,8 @@ Implementation status note (2026-06-05):
 - Evidence: passing focused test run `./node_modules/.bin/jest --runInBand --silent --config ./jest.config.js --testMatch='**/client/src/components/user-settings-modal.test.tsx'`, plus passing `npm run test:client:targeted` and `npm run check`.
 - TD-UI-004A UI preference backfill/default migration script is implemented in `scripts/migrate-user-ui-preferences.ts` with dry-run default behavior and idempotent apply mode.
 - Evidence: migration command `npm run migrate:user-ui-preferences` (dry-run) and `npm run migrate:user-ui-preferences -- --apply`; code validation by passing `npm run check`.
+- TD-UI-004B server tests for auth/validation/isolation are expanded in `tests/server/routes.test.ts` for `/api/user/ui-preferences`, including unauthenticated 401 and cross-user payload rejection coverage.
+- Evidence: passing `npm run test:server -- routes.test.ts` and passing `npm run check`.
 
 Suggested execution order:
 1. TD-UI-001A

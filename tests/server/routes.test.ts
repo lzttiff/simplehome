@@ -62,6 +62,10 @@ jest.mock('passport', () => ({
 
 jest.mock('../../server/auth', () => ({
   requireAuth: (req: any, res: any, next: any) => {
+    if (req.headers['x-test-auth'] === 'unauth') {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     req.user = {
       id: 'test-user-id',
       email: 'test@example.com',
@@ -536,6 +540,24 @@ describe('/api/user/ui-preferences', () => {
     const res = await request(app)
       .patch('/api/user/ui-preferences')
       .send({ unknownKey: true });
+
+    expect(res.statusCode).toBe(400);
+    expect(storageMock.updateUserUiPreferences).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when request is unauthenticated', async () => {
+    const res = await request(app)
+      .get('/api/user/ui-preferences')
+      .set('x-test-auth', 'unauth');
+
+    expect(res.statusCode).toBe(401);
+    expect(storageMock.getUserUiPreferences).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when payload attempts cross-user write via userId', async () => {
+    const res = await request(app)
+      .patch('/api/user/ui-preferences')
+      .send({ includeMinor: false, userId: 'other-user-id' });
 
     expect(res.statusCode).toBe(400);
     expect(storageMock.updateUserUiPreferences).not.toHaveBeenCalled();
