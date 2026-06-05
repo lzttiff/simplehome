@@ -346,6 +346,145 @@ describe('UserSettingsModal UI preferences (TD-UI-003C)', () => {
     });
   });
 
+  it('shows connected Apple ID even when calendarId is missing', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/user/ui-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ settingsActiveTab: 'calendar' }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: true, accountEmail: 'apple@example.com', calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ aiProvider: null, aiAgentEnabled: false, aiPolicyVersion: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-credentials')) {
+        return {
+          ok: true,
+          json: async () => ({
+            hasGeminiApiKey: false,
+            hasOpenAiApiKey: false,
+            effectiveGeminiKeySource: 'none',
+            effectiveOpenAiKeySource: 'none',
+            updatedAt: null,
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.Mock;
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserSettingsModal isOpen={true} onClose={() => {}} currentTimezone="UTC" currentName="Tester" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /calendar/i }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    expect(screen.getByText(/connected as apple@example.com/i)).toBeTruthy();
+    expect(screen.queryByText(/apple calendar is not connected/i)).toBeNull();
+  });
+
+  it('can update Apple Calendar ID without reconnecting', async () => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/user/ui-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ settingsActiveTab: 'calendar' }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: true, accountEmail: 'apple@example.com', calendarId: 'calendar-1', lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ aiProvider: null, aiAgentEnabled: false, aiPolicyVersion: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-credentials')) {
+        return {
+          ok: true,
+          json: async () => ({
+            hasGeminiApiKey: false,
+            hasOpenAiApiKey: false,
+            effectiveGeminiKeySource: 'none',
+            effectiveOpenAiKeySource: 'none',
+            updatedAt: null,
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/calendar') && init?.method === 'PATCH') {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: true, accountEmail: 'apple@example.com', calendarId: 'calendar-2', lastSyncedAt: null }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
+    }) as jest.Mock;
+
+    global.fetch = fetchMock;
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserSettingsModal isOpen={true} onClose={() => {}} currentTimezone="UTC" currentName="Tester" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /calendar/i }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    const calendarIdInput = screen.getByLabelText(/optional apple calendar id/i);
+    expect((calendarIdInput as HTMLInputElement).value).toBe('calendar-1');
+
+    fireEvent.change(calendarIdInput, { target: { value: 'calendar-2' } });
+    fireEvent.click(screen.getByRole('button', { name: /^update apple calendar id$/i }));
+
+    await waitFor(() => {
+      const updateCalls = fetchMock.mock.calls.filter(
+        ([url, config]) => String(url).includes('/api/calendar/apple/sync/calendar') && (config as RequestInit | undefined)?.method === 'PATCH',
+      );
+      expect(updateCalls.length).toBeGreaterThan(0);
+    });
+
+    const updateCall = fetchMock.mock.calls.find(
+      ([url, config]) => String(url).includes('/api/calendar/apple/sync/calendar') && (config as RequestInit | undefined)?.method === 'PATCH',
+    ) as [RequestInfo | URL, RequestInit] | undefined;
+    expect(updateCall).toBeTruthy();
+    const body = updateCall?.[1].body ? JSON.parse(String(updateCall[1].body)) : {};
+    expect(body).toEqual({ calendarId: 'calendar-2' });
+  });
+
   it('can reveal and re-hide the Apple app-specific password field', async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

@@ -34,6 +34,8 @@ interface ExportScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   tasks: MaintenanceTask[];
+  initialIncludeMinor?: boolean;
+  initialIncludeMajor?: boolean;
 }
 
 interface GoogleCalendarSyncStatus {
@@ -334,7 +336,7 @@ function GoogleExportPanel({
                 onClick={() => syncActiveScopeMutation.mutate()}
                 size="sm"
                 variant="outline"
-                disabled={syncActiveScopeMutation.isPending || activeScopeCount === 0}
+                disabled={syncActiveScopeMutation.isPending || selectedScopeCount === 0}
               >
                 <RefreshCw className="w-3 h-3 mr-2 shrink-0" />
                 {syncActiveScopeMutation.isPending ? "Syncing..." : "Sync Now"}
@@ -452,6 +454,7 @@ interface AppleExportPanelProps {
   appleSyncScopeQuery: any;
   buildSelections: () => Array<{ taskId: string; includeMinor: boolean; includeMajor: boolean }>;
   connectAppleMutation: any;
+  updateAppleCalendarIdMutation: any;
   syncActiveScopeAppleMutation: any;
   updateScopeAppleMutation: any;
   disconnectAppleMutation: any;
@@ -469,6 +472,7 @@ function AppleExportPanel({
   appleSyncScopeQuery,
   buildSelections,
   connectAppleMutation,
+  updateAppleCalendarIdMutation,
   syncActiveScopeAppleMutation,
   updateScopeAppleMutation,
   disconnectAppleMutation,
@@ -480,6 +484,11 @@ function AppleExportPanel({
 }: AppleExportPanelProps) {
   const activeScopeCount = appleSyncScopeQuery.data?.count ?? appleSyncStatus?.activeScopeCount ?? 0;
   const selectedScopeCount = buildSelections().length;
+  const [appleCalendarIdInput, setAppleCalendarIdInput] = useState(appleSyncStatus?.calendarId ?? "");
+
+  useEffect(() => {
+    setAppleCalendarIdInput(appleSyncStatus?.calendarId ?? "");
+  }, [appleSyncStatus?.calendarId, appleSyncStatus?.connected]);
 
   return (
     <div className="space-y-3">
@@ -519,6 +528,20 @@ function AppleExportPanel({
               <p>
                 Connected as <span className="font-medium">{appleSyncStatus.accountEmail || "Apple account"}</span>
               </p>
+              <div className="space-y-1">
+                <label className="block font-medium" htmlFor="export-apple-calendar-id">Apple Calendar ID</label>
+                <input
+                  id="export-apple-calendar-id"
+                  value={appleCalendarIdInput}
+                  onChange={(event) => setAppleCalendarIdInput(event.target.value)}
+                  className="w-full text-xs rounded border bg-white px-2 py-1"
+                  aria-label="Apple calendar ID"
+                  placeholder="Leave blank for default"
+                />
+                <p className="text-amber-700">
+                  Recommendation: set a dedicated Apple calendar ID for SimpleHome so scope cleanup stays isolated from unrelated personal events.
+                </p>
+              </div>
               <p>
                 Last synced: {appleSyncStatus.lastSyncedAt ? new Date(appleSyncStatus.lastSyncedAt).toLocaleString() : "Never"}
               </p>
@@ -529,10 +552,23 @@ function AppleExportPanel({
             <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
+                onClick={() => updateAppleCalendarIdMutation.mutate({ calendarId: appleCalendarIdInput })}
+                size="sm"
+                variant="outline"
+                disabled={
+                  updateAppleCalendarIdMutation.isPending ||
+                  appleCalendarIdInput.trim() === (appleSyncStatus?.calendarId ?? "").trim()
+                }
+              >
+                <RefreshCw className="w-3 h-3 mr-2 shrink-0" />
+                {updateAppleCalendarIdMutation.isPending ? "Updating ID..." : "Update Calendar ID"}
+              </Button>
+              <Button
+                type="button"
                 onClick={() => syncActiveScopeAppleMutation.mutate()}
                 size="sm"
                 variant="outline"
-                disabled={syncActiveScopeAppleMutation.isPending || activeScopeCount === 0}
+                disabled={syncActiveScopeAppleMutation.isPending || selectedScopeCount === 0}
               >
                 <RefreshCw className="w-3 h-3 mr-2 shrink-0" />
                 {syncActiveScopeAppleMutation.isPending ? "Syncing..." : "Sync Now"}
@@ -751,7 +787,7 @@ function ExportFooterHelp() {
   );
 }
 
-export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportScheduleModalProps) {
+export default function ExportScheduleModal({ isOpen, onClose, tasks, initialIncludeMinor, initialIncludeMajor }: ExportScheduleModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedProvider, setSelectedProvider] = useState<ExportProvider | null>(null);
@@ -763,6 +799,8 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
   const [disconnectDeleteCalendar, setDisconnectDeleteCalendar] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("select-items");
+  const [includeMinorInSync, setIncludeMinorInSync] = useState(initialIncludeMinor ?? true);
+  const [includeMajorInSync, setIncludeMajorInSync] = useState(initialIncludeMajor ?? true);
   const [uiPreferencesReady, setUiPreferencesReady] = useState(false);
   const lastSavedUiPrefRef = useRef<string | null>(null);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -881,6 +919,14 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       }
 
       const calendarId = window.prompt("Optional Apple calendar ID (leave blank for default):", "")?.trim() || undefined;
+      if (!calendarId) {
+        const accepted = window.confirm(
+          "Apple Calendar ID is blank. Sync will use the default/personal Apple calendar selection. Scope cleanup may remove mapped events there. Continue anyway?",
+        );
+        if (!accepted) {
+          throw new Error("Apple connection cancelled.");
+        }
+      }
       const response = await apiRequest("POST", "/api/calendar/apple/sync/connect", {
         appleIdEmail,
         appSpecificPassword,
@@ -910,9 +956,49 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
     },
   });
 
+  const updateAppleCalendarIdMutation = useMutation({
+    mutationFn: async ({ calendarId }: { calendarId?: string }) => {
+      const response = await apiRequest("PATCH", "/api/calendar/apple/sync/calendar", {
+        calendarId: calendarId?.trim() || undefined,
+      });
+      return response.json() as Promise<AppleCalendarSyncStatus>;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/scope"] }),
+      ]);
+      toast({
+        title: "Apple Calendar ID Updated",
+        description: "Apple calendar selection was updated.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Apple Calendar Update Failed",
+        description: error?.message || "Unable to update Apple Calendar ID.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const syncActiveScopeAppleMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/calendar/apple/sync", { selections: [] });
+      const selections = buildSelections();
+      if (selections.length === 0) {
+        throw new Error("Select at least one task with an upcoming maintenance date.");
+      }
+
+      if (!(appleSyncStatus?.calendarId || "").trim()) {
+        const accepted = window.confirm(
+          "Apple Calendar ID is blank. Sync will target the default/personal Apple calendar selection. Continue anyway?",
+        );
+        if (!accepted) {
+          throw new Error("Apple sync cancelled.");
+        }
+      }
+
+      const response = await apiRequest("POST", "/api/calendar/apple/sync", { selections });
       return response.json() as Promise<{
         syncedTasks: number;
         pushedEvents: number;
@@ -936,6 +1022,9 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       });
     },
     onError: (error: any) => {
+      if (error?.message === "Apple sync cancelled.") {
+        return;
+      }
       toast({
         title: "Apple Sync Failed",
         description: error?.message || "Unable to sync with Apple Calendar active scope.",
@@ -951,10 +1040,19 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         throw new Error("Select at least one task with an upcoming maintenance date.");
       }
 
+      if (!(appleSyncStatus?.calendarId || "").trim()) {
+        const accepted = window.confirm(
+          "Apple Calendar ID is blank. Updating scope may remove mapped out-of-scope events from the default/personal Apple calendar selection. Continue anyway?",
+        );
+        if (!accepted) {
+          throw new Error("Apple scope update cancelled.");
+        }
+      }
+
       const scopeResponse = await apiRequest("PUT", "/api/calendar/apple/sync/scope", { selections });
       const scopeResult = (await scopeResponse.json()) as { count: number; removedEvents?: number };
 
-      const syncResponse = await apiRequest("POST", "/api/calendar/apple/sync", { selections: [] });
+      const syncResponse = await apiRequest("POST", "/api/calendar/apple/sync", { selections });
       const syncResult = (await syncResponse.json()) as {
         syncedTasks: number;
         pushedEvents: number;
@@ -975,6 +1073,9 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       });
     },
     onError: (error: any) => {
+      if (error?.message === "Apple scope update cancelled.") {
+        return;
+      }
       toast({
         title: "Apple Scope Update Failed",
         description: error?.message || "Unable to update Apple sync scope.",
@@ -1146,9 +1247,8 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
         try {
           const nextMaintenance = task.nextMaintenanceDate ? JSON.parse(task.nextMaintenanceDate) : {};
-          const taskWithFilters = task as MaintenanceTask & { showMinor?: boolean; showMajor?: boolean };
-          includeMinor = !!nextMaintenance?.minor && taskWithFilters.showMinor !== false;
-          includeMajor = !!nextMaintenance?.major && taskWithFilters.showMajor !== false;
+          includeMinor = !!nextMaintenance?.minor && includeMinorInSync;
+          includeMajor = !!nextMaintenance?.major && includeMajorInSync;
         } catch {
           includeMinor = false;
           includeMajor = false;
@@ -1165,7 +1265,12 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
 
   const syncActiveScopeMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/calendar/google/sync", { selections: [] });
+      const selections = buildSelections();
+      if (selections.length === 0) {
+        throw new Error("Select at least one task with an upcoming maintenance date.");
+      }
+
+      const response = await apiRequest("POST", "/api/calendar/google/sync", { selections });
       return response.json() as Promise<{
         syncedTasks: number;
         pushedEvents: number;
@@ -1219,7 +1324,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
       const scopeResponse = await apiRequest("PUT", "/api/calendar/google/sync/scope", { selections });
       const scopeResult = (await scopeResponse.json()) as { count: number; removedEvents?: number };
 
-      const syncResponse = await apiRequest("POST", "/api/calendar/google/sync", { selections: [] });
+      const syncResponse = await apiRequest("POST", "/api/calendar/google/sync", { selections });
       const syncResult = (await syncResponse.json()) as {
         syncedTasks: number;
         pushedEvents: number;
@@ -1382,9 +1487,8 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const eventIds: { minor?: string; major?: string } = {};
-        const taskWithFilters = task as MaintenanceTask & { showMinor?: boolean; showMajor?: boolean };
-        const shouldExportMinor = taskWithFilters.showMinor !== false;
-        const shouldExportMajor = taskWithFilters.showMajor !== false;
+        const shouldExportMinor = includeMinorInSync;
+        const shouldExportMajor = includeMajorInSync;
 
         if (nextMaintenance.minor && shouldExportMinor) {
           let minorDate = new Date(nextMaintenance.minor);
@@ -1666,6 +1770,25 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
               onToggleSelectAll={toggleSelectAll}
             />
             <SelectionSummary tasksWithDates={tasksWithDates} selectedTaskIds={selectedTaskIds} />
+            <div className="border rounded-md p-3 space-y-2">
+              <h3 className="text-sm font-semibold">Sync Filters</h3>
+              <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeMinorInSync}
+                  onChange={(e) => setIncludeMinorInSync(e.target.checked)}
+                />
+                Include minor maintenance events
+              </label>
+              <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeMajorInSync}
+                  onChange={(e) => setIncludeMajorInSync(e.target.checked)}
+                />
+                Include major maintenance events
+              </label>
+            </div>
           </TabsContent>
 
           {/* Tab 2: Export Options */}
@@ -1780,6 +1903,7 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
                   appleSyncScopeQuery={appleSyncScopeQuery}
                   buildSelections={buildSelections}
                   connectAppleMutation={connectAppleMutation}
+                  updateAppleCalendarIdMutation={updateAppleCalendarIdMutation}
                   syncActiveScopeAppleMutation={syncActiveScopeAppleMutation}
                   updateScopeAppleMutation={updateScopeAppleMutation}
                   disconnectAppleMutation={disconnectAppleMutation}

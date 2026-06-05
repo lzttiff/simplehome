@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
 import {
@@ -281,6 +281,52 @@ export default function Dashboard() {
     dateFilter,
     categoryFilters,
   ]);
+
+  const currentUiPreferenceSnapshot = useMemo(() => {
+    if (!uiPreferencesReady || tasksLoading) {
+      return null;
+    }
+
+    const payload = {
+      includeMinor,
+      includeMajor,
+      deferredOnly,
+      sortBy,
+      dateFilter,
+      categoryFilters: categoryFilters.filter((entry) => entry.checked).map((entry) => entry.category),
+    };
+
+    return JSON.stringify(payload);
+  }, [
+    uiPreferencesReady,
+    tasksLoading,
+    includeMinor,
+    includeMajor,
+    deferredOnly,
+    sortBy,
+    dateFilter,
+    categoryFilters,
+  ]);
+
+  useEffect(() => {
+    if (!currentUiPreferenceSnapshot) {
+      return;
+    }
+
+    if (currentUiPreferenceSnapshot === lastSavedUiPrefRef.current) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [currentUiPreferenceSnapshot]);
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilters(prev => 
@@ -1174,6 +1220,8 @@ export default function Dashboard() {
           isOpen={showExportModal}
           onClose={() => setShowExportModal(false)}
           tasks={sortedTasks}
+          initialIncludeMinor={includeMinor}
+          initialIncludeMajor={includeMajor}
         />
       )}
 

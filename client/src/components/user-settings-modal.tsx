@@ -259,6 +259,19 @@ export default function UserSettingsModal({
   }, [aiPreferences, isOpen]);
 
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    if (appleCalendarStatus?.connected) {
+      setAppleCalendarIdInput(appleCalendarStatus.calendarId ?? "");
+      return;
+    }
+
+    setAppleCalendarIdInput("");
+  }, [appleCalendarStatus?.calendarId, appleCalendarStatus?.connected, isOpen]);
+
+  useEffect(() => {
     setProviderApiKeyInput("");
     setValidationState(null);
   }, [selectedAiProvider]);
@@ -515,6 +528,15 @@ export default function UserSettingsModal({
         throw new Error("Apple connection cancelled.");
       }
 
+      if (!calendarId) {
+        const accepted = window.confirm(
+          "Apple Calendar ID is blank. Sync will use the default/personal Apple calendar selection. Scope cleanup may remove mapped events there. Continue anyway?",
+        );
+        if (!accepted) {
+          throw new Error("Apple connection cancelled.");
+        }
+      }
+
       const response = await apiRequest("POST", "/api/calendar/apple/sync/connect", {
         appleIdEmail,
         appSpecificPassword,
@@ -539,6 +561,42 @@ export default function UserSettingsModal({
       toast({
         title: "Apple Connect Failed",
         description: error?.message || "Unable to connect Apple Calendar.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateAppleCalendarIdMutation = useMutation({
+    mutationFn: async (payload: { calendarId?: string }) => {
+      const calendarId = payload.calendarId?.trim() || undefined;
+      if (!calendarId) {
+        const accepted = window.confirm(
+          "Clearing Apple Calendar ID will switch to the default/personal Apple calendar selection. Continue anyway?",
+        );
+        if (!accepted) {
+          throw new Error("Apple calendar ID update cancelled.");
+        }
+      }
+      const response = await apiRequest("PATCH", "/api/calendar/apple/sync/calendar", {
+        calendarId,
+      });
+      return response.json() as Promise<AppleCalendarStatus>;
+    },
+    onSuccess: async (status) => {
+      setAppleCalendarIdInput(status.calendarId ?? "");
+      await queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] });
+      toast({
+        title: "Apple Calendar ID Updated",
+        description: "Apple calendar selection was updated for this account.",
+      });
+    },
+    onError: (error: any) => {
+      if (error?.message === "Apple calendar ID update cancelled.") {
+        return;
+      }
+      toast({
+        title: "Apple Calendar ID Update Failed",
+        description: error?.message || "Unable to update Apple Calendar ID.",
         variant: "destructive",
       });
     },
@@ -667,18 +725,24 @@ export default function UserSettingsModal({
               <Label className="text-sm font-medium">Apple Calendar ID</Label>
               {appleStatusLoading ? (
                 <p className="text-sm text-gray-500">Loading Apple Calendar status...</p>
-              ) : appleCalendarStatus?.connected && appleCalendarStatus.calendarId ? (
+              ) : appleCalendarStatus?.connected ? (
                 <>
                   <p className="text-xs text-gray-500">
                     Connected as {appleCalendarStatus.accountEmail || "unknown account"}
                   </p>
-                  <p className="text-sm font-mono break-all bg-white border rounded px-2 py-1">
-                    {appleCalendarStatus.calendarId}
-                  </p>
+                  {appleCalendarStatus.calendarId ? (
+                    <p className="text-sm font-mono break-all bg-white border rounded px-2 py-1">
+                      {appleCalendarStatus.calendarId}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-500">Calendar ID is not available.</p>
+                  )}
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={copyAppleCalendarId}>
-                      Copy Calendar ID
-                    </Button>
+                    {appleCalendarStatus.calendarId ? (
+                      <Button type="button" variant="outline" size="sm" onClick={copyAppleCalendarId}>
+                        Copy Calendar ID
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="destructive"
@@ -741,8 +805,24 @@ export default function UserSettingsModal({
                     onChange={(event) => setAppleCalendarIdInput(event.target.value)}
                     placeholder="Leave blank for default"
                   />
+                  <p className="text-xs text-amber-700">
+                    Recommendation: set a dedicated Apple calendar ID for SimpleHome so scope cleanup only affects that calendar and does not risk unrelated personal events.
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => updateAppleCalendarIdMutation.mutate({ calendarId: appleCalendarIdInput })}
+                    disabled={
+                      !appleCalendarStatus?.connected ||
+                      updateAppleCalendarIdMutation.isPending ||
+                      appleCalendarIdInput.trim() === (appleCalendarStatus?.calendarId ?? "").trim()
+                    }
+                  >
+                    {updateAppleCalendarIdMutation.isPending ? "Updating Apple Calendar ID..." : "Update Apple Calendar ID"}
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
