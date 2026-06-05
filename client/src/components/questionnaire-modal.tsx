@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QuestionnaireQuestion, QuestionnaireState } from "@/lib/types";
 import {
   Dialog,
@@ -12,7 +12,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { X, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
+import { ToastAction } from "@/components/ui/toast";
+import { evaluateAiReadiness, openSettingsForTab } from "@/lib/ai-readiness";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -128,6 +130,25 @@ export default function QuestionnaireModal({ isOpen, onClose, templateId }: Ques
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: aiPreferences, isLoading: aiPreferencesLoading } = useQuery<{ aiProvider: "gemini" | "openai" | null; aiAgentEnabled: boolean }>({
+    queryKey: ["/api/user/ai-preferences"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: isOpen,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const { data: aiCredentialStatus, isLoading: aiCredentialsLoading } = useQuery<{ hasGeminiApiKey: boolean; hasOpenAiApiKey: boolean }>({
+    queryKey: ["/api/user/ai-credentials"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: isOpen,
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  const aiReadiness = evaluateAiReadiness(aiPreferences, aiCredentialStatus);
+  const aiReadinessLoading = aiPreferencesLoading || aiCredentialsLoading;
+
   const generateTasksMutation = useMutation({
     mutationFn: async (assessment: any) => {
       const response = await apiRequest("POST", "/api/user/ai/generate-tasks", {
@@ -201,6 +222,22 @@ export default function QuestionnaireModal({ isOpen, onClose, templateId }: Ques
   };
 
   const handleGenerateTasks = async () => {
+    if (aiReadinessLoading || !aiReadiness.ready) {
+      setIsGenerating(false);
+      toast({
+        title: "AI setup required",
+        description: aiReadiness.message,
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Open settings" onClick={() => openSettingsForTab("ai-preferences")}>
+            Open Settings
+          </ToastAction>
+        ),
+      });
+      openSettingsForTab("ai-preferences");
+      return;
+    }
+
     setIsGenerating(true);
     
     const assessment = {
@@ -329,7 +366,7 @@ export default function QuestionnaireModal({ isOpen, onClose, templateId }: Ques
               </Button>
               <Button
                 onClick={handleNext}
-                disabled={!canProceed()}
+                disabled={!canProceed() || aiReadinessLoading}
                 className="bg-primary text-white hover:bg-blue-700"
               >
                 {isLastStep ? (

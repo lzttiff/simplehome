@@ -50,6 +50,8 @@ describe('TaskCard Component', () => {
 
     mockJsonFetch({
       '/api/auth/me': null,
+      '/api/user/ai-preferences': { aiProvider: 'gemini', aiAgentEnabled: true },
+      '/api/user/ai-credentials': { hasGeminiApiKey: true, hasOpenAiApiKey: false },
       '/api/tasks': { success: true },
       '/api/stats': { success: true },
       '/api/item-schedule': {
@@ -289,37 +291,60 @@ describe('TaskCard Component', () => {
         majorTasks: null,
       });
       
-      global.fetch = jest.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: async () => ({
-            result: {
-              nextMaintenanceDates: { minor: '2026-03-01', major: '2027-01-01' },
-              maintenanceSchedule: {
-                minorIntervalMonths: '12',
-                majorIntervalMonths: '60',
-                minorTasks: ['New task 1', 'New task 2'],
-                majorTasks: ['New major task 1', 'New major task 2'],
+      global.fetch = jest.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/api/auth/me')) {
+          return Promise.resolve({ ok: true, json: async () => null }) as any;
+        }
+        if (url.includes('/api/user/ai-preferences')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ aiProvider: 'gemini', aiAgentEnabled: true }),
+          }) as any;
+        }
+        if (url.includes('/api/user/ai-credentials')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ hasGeminiApiKey: true, hasOpenAiApiKey: false }),
+          }) as any;
+        }
+        if (url.includes('/api/item-schedule')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              result: {
+                nextMaintenanceDates: { minor: '2026-03-01', major: '2027-01-01' },
+                maintenanceSchedule: {
+                  minorIntervalMonths: '12',
+                  majorIntervalMonths: '60',
+                  minorTasks: ['New task 1', 'New task 2'],
+                  majorTasks: ['New major task 1', 'New major task 2'],
+                },
               },
-            },
-          }),
-        })
-      ) as jest.Mock;
+            }),
+          }) as any;
+        }
+        if (url.includes('/api/tasks') || url.includes('/api/stats')) {
+          return Promise.resolve({ ok: true, json: async () => ({ success: true }) }) as any;
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) }) as any;
+      }) as jest.Mock;
 
       renderWithQueryClient(<TaskCard task={task} />);
 
+      await waitFor(() => {
+        expect((global.fetch as jest.Mock).mock.calls.some((call) => String(call[0]).includes('/api/user/ai-credentials'))).toBe(true);
+      });
+
       // Find AI generation button (sparkles icon)
       const aiButton = screen.getByTitle(/ai .*schedule|generate ai schedule/i);
-      fireEvent.click(aiButton);
-
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining('/api/item-schedule'),
-          expect.objectContaining({
-            method: 'POST',
-            body: expect.stringContaining(task.title),
-          })
+        fireEvent.click(aiButton);
+        const request = (global.fetch as jest.Mock).mock.calls.find(
+          (call) => String(call[0]).includes('/api/item-schedule') && call[1]?.method === 'POST',
         );
+        expect(request).toBeDefined();
+        expect(String(request![1].body)).toContain(task.title);
       });
     });
 
@@ -332,10 +357,13 @@ describe('TaskCard Component', () => {
       
       renderWithQueryClient(<TaskCard task={task} />);
 
-      const aiButton = screen.getByTitle(/ai .*schedule|generate ai schedule/i);
-      fireEvent.click(aiButton);
-
       await waitFor(() => {
+        expect((global.fetch as jest.Mock).mock.calls.some((call) => String(call[0]).includes('/api/user/ai-credentials'))).toBe(true);
+      });
+
+      const aiButton = screen.getByTitle(/ai .*schedule|generate ai schedule/i);
+      await waitFor(() => {
+        fireEvent.click(aiButton);
         const fetchCall = (global.fetch as jest.Mock).mock.calls.find(
           (call) => String(call[0]).includes('/api/item-schedule') && call[1]?.method === 'POST',
         );
@@ -357,6 +385,18 @@ describe('TaskCard Component', () => {
         const url = String(input);
         if (url.includes('/api/auth/me')) {
           return Promise.resolve({ ok: true, json: async () => null }) as any;
+        }
+        if (url.includes('/api/user/ai-preferences')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ aiProvider: 'gemini', aiAgentEnabled: true }),
+          }) as any;
+        }
+        if (url.includes('/api/user/ai-credentials')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ hasGeminiApiKey: true, hasOpenAiApiKey: false }),
+          }) as any;
         }
         if (url.includes('/api/item-schedule')) {
           return Promise.resolve({
@@ -385,10 +425,13 @@ describe('TaskCard Component', () => {
 
       renderWithQueryClient(<TaskCard task={task} />);
 
-      const aiButton = screen.getByTitle(/ai .*schedule|generate ai schedule/i);
-      fireEvent.click(aiButton);
-
       await waitFor(() => {
+        expect((global.fetch as jest.Mock).mock.calls.some((call) => String(call[0]).includes('/api/user/ai-credentials'))).toBe(true);
+      });
+
+      const aiButton = screen.getByTitle(/ai .*schedule|generate ai schedule/i);
+      await waitFor(() => {
+        fireEvent.click(aiButton);
         const patchCall = (global.fetch as jest.Mock).mock.calls.find(
           (call) => String(call[0]).includes(`/api/tasks/${task.id}`) && call[1]?.method === 'PATCH',
         );

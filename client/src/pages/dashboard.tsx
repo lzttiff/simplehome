@@ -8,6 +8,7 @@ import {
   parseMaintenanceSchedule,
   toDateOnlyFromLocalDate,
   User,
+  type UiSettingsTab,
   type UserUiPreferences,
 } from "@shared/schema";
 import { TaskStats, CategoryFilter } from "@/lib/types";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ToastAction } from "@/components/ui/toast";
 import { Plus, Search, ClipboardList, Sparkles } from "lucide-react";
 import TaskCard from "@/components/task-card";
 import AddTaskModal from "@/components/add-task-modal";
@@ -24,6 +26,7 @@ import UserSettingsModal from "@/components/user-settings-modal";
 import AccountMenu from "@/components/account-menu";
 import BulkFillDatesModal, { BulkFillKind, BulkFillMode, BulkFillTaskSelectionPayload } from "@/components/bulk-fill-dates-modal";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
+import { evaluateAiReadiness, OPEN_SETTINGS_EVENT, openSettingsForTab } from "@/lib/ai-readiness";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -51,6 +54,7 @@ export default function Dashboard() {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<UiSettingsTab | undefined>(undefined);
   const [loadingCategories, setLoadingCategories] = useState<Record<string, boolean>>({});
   const [abortControllers, setAbortControllers] = useState<Record<string, AbortController>>({});
   const [sortBy, setSortBy] = useState<"default" | "nextDate">("default");
@@ -115,6 +119,52 @@ export default function Dashboard() {
     queryKey: ["/api/stats", { templateId }],
   });
 
+  const { data: aiPreferences, isLoading: aiPreferencesLoading } = useQuery<{ aiProvider: "gemini" | "openai" | null; aiAgentEnabled: boolean }>({
+    queryKey: ["/api/user/ai-preferences"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const { data: aiCredentialStatus, isLoading: aiCredentialsLoading } = useQuery<{ hasGeminiApiKey: boolean; hasOpenAiApiKey: boolean }>({
+    queryKey: ["/api/user/ai-credentials"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  const aiReadiness = evaluateAiReadiness(aiPreferences, aiCredentialStatus);
+  const aiReadinessLoading = aiPreferencesLoading || aiCredentialsLoading;
+
+  const refreshAiReadiness = async () => {
+    const [preferencesResult, credentialsResult] = await Promise.all([
+      queryClient.fetchQuery({
+        queryKey: ["/api/user/ai-preferences"],
+        queryFn: getQueryFn({ on401: "throw" }),
+      }) as Promise<{ aiProvider: "gemini" | "openai" | null; aiAgentEnabled: boolean }>,
+      queryClient.fetchQuery({
+        queryKey: ["/api/user/ai-credentials"],
+        queryFn: getQueryFn({ on401: "throw" }),
+      }) as Promise<{ hasGeminiApiKey: boolean; hasOpenAiApiKey: boolean }>,
+    ]);
+
+    return evaluateAiReadiness(preferencesResult, credentialsResult);
+  };
+
+  const showAiSetupRequired = (message: string) => {
+    toast({
+      title: "AI setup required",
+      description: message,
+      variant: "destructive",
+      action: (
+        <ToastAction altText="Open settings" onClick={() => openSettingsForTab("ai-preferences")}>
+          Open Settings
+        </ToastAction>
+      ),
+    });
+    openSettingsForTab("ai-preferences");
+  };
+
   const { data: uiPreferencesData } = useQuery<Partial<UserUiPreferences> | null>({
     queryKey: ["/api/user/ui-preferences"],
     queryFn: getQueryFn({ on401: "returnNull" }),
@@ -171,6 +221,19 @@ export default function Dashboard() {
     lastSavedUiPrefRef.current = JSON.stringify(initialSnapshot);
     setUiPreferencesReady(true);
   }, [uiPreferencesData]);
+
+  useEffect(() => {
+    const openSettings = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab?: UiSettingsTab }>;
+      setSettingsInitialTab(customEvent.detail?.tab);
+      setShowSettingsModal(true);
+    };
+
+    window.addEventListener(OPEN_SETTINGS_EVENT, openSettings as EventListener);
+    return () => {
+      window.removeEventListener(OPEN_SETTINGS_EVENT, openSettings as EventListener);
+    };
+  }, []);
 
   // Update category filters when tasks change
   // Note: tasks are already filtered by templateId from the backend API
@@ -357,6 +420,17 @@ export default function Dashboard() {
   };
 
   const handleAIScheduleForCategory = async (categoryName: string, includeAll: boolean = true, showNoItemsAlert: boolean = true) => {
+    if (aiReadinessLoading) {
+      showAiSetupRequired("AI setup is still loading. Please try again in a moment.");
+      return;
+    }
+
+    const latestAiReadiness = await refreshAiReadiness();
+    if (!latestAiReadiness.ready) {
+      showAiSetupRequired(latestAiReadiness.message);
+      return;
+    }
+
     // If already loading, ask to cancel
     if (loadingCategories[categoryName]) {
       const confirmCancel = window.confirm(`AI generation is in progress for ${categoryName}. Do you want to cancel it?`);
@@ -477,6 +551,17 @@ export default function Dashboard() {
   };
 
   const handleAIScheduleForAllCategories = async (includeAll: boolean) => {
+    if (aiReadinessLoading) {
+      showAiSetupRequired("AI setup is still loading. Please try again in a moment.");
+      return;
+    }
+
+    const latestAiReadiness = await refreshAiReadiness();
+    if (!latestAiReadiness.ready) {
+      showAiSetupRequired(latestAiReadiness.message);
+      return;
+    }
+
     // Get all checked categories
     const checkedCategories = categoryFilters.filter(f => f.checked);
     
@@ -1227,9 +1312,13 @@ export default function Dashboard() {
 
       <UserSettingsModal
         isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
+        onClose={() => {
+          setShowSettingsModal(false);
+          setSettingsInitialTab(undefined);
+        }}
         currentTimezone={user?.timezone ?? null}
         currentName={user?.name ?? ""}
+        initialTab={settingsInitialTab}
       />
 
       <BulkFillDatesModal

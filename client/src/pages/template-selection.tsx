@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { PropertyTemplate, User } from "@shared/schema";
+import { PropertyTemplate, User, type UiSettingsTab } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building, Home, Building2, Warehouse, Key, Plus } from "lucide-react";
 import AccountMenu from "@/components/account-menu";
 import UserSettingsModal from "@/components/user-settings-modal";
+import { OPEN_SETTINGS_EVENT } from "@/lib/ai-readiness";
 import { getQueryFn } from "@/lib/queryClient";
 
 const propertyTypeIcons = {
@@ -27,6 +28,7 @@ const propertyTypeImages = {
 
 export default function TemplateSelection() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<UiSettingsTab | undefined>(undefined);
   const { data: templates, isLoading } = useQuery<PropertyTemplate[]>({
     queryKey: ["/api/templates"],
   });
@@ -37,6 +39,19 @@ export default function TemplateSelection() {
     staleTime: Infinity,
     retry: false,
   });
+
+  useEffect(() => {
+    const openSettings = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab?: UiSettingsTab }>;
+      setSettingsInitialTab(customEvent.detail?.tab);
+      setShowSettingsModal(true);
+    };
+
+    window.addEventListener(OPEN_SETTINGS_EVENT, openSettings as EventListener);
+    return () => {
+      window.removeEventListener(OPEN_SETTINGS_EVENT, openSettings as EventListener);
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -136,9 +151,13 @@ export default function TemplateSelection() {
 
       <UserSettingsModal
         isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
+        onClose={() => {
+          setShowSettingsModal(false);
+          setSettingsInitialTab(undefined);
+        }}
         currentTimezone={user?.timezone ?? null}
         currentName={user?.name ?? ""}
+        initialTab={settingsInitialTab}
       />
     </div>
   );

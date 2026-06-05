@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MaintenanceTask } from "@shared/schema";
-import { AISuggestion, AISuggestionsResponse } from "@shared/aiSuggestion";
+import { AISuggestion } from "@shared/aiSuggestion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ToastAction } from "@/components/ui/toast";
 import { X, Check, ThumbsUp, ThumbsDown, Sparkles } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
+import { evaluateAiReadiness, openSettingsForTab } from "@/lib/ai-readiness";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +23,23 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: aiPreferences, isLoading: aiPreferencesLoading } = useQuery<{ aiProvider: "gemini" | "openai" | null; aiAgentEnabled: boolean }>({
+    queryKey: ["/api/user/ai-preferences"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const { data: aiCredentialStatus, isLoading: aiCredentialsLoading } = useQuery<{ hasGeminiApiKey: boolean; hasOpenAiApiKey: boolean }>({
+    queryKey: ["/api/user/ai-credentials"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  const aiReadiness = evaluateAiReadiness(aiPreferences, aiCredentialStatus);
+  const aiReadinessLoading = aiPreferencesLoading || aiCredentialsLoading;
+
   const { data: suggestionsData, isLoading, error } = useQuery({
     queryKey: ["/api/user/ai/quick-suggestions", existingTasks.length],
     queryFn: async () => {
@@ -30,9 +49,24 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
       });
       return response.json();
     },
+    enabled: !aiReadinessLoading && aiReadiness.ready,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false, // Don't retry failed AI requests
   });
+
+  const handleOpenAiSettings = () => {
+    toast({
+      title: "AI setup required",
+      description: aiReadiness.message,
+      variant: "destructive",
+      action: (
+        <ToastAction altText="Open settings" onClick={() => openSettingsForTab("ai-preferences")}>
+          Open Settings
+        </ToastAction>
+      ),
+    });
+    openSettingsForTab("ai-preferences");
+  };
 
   const addTaskMutation = useMutation({
     mutationFn: async (suggestion: AISuggestion) => {
@@ -110,7 +144,21 @@ export default function AISuggestionsPanel({ onClose, existingTasks }: AISuggest
           </div>
         </CardHeader>
         <CardContent className="p-4 max-h-64 overflow-y-auto">
-          {isLoading ? (
+          {aiReadinessLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent"></div>
+              <span className="ml-2 text-sm text-gray-600">Checking AI setup...</span>
+            </div>
+          ) : !aiReadiness.ready ? (
+            <div className="text-center py-4 text-gray-500">
+              <Sparkles className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">AI setup is incomplete.</p>
+              <p className="text-xs text-gray-400 mt-1">{aiReadiness.message}</p>
+              <Button className="mt-3" size="sm" onClick={handleOpenAiSettings}>
+                Open AI Preferences
+              </Button>
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent"></div>
               <span className="ml-2 text-sm text-gray-600">Generating suggestions...</span>

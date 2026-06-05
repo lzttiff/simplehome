@@ -14,10 +14,12 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ToastAction } from "@/components/ui/toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Edit2, Trash2, Sparkles, CheckCircle2, Calendar as CalendarIcon } from "lucide-react";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
+import { evaluateAiReadiness, openSettingsForTab } from "@/lib/ai-readiness";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import EditTaskModal from "./edit-task-modal";
@@ -82,6 +84,38 @@ export default function TaskCard({
     staleTime: Infinity,
     retry: false,
   });
+
+  const { data: aiPreferences, isLoading: aiPreferencesLoading } = useQuery<{ aiProvider: "gemini" | "openai" | null; aiAgentEnabled: boolean }>({
+    queryKey: ["/api/user/ai-preferences"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const { data: aiCredentialStatus, isLoading: aiCredentialsLoading } = useQuery<{ hasGeminiApiKey: boolean; hasOpenAiApiKey: boolean }>({
+    queryKey: ["/api/user/ai-credentials"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: 15_000,
+    retry: false,
+  });
+
+  const aiReadiness = evaluateAiReadiness(aiPreferences, aiCredentialStatus);
+  const aiReadinessLoading = aiPreferencesLoading || aiCredentialsLoading;
+
+  const refreshAiReadiness = async () => {
+    const [preferencesResult, credentialsResult] = await Promise.all([
+      queryClient.fetchQuery({
+        queryKey: ["/api/user/ai-preferences"],
+        queryFn: getQueryFn({ on401: "throw" }),
+      }) as Promise<{ aiProvider: "gemini" | "openai" | null; aiAgentEnabled: boolean }>,
+      queryClient.fetchQuery({
+        queryKey: ["/api/user/ai-credentials"],
+        queryFn: getQueryFn({ on401: "throw" }),
+      }) as Promise<{ hasGeminiApiKey: boolean; hasOpenAiApiKey: boolean }>,
+    ]);
+
+    return evaluateAiReadiness(preferencesResult, credentialsResult);
+  };
   const userTimezone = user?.timezone ?? null;
 
   const updateTaskMutation = useMutation({
@@ -235,6 +269,37 @@ export default function TaskCard({
   };
 
   const handleAISchedule = async () => {
+    if (aiReadinessLoading) {
+      toast({
+        title: "AI setup required",
+        description: "AI setup is still loading. Please try again in a moment.",
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Open settings" onClick={() => openSettingsForTab("ai-preferences")}>
+            Open Settings
+          </ToastAction>
+        ),
+      });
+      openSettingsForTab("ai-preferences");
+      return;
+    }
+
+    const latestAiReadiness = await refreshAiReadiness();
+    if (!latestAiReadiness.ready) {
+      toast({
+        title: "AI setup required",
+        description: latestAiReadiness.message,
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Open settings" onClick={() => openSettingsForTab("ai-preferences")}>
+            Open Settings
+          </ToastAction>
+        ),
+      });
+      openSettingsForTab("ai-preferences");
+      return;
+    }
+
     setIsLoadingAI(true);
     
     try {

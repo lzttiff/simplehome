@@ -104,6 +104,7 @@ interface UserSettingsModalProps {
   onClose: () => void;
   currentTimezone: string | null;
   currentName: string;
+  initialTab?: UiSettingsTab;
 }
 
 type GoogleCalendarStatus = {
@@ -160,6 +161,7 @@ export default function UserSettingsModal({
   onClose,
   currentTimezone,
   currentName,
+  initialTab,
 }: UserSettingsModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -234,20 +236,20 @@ export default function UserSettingsModal({
     if (isOpen) {
       hasHydratedUiSettingsTabRef.current = false;
       lastPersistedUiSettingsTabRef.current = "profile";
-      setActiveTab("profile");
+      setActiveTab(initialTab ?? "profile");
     }
-  }, [isOpen]);
+  }, [initialTab, isOpen]);
 
   useEffect(() => {
     if (!isOpen || !uiPreferencesFetched) {
       return;
     }
 
-    const nextTab = uiPreferences?.settingsActiveTab ?? "profile";
+    const nextTab = initialTab ?? uiPreferences?.settingsActiveTab ?? "profile";
     lastPersistedUiSettingsTabRef.current = nextTab;
     hasHydratedUiSettingsTabRef.current = true;
     setActiveTab(nextTab);
-  }, [isOpen, uiPreferences, uiPreferencesFetched]);
+  }, [initialTab, isOpen, uiPreferences, uiPreferencesFetched]);
 
   useEffect(() => {
     if (!aiPreferences || !isOpen) {
