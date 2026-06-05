@@ -268,6 +268,7 @@ Completion gate:
 | TD-UI-003A | Dashboard preference load/apply/save wiring | Frontend | 1 day | TD-UI-002B, TD-UI-002C | Preferences survive refresh/re-login and match persisted values |
 | TD-UI-003B | Export modal preference load/apply/save wiring | Frontend | 1 day | TD-UI-002B, TD-UI-002C | Provider/tab/scope defaults reload correctly for same user |
 | TD-UI-003C | Settings modal tab/default preference persistence | Frontend | 0.5 day | TD-UI-002B, TD-UI-002C | Re-entering settings restores persisted tab/default behavior |
+| TD-UI-003D | Settings modal Apple Calendar connection setup | Frontend | 0.5 day | TD-UI-003C | Apple Calendar setup is available in Settings alongside Google and can connect/disconnect from the same user-facing surface |
 | TD-UI-004A | UI preference backfill/default migration script | Backend | 1 day | TD-UI-001B | Dry-run and apply modes work; rerun is idempotent |
 | TD-UI-004B | Server tests for auth/validation/isolation | QA + Backend | 1 day | TD-UI-002B, TD-UI-002C | Route tests pass for 401/400/isolation cases |
 | TD-UI-004C | Client tests for load/apply/save loops | QA + Frontend | 1 day | TD-UI-003A, TD-UI-003B, TD-UI-003C | Client tests pass for persistence across session reloads |
@@ -283,6 +284,8 @@ Implementation status note (2026-06-05):
 - Evidence: passing focused test run `./node_modules/.bin/jest --config /tmp/jest.client.single.cjs --runInBand --silent`, plus passing `npm run test:client:targeted` and `npm run check`.
 - TD-UI-003C settings modal tab/default persistence is implemented in `client/src/components/user-settings-modal.tsx` via persisted `settingsActiveTab` hydration and debounced save.
 - Evidence: passing focused test run `./node_modules/.bin/jest --runInBand --silent --config ./jest.config.js --testMatch='**/client/src/components/user-settings-modal.test.tsx'`, plus passing `npm run test:client:targeted` and `npm run check`.
+- TD-UI-003D settings modal Apple Calendar connection setup is implemented in `client/src/components/user-settings-modal.tsx` with Apple sync status, connect/disconnect actions, and calendar ID display alongside Google.
+- Evidence: passing focused test run `./node_modules/.bin/jest --runInBand --silent --config ./jest.config.js --testMatch='**/client/src/components/user-settings-modal.test.tsx'`, plus passing `npm run check`.
 - TD-UI-004A UI preference backfill/default migration script is implemented in `scripts/migrate-user-ui-preferences.ts` with dry-run default behavior and idempotent apply mode.
 - Evidence: migration command `npm run migrate:user-ui-preferences` (dry-run) and `npm run migrate:user-ui-preferences -- --apply`; code validation by passing `npm run check`.
 - TD-UI-004B server tests for auth/validation/isolation are expanded in `tests/server/routes.test.ts` for `/api/user/ui-preferences`, including unauthenticated 401 and cross-user payload rejection coverage.
@@ -301,10 +304,11 @@ Suggested execution order:
 6. TD-UI-003A
 7. TD-UI-003B
 8. TD-UI-003C
-9. TD-UI-004A
-10. TD-UI-004B
-11. TD-UI-004C
-12. TD-UI-004D
+9. TD-UI-003D
+10. TD-UI-004A
+11. TD-UI-004B
+12. TD-UI-004C
+13. TD-UI-004D
 
 ### TD-UI-001A Approval Artifact
 
@@ -392,6 +396,7 @@ Objective:
 Planned enforcement areas:
 - dashboard default filter/sort/view behavior.
 - export modal default provider/tab/scope behavior.
+- settings modal calendar tab Apple connection setup so the Apple flow is available alongside Google.
 - any future authenticated workflow that currently relies on implicit local-only state but should become user-owned.
 
 Acceptance checks:

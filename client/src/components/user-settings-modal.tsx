@@ -117,6 +117,17 @@ type GoogleCalendarStatus = {
   syncScopeUpdatedAt?: string | null;
 };
 
+type AppleCalendarStatus = {
+  configured: boolean;
+  connected: boolean;
+  accountEmail: string | null;
+  calendarId: string | null;
+  lastSyncedAt: string | null;
+  activeScopeCount?: number;
+  syncScopeVersion?: number;
+  syncScopeUpdatedAt?: string | null;
+};
+
 type AiPreferencesResponse = {
   aiProvider: "gemini" | "openai" | null;
   aiAgentEnabled: boolean;
@@ -129,6 +140,13 @@ type AiCredentialStatusResponse = {
   effectiveGeminiKeySource: "stored" | "none";
   effectiveOpenAiKeySource: "stored" | "none";
   updatedAt: string | null;
+};
+
+type AppleDisconnectResponse = {
+  disconnected: boolean;
+  calendarDeleteRequested: boolean;
+  calendarDeleted: boolean;
+  calendarDeleteMessage: string | null;
 };
 
 type ValidationState = {
@@ -159,6 +177,14 @@ export default function UserSettingsModal({
 
   const { data: googleCalendarStatus, isLoading: googleStatusLoading } = useQuery<GoogleCalendarStatus>({
     queryKey: ["/api/calendar/google/sync/status"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: isOpen,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const { data: appleCalendarStatus, isLoading: appleStatusLoading } = useQuery<AppleCalendarStatus>({
+    queryKey: ["/api/calendar/apple/sync/status"],
     queryFn: getQueryFn({ on401: "throw" }),
     enabled: isOpen,
     staleTime: 30_000,
@@ -425,7 +451,34 @@ export default function UserSettingsModal({
     }
   };
 
+  const copyAppleCalendarId = async () => {
+    const calendarId = appleCalendarStatus?.calendarId;
+    if (!calendarId) {
+      toast({
+        title: "No calendar ID",
+        description: "No connected Apple calendar ID is available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(calendarId);
+      toast({
+        title: "Copied",
+        description: "Apple Calendar ID copied to clipboard.",
+      });
+    } catch {
+      toast({
+        title: "Copy failed",
+        description: "Clipboard access failed. Please copy it manually.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const googleCalendarSettingsUrl = "https://calendar.google.com/calendar/u/0/r";
+  const appleCalendarSettingsUrl = "https://calendar.apple.com/";
   const aiProviderValue = selectedAiProvider ?? "default";
   const activeProvider = selectedAiProvider;
   const activeProviderLabel = activeProvider === "gemini" ? "Gemini" : "OpenAI";
@@ -440,6 +493,74 @@ export default function UserSettingsModal({
     updateAiCredentialMutation.isPending ||
     removeAiCredentialMutation.isPending ||
     validateAiCredentialMutation.isPending;
+
+  const connectAppleMutation = useMutation({
+    mutationFn: async () => {
+      const appleIdEmail = window.prompt("Enter your Apple ID email for calendar sync:", "")?.trim() || "";
+      if (!appleIdEmail) {
+        throw new Error("Apple connection cancelled.");
+      }
+
+      const appSpecificPassword = window.prompt("Enter your Apple app-specific password:", "")?.trim() || "";
+      if (!appSpecificPassword) {
+        throw new Error("Apple connection cancelled.");
+      }
+
+      const calendarId = window.prompt("Optional Apple calendar ID (leave blank for default):", "")?.trim() || undefined;
+      const response = await apiRequest("POST", "/api/calendar/apple/sync/connect", {
+        appleIdEmail,
+        appSpecificPassword,
+        calendarId,
+      });
+      return response.json() as Promise<AppleCalendarStatus>;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] });
+      toast({
+        title: "Apple Calendar Connected",
+        description: "Two-way sync connection is ready.",
+      });
+    },
+    onError: (error: any) => {
+      if (error?.message === "Apple connection cancelled.") {
+        return;
+      }
+      toast({
+        title: "Apple Connect Failed",
+        description: error?.message || "Unable to connect Apple Calendar.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const disconnectAppleMutation = useMutation({
+    mutationFn: async () => {
+      const accepted = window.confirm("Disconnect Apple Calendar sync for this account?");
+      if (!accepted) {
+        throw new Error("Apple disconnect cancelled.");
+      }
+
+      const response = await apiRequest("POST", "/api/calendar/apple/sync/disconnect", { deleteCalendar: false });
+      return response.json() as Promise<AppleDisconnectResponse>;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/calendar/apple/sync/status"] });
+      toast({
+        title: "Apple Calendar Disconnected",
+        description: "Two-way sync has been disabled for this account.",
+      });
+    },
+    onError: (error: any) => {
+      if (error?.message === "Apple disconnect cancelled.") {
+        return;
+      }
+      toast({
+        title: "Disconnect Failed",
+        description: error?.message || "Unable to disconnect Apple Calendar.",
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -528,6 +649,48 @@ export default function UserSettingsModal({
                 </>
               ) : (
                 <p className="text-sm text-gray-500">Google Calendar is not connected.</p>
+              )}
+            </div>
+
+            <div className="space-y-2 rounded-md border border-gray-200 p-3 bg-gray-50">
+              <Label className="text-sm font-medium">Apple Calendar ID</Label>
+              {appleStatusLoading ? (
+                <p className="text-sm text-gray-500">Loading Apple Calendar status...</p>
+              ) : appleCalendarStatus?.connected && appleCalendarStatus.calendarId ? (
+                <>
+                  <p className="text-xs text-gray-500">
+                    Connected as {appleCalendarStatus.accountEmail || "unknown account"}
+                  </p>
+                  <p className="text-sm font-mono break-all bg-white border rounded px-2 py-1">
+                    {appleCalendarStatus.calendarId}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={copyAppleCalendarId}>
+                      Copy Calendar ID
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => connectAppleMutation.mutate()}>
+                      {connectAppleMutation.isPending ? "Connecting Apple..." : "Reconnect Apple Calendar"}
+                    </Button>
+                    <Button type="button" variant="destructive" size="sm" onClick={() => disconnectAppleMutation.mutate()} disabled={disconnectAppleMutation.isPending}>
+                      {disconnectAppleMutation.isPending ? "Disconnecting..." : "Disconnect Apple Calendar"}
+                    </Button>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Apple Calendar settings: <a href={appleCalendarSettingsUrl} target="_blank" rel="noreferrer" className="underline">Open Apple Calendar</a>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500">Apple Calendar is not connected.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => connectAppleMutation.mutate()} disabled={connectAppleMutation.isPending}>
+                      {connectAppleMutation.isPending ? "Connecting Apple..." : "Connect Apple Calendar"}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => disconnectAppleMutation.mutate()} disabled={disconnectAppleMutation.isPending}>
+                      {disconnectAppleMutation.isPending ? "Disconnecting..." : "Disconnect Apple Calendar"}
+                    </Button>
+                  </div>
+                </>
               )}
             </div>
           </TabsContent>

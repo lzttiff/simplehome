@@ -130,6 +130,12 @@ describe('UserSettingsModal UI preferences (TD-UI-003C)', () => {
           json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
         } as Response;
       }
+      if (url.includes('/api/calendar/apple/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
       if (url.includes('/api/user/ai-preferences')) {
         return {
           ok: true,
@@ -251,5 +257,90 @@ describe('UserSettingsModal UI preferences (TD-UI-003C)', () => {
     });
 
     jest.useRealTimers();
+  });
+
+  it('shows Apple Calendar setup in the calendar tab and can start a connection', async () => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/user/ui-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ settingsActiveTab: 'calendar' }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ aiProvider: null, aiAgentEnabled: false, aiPolicyVersion: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-credentials')) {
+        return {
+          ok: true,
+          json: async () => ({
+            hasGeminiApiKey: false,
+            hasOpenAiApiKey: false,
+            effectiveGeminiKeySource: 'none',
+            effectiveOpenAiKeySource: 'none',
+            updatedAt: null,
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/connect') && init?.method === 'POST') {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: true, accountEmail: 'apple@example.com', calendarId: 'calendar-1', lastSyncedAt: null }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
+    }) as jest.Mock;
+
+    global.fetch = fetchMock;
+    const promptSpy = jest.spyOn(window, 'prompt');
+    promptSpy
+      .mockReturnValueOnce('apple@example.com')
+      .mockReturnValueOnce('app-specific-password')
+      .mockReturnValueOnce('');
+
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserSettingsModal isOpen={true} onClose={() => {}} currentTimezone="UTC" currentName="Tester" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /calendar/i }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    expect(screen.getByText(/apple calendar is not connected/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /^connect apple calendar$/i }));
+
+    await waitFor(() => {
+      const connectCalls = fetchMock.mock.calls.filter(
+        ([url, config]) => String(url).includes('/api/calendar/apple/sync/connect') && (config as RequestInit | undefined)?.method === 'POST',
+      );
+      expect(connectCalls.length).toBeGreaterThan(0);
+    });
+
+    expect(promptSpy).toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+
+    promptSpy.mockRestore();
+    confirmSpy.mockRestore();
   });
 });
