@@ -279,6 +279,8 @@ Implementation status note (2026-06-05):
 - No separate TD-UI-002C-only commit is required unless release bookkeeping later requires ticket-isolated commit history.
 - TD-UI-003A dashboard load/apply/save wiring is implemented in `client/src/pages/dashboard.tsx` and validated by targeted client tests.
 - Evidence: passing `npm run test:client:targeted` (includes `client/src/pages/dashboard.test.tsx`) and passing `npm run check`.
+- TD-UI-003B export modal load/apply/save wiring is implemented in `client/src/components/export-schedule-modal.tsx` for persisted `selectedProvider` and `keepOutOfScopeEvents`.
+- Evidence: passing focused test run `./node_modules/.bin/jest --config /tmp/jest.client.single.cjs --runInBand --silent`, plus passing `npm run test:client:targeted` and `npm run check`.
 
 Suggested execution order:
 1. TD-UI-001A

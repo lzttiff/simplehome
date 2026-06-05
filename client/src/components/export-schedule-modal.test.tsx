@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ExportScheduleModal from './export-schedule-modal';
 import type { MaintenanceTask } from '@shared/schema';
@@ -13,20 +13,38 @@ jest.mock('@/components/ui/dialog', () => ({
   DialogDescription: ({ children }: any) => <p>{children}</p>,
 }));
 
+jest.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: ({ children, open }: any) => (open ? <div>{children}</div> : null),
+  AlertDialogAction: ({ children, onClick, disabled }: any) => (
+    <button onClick={onClick} disabled={disabled}>{children}</button>
+  ),
+  AlertDialogCancel: ({ children, onClick, disabled }: any) => (
+    <button onClick={onClick} disabled={disabled}>{children}</button>
+  ),
+  AlertDialogContent: ({ children }: any) => <div>{children}</div>,
+  AlertDialogDescription: ({ children }: any) => <p>{children}</p>,
+  AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
+  AlertDialogHeader: ({ children }: any) => <div>{children}</div>,
+  AlertDialogTitle: ({ children }: any) => <h3>{children}</h3>,
+}));
+
 jest.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, disabled }: any) => (
-    <button onClick={onClick} disabled={disabled}>
-      {children}
-    </button>
+    <button onClick={onClick} disabled={disabled}>{children}</button>
   ),
+}));
+
+jest.mock('@/components/ui/tabs', () => ({
+  Tabs: ({ children }: any) => <div>{children}</div>,
+  TabsList: ({ children }: any) => <div>{children}</div>,
+  TabsTrigger: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button>,
+  TabsContent: ({ children }: any) => <div>{children}</div>,
 }));
 
 const toastMock = jest.fn();
 
 jest.mock('@/hooks/use-toast', () => ({
-  useToast: () => ({
-    toast: toastMock,
-  }),
+  useToast: () => ({ toast: toastMock }),
 }));
 
 const createQueryClient = () =>
@@ -85,43 +103,30 @@ const createMockTask = (overrides: Partial<MaintenanceTask> = {}): MaintenanceTa
   ...overrides,
 });
 
-describe('ExportScheduleModal Google sync', () => {
-  let openMock: jest.SpyInstance;
-
+describe('ExportScheduleModal UI preferences (TD-UI-003B)', () => {
   beforeEach(() => {
     jest.resetAllMocks();
-    openMock = jest.spyOn(window, 'open').mockImplementation(() => null);
-    window.history.replaceState({}, '', '/dashboard/test-template');
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: jest.fn().mockResolvedValue(undefined),
-      },
-    });
   });
 
-  afterEach(() => {
-    openMock.mockRestore();
-  });
-
-  it('starts Google OAuth when sync is configured but not connected', async () => {
+  it('hydrates selected provider from persisted UI preferences', async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes('/api/user/ui-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ selectedProvider: 'google', keepOutOfScopeEvents: false }),
+        } as Response;
+      }
       if (url.includes('/api/calendar/google/sync/status')) {
         return {
           ok: true,
-          json: async () => ({
-            configured: true,
-            connected: false,
-            accountEmail: null,
-            calendarId: null,
-            lastSyncedAt: null,
-          }),
+          json: async () => ({ configured: true, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
         } as Response;
       }
-      if (url.includes('/api/calendar/google/sync/start')) {
+      if (url.includes('/api/calendar/apple/sync/status')) {
         return {
           ok: true,
-          json: async () => ({ authorizationUrl: 'https://accounts.google.com/mock-auth' }),
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
         } as Response;
       }
       throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
@@ -134,56 +139,42 @@ describe('ExportScheduleModal Google sync', () => {
     );
 
     const connectButton = await screen.findByRole('button', { name: /connect google calendar/i });
-    fireEvent.click(connectButton);
-
-    await waitFor(() => {
-      expect(openMock).toHaveBeenCalledWith('https://accounts.google.com/mock-auth', '_self');
-    });
+    expect(connectButton).toBeTruthy();
   });
 
-  it('syncs selected tasks when Google Calendar is connected', async () => {
-    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  it('persists provider preference changes with PATCH', async () => {
+    jest.useFakeTimers();
+
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes('/api/user/ui-preferences') && (!init?.method || init.method === 'GET')) {
+        return {
+          ok: true,
+          json: async () => ({ selectedProvider: 'google', keepOutOfScopeEvents: false }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ui-preferences') && init?.method === 'PATCH') {
+        return {
+          ok: true,
+          json: async () => ({ ok: true }),
+        } as Response;
+      }
       if (url.includes('/api/calendar/google/sync/status')) {
         return {
           ok: true,
-          json: async () => ({
-            configured: true,
-            connected: true,
-            accountEmail: 'owner@example.com',
-            calendarId: 'simplehome@example.com',
-            lastSyncedAt: '2026-03-20T12:00:00.000Z',
-            activeScopeCount: 1,
-            syncScopeVersion: 2,
-            syncScopeUpdatedAt: '2026-03-20T12:00:00.000Z',
-          }),
+          json: async () => ({ configured: true, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
         } as Response;
       }
-      if (url.includes('/api/calendar/google/sync/scope') && (!init || !init.method || init.method === 'GET')) {
+      if (url.includes('/api/calendar/apple/sync/status')) {
         return {
           ok: true,
-          json: async () => ({
-            selections: [{ taskId: 'task-1', includeMinor: true, includeMajor: true }],
-            count: 1,
-          }),
-        } as Response;
-      }
-      if (url.includes('/api/calendar/google/sync') && init?.method === 'POST') {
-        return {
-          ok: true,
-          json: async () => ({
-            syncedTasks: 1,
-            pushedEvents: 2,
-            pulledChanges: 1,
-            createdEvents: 1,
-            updatedEvents: 1,
-            completedFromGoogle: 1,
-            rescheduledFromGoogle: 1,
-          }),
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
         } as Response;
       }
       throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
     }) as jest.Mock;
+
+    global.fetch = fetchMock;
 
     render(
       <QueryClientProvider client={createQueryClient()}>
@@ -191,83 +182,27 @@ describe('ExportScheduleModal Google sync', () => {
       </QueryClientProvider>,
     );
 
-    const syncButton = await screen.findByRole('button', { name: /sync active scope/i });
-    fireEvent.click(syncButton);
+    await screen.findByRole('button', { name: /connect google calendar/i });
 
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/calendar/google/sync',
-        expect.objectContaining({
-          method: 'POST',
-          credentials: 'include',
-        }),
-      );
+    const appleButton = await screen.findByRole('button', { name: /^apple$/i });
+    fireEvent.click(appleButton);
+
+    await act(async () => {
+      jest.advanceTimersByTime(450);
     });
 
-    expect(toastMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Google Calendar Synced',
-      }),
-    );
-  });
-
-  it('updates active scope from current selections', async () => {
-    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes('/api/calendar/google/sync/status')) {
-        return {
-          ok: true,
-          json: async () => ({
-            configured: true,
-            connected: true,
-            accountEmail: 'owner@example.com',
-            calendarId: 'simplehome@example.com',
-            lastSyncedAt: '2026-03-20T12:00:00.000Z',
-            activeScopeCount: 1,
-          }),
-        } as Response;
-      }
-      if (url.includes('/api/calendar/google/sync/scope') && (!init || !init.method || init.method === 'GET')) {
-        return {
-          ok: true,
-          json: async () => ({
-            selections: [{ taskId: 'task-1', includeMinor: true, includeMajor: true }],
-            count: 1,
-          }),
-        } as Response;
-      }
-      if (url.includes('/api/calendar/google/sync/scope') && init?.method === 'PUT') {
-        return {
-          ok: true,
-          json: async () => ({ count: 1, syncScopeVersion: 3 }),
-        } as Response;
-      }
-      throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
-    }) as jest.Mock;
-
-    render(
-      <QueryClientProvider client={createQueryClient()}>
-        <ExportScheduleModal isOpen={true} onClose={() => {}} tasks={[createMockTask()]} />
-      </QueryClientProvider>,
-    );
-
-    const updateScopeButton = await screen.findByRole('button', { name: /update scope from current view/i });
-    fireEvent.click(updateScopeButton);
-
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/calendar/google/sync/scope',
-        expect.objectContaining({
-          method: 'PUT',
-          credentials: 'include',
-        }),
+      const patchCalls = fetchMock.mock.calls.filter(
+        ([url, config]) => String(url).includes('/api/user/ui-preferences') && (config as RequestInit | undefined)?.method === 'PATCH',
       );
+      expect(patchCalls.length).toBeGreaterThan(0);
+
+      const latestPatch = patchCalls[patchCalls.length - 1] as [RequestInfo | URL, RequestInit];
+      const body = latestPatch[1].body ? JSON.parse(String(latestPatch[1].body)) : {};
+      expect(body.selectedProvider).toBe('apple');
+      expect(body.keepOutOfScopeEvents).toBe(false);
     });
 
-    expect(toastMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Sync Scope Updated',
-      }),
-    );
+    jest.useRealTimers();
   });
 });

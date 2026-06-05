@@ -1,11 +1,12 @@
 import {
   type CalendarExportRecord,
   type MaintenanceTask,
+  type UserUiPreferences,
   normalizeCalendarExports,
   serializeCalendarExports,
 } from "@shared/schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -762,6 +763,15 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
   const [disconnectDeleteCalendar, setDisconnectDeleteCalendar] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("select-items");
+  const [uiPreferencesReady, setUiPreferencesReady] = useState(false);
+  const lastSavedUiPrefRef = useRef<string | null>(null);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: uiPreferencesData } = useQuery<Partial<UserUiPreferences> | null>({
+    queryKey: ["/api/user/ui-preferences"],
+    enabled: isOpen,
+    retry: false,
+  });
 
   const googleSyncStatusQuery = useQuery<GoogleCalendarSyncStatus>({
     queryKey: ["/api/calendar/google/sync/status"],
@@ -1061,9 +1071,70 @@ export default function ExportScheduleModal({ isOpen, onClose, tasks }: ExportSc
   useEffect(() => {
     if (isOpen) {
       setActiveTab("select-items");
-      setSelectedProvider(null);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || uiPreferencesData === undefined) {
+      return;
+    }
+
+    const selectedProviderPref = uiPreferencesData?.selectedProvider;
+    const keepOutOfScopeEventsPref = uiPreferencesData?.keepOutOfScopeEvents;
+
+    if (selectedProviderPref === "google" || selectedProviderPref === "apple") {
+      setSelectedProvider(selectedProviderPref);
+    } else {
+      setSelectedProvider(null);
+    }
+
+    if (typeof keepOutOfScopeEventsPref === "boolean") {
+      setKeepOutOfScopeEvents(keepOutOfScopeEventsPref);
+    } else {
+      setKeepOutOfScopeEvents(false);
+    }
+
+    const initialSnapshot = {
+      selectedProvider: selectedProviderPref === "google" || selectedProviderPref === "apple" ? selectedProviderPref : null,
+      keepOutOfScopeEvents: typeof keepOutOfScopeEventsPref === "boolean" ? keepOutOfScopeEventsPref : false,
+    };
+    lastSavedUiPrefRef.current = JSON.stringify(initialSnapshot);
+    setUiPreferencesReady(true);
+  }, [isOpen, uiPreferencesData]);
+
+  useEffect(() => {
+    if (!isOpen || !uiPreferencesReady) {
+      return;
+    }
+
+    const payload = {
+      selectedProvider,
+      keepOutOfScopeEvents,
+    };
+    const snapshot = JSON.stringify(payload);
+    if (snapshot === lastSavedUiPrefRef.current) {
+      return;
+    }
+
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = setTimeout(async () => {
+      try {
+        await apiRequest("PATCH", "/api/user/ui-preferences", payload);
+        lastSavedUiPrefRef.current = snapshot;
+      } catch (error) {
+        console.error("Failed to persist export UI preferences:", error);
+      }
+    }, 350);
+
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+    };
+  }, [isOpen, uiPreferencesReady, selectedProvider, keepOutOfScopeEvents]);
 
   const selectedTasks = tasksWithDates.filter((task) => selectedTaskIds[task.id]);
 
