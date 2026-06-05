@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +21,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { normalizeDateOnly, toDateOnlyFromLocalDate } from "@shared/schema";
+import { normalizeDateOnly, toDateOnlyFromLocalDate, type UiSettingsTab } from "@shared/schema";
+
+const SETTINGS_TAB_PERSIST_DEBOUNCE_MS = 400;
 
 // Common IANA timezone list grouped by region
 export const TIMEZONE_OPTIONS: { value: string; label: string; offset: string }[] = [
@@ -146,7 +148,9 @@ export default function UserSettingsModal({
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     currentTimezone || detectBrowserTimezone(),
   );
-  const [activeTab, setActiveTab] = useState<"profile" | "calendar" | "ai-preferences" | "ai-keys">("profile");
+  const [activeTab, setActiveTab] = useState<UiSettingsTab>("profile");
+  const hasHydratedUiSettingsTabRef = useRef(false);
+  const lastPersistedUiSettingsTabRef = useRef<UiSettingsTab>("profile");
   const [selectedAiProvider, setSelectedAiProvider] = useState<"gemini" | "openai" | null>(null);
   const [aiAgentEnabled, setAiAgentEnabled] = useState(false);
   const [aiPolicyVersion, setAiPolicyVersion] = useState("");
@@ -181,6 +185,16 @@ export default function UserSettingsModal({
     retry: false,
   });
 
+  const { data: uiPreferences, isFetched: uiPreferencesFetched } = useQuery<{
+    settingsActiveTab?: UiSettingsTab;
+  }>({
+    queryKey: ["/api/user/ui-preferences"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: isOpen,
+    staleTime: 30_000,
+    retry: false,
+  });
+
   // Sync selected timezone if modal re-opens with a different value
   useEffect(() => {
     setSelectedTimezone(currentTimezone || detectBrowserTimezone());
@@ -188,9 +202,22 @@ export default function UserSettingsModal({
 
   useEffect(() => {
     if (isOpen) {
+      hasHydratedUiSettingsTabRef.current = false;
+      lastPersistedUiSettingsTabRef.current = "profile";
       setActiveTab("profile");
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !uiPreferencesFetched) {
+      return;
+    }
+
+    const nextTab = uiPreferences?.settingsActiveTab ?? "profile";
+    lastPersistedUiSettingsTabRef.current = nextTab;
+    hasHydratedUiSettingsTabRef.current = true;
+    setActiveTab(nextTab);
+  }, [isOpen, uiPreferences, uiPreferencesFetched]);
 
   useEffect(() => {
     if (!aiPreferences || !isOpen) {
@@ -211,6 +238,35 @@ export default function UserSettingsModal({
       refetchAiCredentialStatus();
     }
   }, [isOpen, activeTab, selectedAiProvider, refetchAiCredentialStatus]);
+
+  const persistUiSettingsTabMutation = useMutation({
+    mutationFn: async (settingsTab: UiSettingsTab) => {
+      const res = await apiRequest("PATCH", "/api/user/ui-preferences", {
+        settingsActiveTab: settingsTab,
+      });
+      return res.json();
+    },
+    onSuccess: async (_data, settingsTab) => {
+      lastPersistedUiSettingsTabRef.current = settingsTab;
+      await queryClient.invalidateQueries({ queryKey: ["/api/user/ui-preferences"] });
+    },
+  });
+
+  useEffect(() => {
+    if (!isOpen || !hasHydratedUiSettingsTabRef.current) {
+      return;
+    }
+
+    if (activeTab === lastPersistedUiSettingsTabRef.current) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      persistUiSettingsTabMutation.mutate(activeTab);
+    }, SETTINGS_TAB_PERSIST_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [activeTab, isOpen, persistUiSettingsTabMutation]);
 
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {

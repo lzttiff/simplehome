@@ -281,6 +281,8 @@ Implementation status note (2026-06-05):
 - Evidence: passing `npm run test:client:targeted` (includes `client/src/pages/dashboard.test.tsx`) and passing `npm run check`.
 - TD-UI-003B export modal load/apply/save wiring is implemented in `client/src/components/export-schedule-modal.tsx` for persisted `selectedProvider` and `keepOutOfScopeEvents`.
 - Evidence: passing focused test run `./node_modules/.bin/jest --config /tmp/jest.client.single.cjs --runInBand --silent`, plus passing `npm run test:client:targeted` and `npm run check`.
+- TD-UI-003C settings modal tab/default persistence is implemented in `client/src/components/user-settings-modal.tsx` via persisted `settingsActiveTab` hydration and debounced save.
+- Evidence: passing focused test run `./node_modules/.bin/jest --runInBand --silent --config ./jest.config.js --testMatch='**/client/src/components/user-settings-modal.test.tsx'`, plus passing `npm run test:client:targeted` and `npm run check`.
 
 Suggested execution order:
 1. TD-UI-001A
