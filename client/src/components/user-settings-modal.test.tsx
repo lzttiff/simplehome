@@ -401,6 +401,8 @@ describe('UserSettingsModal UI preferences (TD-UI-003C)', () => {
 
     expect(screen.getByText(/connected as apple@example.com/i)).toBeTruthy();
     expect(screen.queryByText(/apple calendar is not connected/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /reconnect apple calendar/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /save apple credentials/i })).toBeTruthy();
   });
 
   it('can update Apple Calendar ID without reconnecting', async () => {
@@ -483,6 +485,162 @@ describe('UserSettingsModal UI preferences (TD-UI-003C)', () => {
     expect(updateCall).toBeTruthy();
     const body = updateCall?.[1].body ? JSON.parse(String(updateCall[1].body)) : {};
     expect(body).toEqual({ calendarId: 'calendar-2' });
+  });
+
+  it('can save Apple credentials for a connected account without retyping email', async () => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/user/ui-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ settingsActiveTab: 'calendar' }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: true, accountEmail: 'apple@example.com', calendarId: 'calendar-1', lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ aiProvider: null, aiAgentEnabled: false, aiPolicyVersion: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-credentials')) {
+        return {
+          ok: true,
+          json: async () => ({
+            hasGeminiApiKey: false,
+            hasOpenAiApiKey: false,
+            effectiveGeminiKeySource: 'none',
+            effectiveOpenAiKeySource: 'none',
+            updatedAt: null,
+          }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/connect') && init?.method === 'POST') {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: true, accountEmail: 'apple@example.com', calendarId: 'calendar-1', lastSyncedAt: null }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url} ${init?.method || 'GET'}`);
+    }) as jest.Mock;
+
+    global.fetch = fetchMock;
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserSettingsModal isOpen={true} onClose={() => {}} currentTimezone="UTC" currentName="Tester" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /calendar/i }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    fireEvent.change(screen.getByLabelText(/apple app-specific password/i), { target: { value: 'new-app-password' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save apple credentials$/i }));
+
+    await waitFor(() => {
+      const connectCalls = fetchMock.mock.calls.filter(
+        ([url, config]) => String(url).includes('/api/calendar/apple/sync/connect') && (config as RequestInit | undefined)?.method === 'POST',
+      );
+      expect(connectCalls.length).toBeGreaterThan(0);
+    });
+
+    const connectCall = fetchMock.mock.calls.find(
+      ([url, config]) => String(url).includes('/api/calendar/apple/sync/connect') && (config as RequestInit | undefined)?.method === 'POST',
+    ) as [RequestInfo | URL, RequestInit] | undefined;
+    expect(connectCall).toBeTruthy();
+    const body = connectCall?.[1].body ? JSON.parse(String(connectCall[1].body)) : {};
+    expect(body).toEqual({
+      appleIdEmail: 'apple@example.com',
+      appSpecificPassword: 'new-app-password',
+      calendarId: 'calendar-1',
+    });
+  });
+
+  it('re-hydrates Apple ID email after closing and reopening the modal', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/user/ui-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ settingsActiveTab: 'calendar' }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/google/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: false, connected: false, accountEmail: null, calendarId: null, lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/calendar/apple/sync/status')) {
+        return {
+          ok: true,
+          json: async () => ({ configured: true, connected: true, accountEmail: 'apple@example.com', calendarId: 'calendar-1', lastSyncedAt: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-preferences')) {
+        return {
+          ok: true,
+          json: async () => ({ aiProvider: null, aiAgentEnabled: false, aiPolicyVersion: null }),
+        } as Response;
+      }
+      if (url.includes('/api/user/ai-credentials')) {
+        return {
+          ok: true,
+          json: async () => ({
+            hasGeminiApiKey: false,
+            hasOpenAiApiKey: false,
+            effectiveGeminiKeySource: 'none',
+            effectiveOpenAiKeySource: 'none',
+            updatedAt: null,
+          }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.Mock;
+
+    const { rerender } = render(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserSettingsModal isOpen={true} onClose={() => {}} currentTimezone="UTC" currentName="Tester" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /calendar/i }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    await waitFor(() => {
+      expect((screen.getByLabelText(/apple id email/i) as HTMLInputElement).value).toBe('apple@example.com');
+    });
+
+    rerender(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserSettingsModal isOpen={false} onClose={() => {}} currentTimezone="UTC" currentName="Tester" />
+      </QueryClientProvider>,
+    );
+
+    rerender(
+      <QueryClientProvider client={createQueryClient()}>
+        <UserSettingsModal isOpen={true} onClose={() => {}} currentTimezone="UTC" currentName="Tester" />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect((screen.getByLabelText(/apple id email/i) as HTMLInputElement).value).toBe('apple@example.com');
+    });
   });
 
   it('can reveal and re-hide the Apple app-specific password field', async () => {
