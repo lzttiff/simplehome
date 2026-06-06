@@ -553,8 +553,24 @@ Acceptance checks:
 Objective:
 - migrate legacy calendar toggle assumptions and prevent regressions.
 
+Delivered work:
+- added migration script: `scripts/migrate-user-calendar-feature-toggles.ts`
+- added npm command: `npm run migrate:user-calendar-feature-toggles`
+- dry-run is the default mode; apply mode requires explicit `--apply`
+- script emits deterministic summary counters:
+  - `scanned`
+  - `usersWithUpdates`
+  - `defaultsInitialized`
+  - `normalizedExisting`
+  - `invalidReset`
+- script supports optional `--sample-limit` output for rollout evidence snapshots.
+
+Execution examples:
+- Dry run (default): `npm run migrate:user-calendar-feature-toggles`
+- Apply: `npm run migrate:user-calendar-feature-toggles -- --apply`
+- Apply with larger sample output: `npm run migrate:user-calendar-feature-toggles -- --apply --sample-limit 25`
+
 Planned work:
-- add migration/backfill script for legacy users where toggle state is missing.
 - add server tests for user isolation and enforcement.
 - add rollout guard checks for legacy/missing toggle state in strict mode.
 
