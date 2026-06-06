@@ -645,6 +645,95 @@ describe('/api/user/calendar-feature-toggles', () => {
     expect(res.statusCode).toBe(400);
     expect(storageMock.updateUserCalendarFeatureToggles).not.toHaveBeenCalled();
   });
+
+  it('returns 401 when request is unauthenticated', async () => {
+    const res = await request(app)
+      .get('/api/user/calendar-feature-toggles')
+      .set('x-test-auth', 'unauth');
+
+    expect(res.statusCode).toBe(401);
+    expect(storageMock.getUserCalendarFeatureToggles).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when payload attempts cross-user write via userId', async () => {
+    const res = await request(app)
+      .patch('/api/user/calendar-feature-toggles')
+      .send({ calendarExportEnabled: false, userId: 'other-user-id' });
+
+    expect(res.statusCode).toBe(400);
+    expect(storageMock.updateUserCalendarFeatureToggles).not.toHaveBeenCalled();
+  });
+});
+
+describe('/api/calendar/google/export toggle enforcement', () => {
+  let app: Express;
+
+  beforeAll(async () => {
+    app = express();
+    app.use(express.json());
+    await registerRoutes(app);
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    storageMock.getUserCalendarFeatureToggles.mockResolvedValue({
+      googleSyncEnabled: true,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: true,
+    });
+  });
+
+  it('returns 403 when Google sync toggle is disabled', async () => {
+    storageMock.getUserCalendarFeatureToggles.mockResolvedValueOnce({
+      googleSyncEnabled: false,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: true,
+    });
+
+    const res = await request(app)
+      .get('/api/calendar/google/sync/status');
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/Google Calendar sync is disabled/);
+  });
+
+  it('returns 403 when calendar export toggle is disabled for Google feed token', async () => {
+    storageMock.getUserCalendarFeatureToggles.mockResolvedValueOnce({
+      googleSyncEnabled: true,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: false,
+    });
+
+    const res = await request(app)
+      .post('/api/calendar/google/feed-token')
+      .send({
+        selections: [{ taskId: 'task-1', includeMinor: true, includeMajor: false }],
+      });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/Calendar export is disabled/);
+  });
+
+  it('returns 403 when calendar export toggle is disabled for Apple feed token', async () => {
+    storageMock.getUserCalendarFeatureToggles.mockResolvedValueOnce({
+      googleSyncEnabled: true,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: false,
+    });
+
+    const res = await request(app)
+      .post('/api/calendar/apple/feed-token')
+      .send({
+        selections: [{ taskId: 'task-1', includeMinor: true, includeMajor: false }],
+      });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/Calendar export is disabled/);
+  });
 });
 
 describe('/api/calendar/apple/sync - Contract Tests', () => {

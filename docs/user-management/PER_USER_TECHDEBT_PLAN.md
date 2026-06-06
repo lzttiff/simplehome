@@ -571,8 +571,14 @@ Execution examples:
 - Apply with larger sample output: `npm run migrate:user-calendar-feature-toggles -- --apply --sample-limit 25`
 
 Planned work:
-- add server tests for user isolation and enforcement.
 - add rollout guard checks for legacy/missing toggle state in strict mode.
+
+Additional implementation evidence (2026-06-05):
+- expanded server test coverage in `tests/server/routes.test.ts` for:
+  - calendar toggle API auth/validation and cross-user payload rejection behavior
+  - Google sync toggle enforcement (`googleSyncEnabled`)
+  - calendar export toggle enforcement for Google/Apple feed-token routes (`calendarExportEnabled`)
+- Evidence: passing `npm run test:server -- routes.test.ts` and passing `npm run check`.
 
 Acceptance checks:
 - migration is idempotent and auditable.
