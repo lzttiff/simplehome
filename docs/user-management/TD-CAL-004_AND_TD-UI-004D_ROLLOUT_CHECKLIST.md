@@ -50,6 +50,20 @@ Expected:
 Command:
 - `npm run migrate:user-calendar-feature-toggles -- --apply --sample-limit 5`
 
+Execution evidence (2026-06-05):
+- mode: `apply`
+- scanned: `3`
+- skippedInvalidUsers: `0`
+- usersWithUpdates: `3`
+- defaultsInitialized: `3`
+- normalizedExisting: `0`
+- invalidReset: `0`
+- sampleUpdatedUserIds:
+	- `f5e7f3fe-af2b-46c6-be04-ad9c5d53dcc1`
+	- `18916b31-6469-4db3-9c29-25e05fdc34fa`
+	- `6b3c2c42-fb3c-494a-9c09-7685bfdf75b0`
+- status: `PASS`
+
 Record:
 - same counters as dry-run
 - sampleUpdatedUserIds
@@ -61,6 +75,16 @@ Expected:
 ### A3) Post-apply idempotency check
 Command:
 - `npm run migrate:user-calendar-feature-toggles -- --apply --sample-limit 5`
+
+Execution evidence (2026-06-05):
+- mode: `apply`
+- scanned: `3`
+- skippedInvalidUsers: `0`
+- usersWithUpdates: `0`
+- defaultsInitialized: `0`
+- normalizedExisting: `0`
+- invalidReset: `0`
+- status: `PASS`
 
 Expected:
 - usersWithUpdates should be 0 unless source documents changed
