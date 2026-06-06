@@ -43,16 +43,16 @@ Out of scope:
 | TD-AI-005 | User-scope AI config audit logging | Emit audit records for settings changes and key resolution paths | Completed |
 | TD-AI-006 | Per-user provider isolation tests | Add server and integration tests for isolation/fallback/authorization | Completed |
 | TD-AI-007 | Per-user provider credential management | Add encrypted per-user API key storage and retrieval plumbing | Completed |
-| TD-CAL-001 | Calendar feature toggle model | Add per-user calendar toggle fields and storage mappings | Planned |
-| TD-CAL-002 | Calendar feature toggle API | Add authenticated read/update APIs for per-user calendar toggles | Planned |
-| TD-CAL-003 | Calendar toggle enforcement | Apply per-user calendar toggles in calendar and AI side-effect routes | Planned |
-| TD-CAL-004 | Calendar toggle migration/tests | Migrate legacy defaults and add isolation/regression coverage | Planned |
-| TD-UI-001 | UI/runtime preference inventory and model | Identify overlooked per-user UI/runtime preferences and define persisted ownership model | Planned |
-| TD-UI-002 | UI preference API | Add authenticated read/update APIs for persisted per-user UI/runtime preferences | Planned |
-| TD-UI-003 | UI preference enforcement | Apply persisted user preferences in dashboard/export/settings workflows where behavior should survive sessions | Planned |
-| TD-UI-003E | Dashboard unsaved preference warning behavior | Warn on browser/tab/page exit when dashboard preferences changed but not yet persisted | Planned |
+| TD-CAL-001 | Calendar feature toggle model | Add per-user calendar toggle fields and storage mappings | Completed |
+| TD-CAL-002 | Calendar feature toggle API | Add authenticated read/update APIs for per-user calendar toggles | Completed |
+| TD-CAL-003 | Calendar toggle enforcement | Apply per-user calendar toggles in calendar and AI side-effect routes | Completed |
+| TD-CAL-004 | Calendar toggle migration/tests | Migrate legacy defaults and add isolation/regression coverage | In Progress |
+| TD-UI-001 | UI/runtime preference inventory and model | Identify overlooked per-user UI/runtime preferences and define persisted ownership model | Completed |
+| TD-UI-002 | UI preference API | Add authenticated read/update APIs for persisted per-user UI/runtime preferences | Completed |
+| TD-UI-003 | UI preference enforcement | Apply persisted user preferences in dashboard/export/settings workflows where behavior should survive sessions | Completed |
+| TD-UI-003E | Dashboard unsaved preference warning behavior | Warn on browser/tab/page exit when dashboard preferences changed but not yet persisted | Completed |
 | TD-UI-003F | AI query readiness gating and setup prompt | Block AI queries when provider/credentials are missing and guide user to AI setup | Completed |
-| TD-UI-004 | UI preference migration/tests | Migrate persisted defaults and add user-isolation/regression coverage | Planned |
+| TD-UI-004 | UI preference migration/tests | Migrate persisted defaults and add user-isolation/regression coverage | In Progress |
 
 ## TD-AI-007 Phased Migration Proposal (Pre-Deploy)
 
@@ -783,8 +783,18 @@ Current operator note:
 Pending work:
 - expand non-mocked integration coverage (real provider sandbox keys and failure-mode matrix) during staging rollout
 - execute TD-AI-007 phased hardening/cutover plan (Phase 1 through Phase 4) defined above
-- design and deliver TD-CAL-001 through TD-CAL-004 per-user calendar toggle workstream, including API cutover and migration coverage
-- design and deliver TD-UI-001 through TD-UI-004 per-user UI/runtime preference workstream, including API ownership and migration coverage
+- complete TD-CAL-004 migration and expanded isolation/regression coverage for calendar feature toggles
+- complete TD-UI-004D manual two-user QA evidence capture/sign-off and then mark TD-UI-004 as completed
+
+Calendar implementation status note (2026-06-05):
+- TD-CAL-001 per-user calendar toggle model is implemented in `shared/schema.ts` and `server/storage.ts` via `userCalendarFeatureTogglesSchema` and user-scoped read/update persistence methods.
+- TD-CAL-002 calendar toggle API is implemented with authenticated endpoints `GET /api/user/calendar-feature-toggles` and `PATCH /api/user/calendar-feature-toggles` in `server/routes.ts`.
+- TD-CAL-003 toggle enforcement is implemented in calendar runtime routes:
+  - Google sync routes respect `googleSyncEnabled`
+  - Apple sync routes respect `appleSyncEnabled`
+  - Calendar export token routes respect `calendarExportEnabled`
+  - Task deletion calendar side-effect cleanup respects `calendarAutoSyncOnTaskChanges`
+- Evidence: passing `npm run check` and passing `npm run test:server -- routes.test.ts` after adding toggle API/enforcement coverage.
 
 Manual test-engineer process:
 1. Open the per-user AI credentials screen or use the authenticated credential API to set a provider key for one test account.
