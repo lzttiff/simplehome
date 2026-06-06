@@ -19,6 +19,20 @@ This artifact is the execution checklist for closing the remaining manual/rollou
 Command:
 - `npm run migrate:user-calendar-feature-toggles -- --dry-run --sample-limit 5`
 
+Execution evidence (2026-06-05):
+- mode: `dry-run`
+- scanned: `3`
+- skippedInvalidUsers: `0`
+- usersWithUpdates: `3`
+- defaultsInitialized: `3`
+- normalizedExisting: `0`
+- invalidReset: `0`
+- sampleUpdatedUserIds:
+	- `f5e7f3fe-af2b-46c6-be04-ad9c5d53dcc1`
+	- `18916b31-6469-4db3-9c29-25e05fdc34fa`
+	- `6b3c2c42-fb3c-494a-9c09-7685bfdf75b0`
+- status: `PASS`
+
 Record:
 - mode
 - scanned
@@ -55,6 +69,14 @@ Expected:
 Command:
 - `npm run test:server -- routes.test.ts`
 - `npm run check`
+
+Execution evidence (2026-06-05):
+- `npm run test:server -- routes.test.ts`
+	- test suites: `11 passed`
+	- tests: `152 passed`
+	- status: `PASS`
+- `npm run check`
+	- TypeScript compile: `PASS`
 
 Expected:
 - tests pass
