@@ -21,6 +21,7 @@
     "migrate:legacy-user-data": "tsx scripts/migrate-legacy-user-data-all.ts",
     "migrate:user-ai-settings": "tsx scripts/migrate-user-ai-settings.ts",
     "migrate:user-ui-preferences": "tsx scripts/migrate-user-ui-preferences.ts",
+    "migrate:user-calendar-feature-toggles": "tsx scripts/migrate-user-calendar-feature-toggles.ts",
     "validate:env-resolution": "tsx scripts/validate-env-resolution.ts",
     "validate:phase5": "tsx scripts/validate-phase5.ts",
     "validate:phase5:deprecations": "tsx scripts/check-config-deprecation.ts",
