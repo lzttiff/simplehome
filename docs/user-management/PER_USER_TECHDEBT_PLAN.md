@@ -807,6 +807,7 @@ Pending work:
 - execute TD-AI-007 phased hardening/cutover plan (Phase 1 through Phase 4) defined above
 - complete TD-CAL-004 migration and expanded isolation/regression coverage for calendar feature toggles
 - complete TD-UI-004D manual two-user QA evidence capture/sign-off and then mark TD-UI-004 as completed
+- combined execution checklist is tracked in `docs/user-management/TD-CAL-004_AND_TD-UI-004D_ROLLOUT_CHECKLIST.md`
 
 Calendar implementation status note (2026-06-05):
 - TD-CAL-001 per-user calendar toggle model is implemented in `shared/schema.ts` and `server/storage.ts` via `userCalendarFeatureTogglesSchema` and user-scoped read/update persistence methods.

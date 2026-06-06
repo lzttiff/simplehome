@@ -9,6 +9,9 @@ This artifact records rollout evidence for TD-UI-004D:
 - automated server/client/typecheck evidence
 - manual two-user verification checklist
 
+Related checklist:
+- `docs/user-management/TD-CAL-004_AND_TD-UI-004D_ROLLOUT_CHECKLIST.md`
+
 ## Automated Evidence
 
 ### 1) Migration dry-run evidence
