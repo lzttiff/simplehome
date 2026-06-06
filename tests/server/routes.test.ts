@@ -36,6 +36,18 @@ jest.mock('../../server/storage', () => ({
     updateUserAiPreferences: jest.fn(),
     getUserUiPreferences: jest.fn(),
     updateUserUiPreferences: jest.fn(),
+    getUserCalendarFeatureToggles: jest.fn().mockResolvedValue({
+      googleSyncEnabled: true,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: true,
+    }),
+    updateUserCalendarFeatureToggles: jest.fn().mockResolvedValue({
+      googleSyncEnabled: true,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: true,
+    }),
     getUserAiCredentialStatus: jest.fn(),
     upsertUserAiCredentials: jest.fn(),
     getUserAiCredential: jest.fn(),
@@ -565,6 +577,76 @@ describe('/api/user/ui-preferences', () => {
   });
 });
 
+describe('/api/user/calendar-feature-toggles', () => {
+  let app: Express;
+
+  beforeAll(async () => {
+    app = express();
+    app.use(express.json());
+    await registerRoutes(app);
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns calendar feature toggles for authenticated user', async () => {
+    storageMock.getUserCalendarFeatureToggles.mockResolvedValue({
+      googleSyncEnabled: true,
+      appleSyncEnabled: false,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: false,
+    });
+
+    const res = await request(app).get('/api/user/calendar-feature-toggles');
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.getUserCalendarFeatureToggles).toHaveBeenCalledWith('test-user-id');
+    expect(res.body).toEqual({
+      googleSyncEnabled: true,
+      appleSyncEnabled: false,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: false,
+    });
+  });
+
+  it('updates calendar feature toggles for authenticated user', async () => {
+    storageMock.updateUserCalendarFeatureToggles.mockResolvedValue({
+      googleSyncEnabled: true,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: false,
+      calendarExportEnabled: false,
+    });
+
+    const payload = {
+      calendarAutoSyncOnTaskChanges: false,
+      calendarExportEnabled: false,
+    };
+
+    const res = await request(app)
+      .patch('/api/user/calendar-feature-toggles')
+      .send(payload);
+
+    expect(res.statusCode).toBe(200);
+    expect(storageMock.updateUserCalendarFeatureToggles).toHaveBeenCalledWith('test-user-id', payload);
+    expect(res.body).toEqual({
+      googleSyncEnabled: true,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: false,
+      calendarExportEnabled: false,
+    });
+  });
+
+  it('returns 400 for invalid calendar feature toggles payload', async () => {
+    const res = await request(app)
+      .patch('/api/user/calendar-feature-toggles')
+      .send({ unknownKey: true });
+
+    expect(res.statusCode).toBe(400);
+    expect(storageMock.updateUserCalendarFeatureToggles).not.toHaveBeenCalled();
+  });
+});
+
 describe('/api/calendar/apple/sync - Contract Tests', () => {
   let app: Express;
   const mockAppleSync = require('../../server/services/appleCalendarSync');
@@ -577,6 +659,27 @@ describe('/api/calendar/apple/sync - Contract Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    storageMock.getUserCalendarFeatureToggles.mockResolvedValue({
+      googleSyncEnabled: true,
+      appleSyncEnabled: true,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: true,
+    });
+  });
+
+  it('returns 403 when Apple sync toggle is disabled', async () => {
+    storageMock.getUserCalendarFeatureToggles.mockResolvedValueOnce({
+      googleSyncEnabled: true,
+      appleSyncEnabled: false,
+      calendarAutoSyncOnTaskChanges: true,
+      calendarExportEnabled: true,
+    });
+
+    const res = await request(app)
+      .get('/api/calendar/apple/sync/status');
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toMatch(/Apple Calendar sync is disabled/);
   });
 
   describe('GET /api/calendar/apple/sync/status', () => {

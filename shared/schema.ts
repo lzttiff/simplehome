@@ -56,6 +56,25 @@ export type UiSettingsTab = z.infer<typeof uiSettingsTabSchema>;
 export type UserUiPreferences = z.infer<typeof userUiPreferencesSchema>;
 export type UpdateUserUiPreferencesInput = z.infer<typeof updateUserUiPreferencesSchema>;
 
+// User Calendar Feature Toggle Types
+export const userCalendarFeatureTogglesSchema = z
+  .object({
+    googleSyncEnabled: z.boolean().default(true),
+    appleSyncEnabled: z.boolean().default(true),
+    calendarAutoSyncOnTaskChanges: z.boolean().default(true),
+    calendarExportEnabled: z.boolean().default(true),
+  })
+  .strict();
+
+export const updateUserCalendarFeatureTogglesSchema = userCalendarFeatureTogglesSchema
+  .partial()
+  .refine((payload) => Object.keys(payload).length > 0, {
+    message: "At least one calendar feature toggle field is required",
+  });
+
+export type UserCalendarFeatureToggles = z.infer<typeof userCalendarFeatureTogglesSchema>;
+export type UpdateUserCalendarFeatureTogglesInput = z.infer<typeof updateUserCalendarFeatureTogglesSchema>;
+
 // Property Template Types
 export interface PropertyTemplate {
   id: string;

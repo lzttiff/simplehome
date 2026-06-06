@@ -7,6 +7,7 @@ import {
 } from "./services/defaultTemplateLoader";
 import { 
   type AiProvider,
+  type UserCalendarFeatureToggles,
   type UserUiPreferences,
   type PropertyTemplate, 
   type InsertPropertyTemplate,
@@ -18,6 +19,7 @@ import {
   type InsertUser,
   parseMaintenanceSchedule,
   serializeMaintenanceSchedule,
+  userCalendarFeatureTogglesSchema,
   userUiPreferencesSchema,
 } from "@shared/schema";
 import { randomUUID, createHash } from "crypto";
@@ -47,6 +49,8 @@ export interface IStorage {
     id: string,
     updates: { aiProvider?: AiProvider | null; aiAgentEnabled?: boolean; aiPolicyVersion?: string | null },
   ): Promise<User | undefined>;
+  getUserCalendarFeatureToggles(userId: string): Promise<UserCalendarFeatureToggles>;
+  updateUserCalendarFeatureToggles(userId: string, updates: Partial<UserCalendarFeatureToggles>): Promise<UserCalendarFeatureToggles>;
   getUserUiPreferences(userId: string): Promise<UserUiPreferences>;
   updateUserUiPreferences(userId: string, updates: Partial<UserUiPreferences>): Promise<UserUiPreferences>;
   getUserAiCredentialStatus(userId: string): Promise<{
@@ -147,6 +151,7 @@ interface MongoQuestionnaireResponse extends Omit<QuestionnaireResponse, 'id'> {
 interface MongoUser extends Omit<User, 'id'> {
   _id?: ObjectId;
   id: string;
+  calendarFeatureToggles?: unknown;
   uiPreferences?: unknown;
 }
 
@@ -718,6 +723,29 @@ export class MongoDBStorage implements IStorage {
       return parsed.data;
     }
     return userUiPreferencesSchema.parse({});
+  }
+
+  async getUserCalendarFeatureToggles(userId: string): Promise<UserCalendarFeatureToggles> {
+    const doc = await this.usersCollection.findOne({ id: userId }, { projection: { calendarFeatureToggles: 1 } });
+    const parsed = userCalendarFeatureTogglesSchema.safeParse(doc?.calendarFeatureToggles ?? {});
+    if (parsed.success) {
+      return parsed.data;
+    }
+    return userCalendarFeatureTogglesSchema.parse({});
+  }
+
+  async updateUserCalendarFeatureToggles(
+    userId: string,
+    updates: Partial<UserCalendarFeatureToggles>,
+  ): Promise<UserCalendarFeatureToggles> {
+    const existing = await this.getUserCalendarFeatureToggles(userId);
+    const merged = {
+      ...existing,
+      ...updates,
+    };
+    const normalized = userCalendarFeatureTogglesSchema.parse(merged);
+    await this.usersCollection.updateOne({ id: userId }, { $set: { calendarFeatureToggles: normalized } });
+    return normalized;
   }
 
   async updateUserUiPreferences(userId: string, updates: Partial<UserUiPreferences>): Promise<UserUiPreferences> {

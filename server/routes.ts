@@ -32,8 +32,10 @@ import {
   registerSchema,
   loginSchema,
   updateUserUiPreferencesSchema,
+  updateUserCalendarFeatureTogglesSchema,
   type InsertMaintenanceTask,
   type InsertQuestionnaireResponse,
+  type UserCalendarFeatureToggles,
   type User,
   type UserUiPreferences,
 } from "@shared/schema";
@@ -206,6 +208,41 @@ function ensureAiProviderSelected(req: express.Request, res: express.Response): 
     message: "AI provider is not configured. Please select a provider in AI Preferences.",
   });
   return false;
+}
+
+type CalendarToggleKey = keyof UserCalendarFeatureToggles;
+
+const CALENDAR_TOGGLE_DISABLED_MESSAGES: Record<CalendarToggleKey, string> = {
+  googleSyncEnabled: "Google Calendar sync is disabled in Calendar Feature Toggles.",
+  appleSyncEnabled: "Apple Calendar sync is disabled in Calendar Feature Toggles.",
+  calendarAutoSyncOnTaskChanges: "Calendar auto-sync on task changes is disabled in Calendar Feature Toggles.",
+  calendarExportEnabled: "Calendar export is disabled in Calendar Feature Toggles.",
+};
+
+async function ensureCalendarFeatureEnabled(
+  req: express.Request,
+  res: express.Response,
+  toggleKey: CalendarToggleKey,
+): Promise<boolean> {
+  const user = req.user as User | undefined;
+  if (!user) {
+    res.status(401).json({ message: "Not authenticated" });
+    return false;
+  }
+
+  try {
+    const toggles = await storage.getUserCalendarFeatureToggles(user.id);
+    if (toggles[toggleKey] === true) {
+      return true;
+    }
+
+    res.status(403).json({ message: CALENDAR_TOGGLE_DISABLED_MESSAGES[toggleKey] });
+    return false;
+  } catch (error) {
+    console.error("Calendar feature toggle resolution error:", error);
+    res.status(500).json({ message: "Failed to resolve calendar feature toggles" });
+    return false;
+  }
 }
 
 function persistShortFeedStore(): void {
@@ -510,6 +547,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Update UI preferences error:", error);
       return res.status(500).json({ message: "Failed to update UI preferences" });
+    }
+  });
+
+  app.get("/api/user/calendar-feature-toggles", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const toggles = await storage.getUserCalendarFeatureToggles(userId);
+      return res.json(toggles);
+    } catch (error) {
+      console.error("Get calendar feature toggles error:", error);
+      return res.status(500).json({ message: "Failed to load calendar feature toggles" });
+    }
+  });
+
+  app.patch("/api/user/calendar-feature-toggles", requireAuth, async (req, res) => {
+    try {
+      const parsed = updateUserCalendarFeatureTogglesSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid calendar feature toggles payload", errors: parsed.error.errors });
+      }
+
+      const userId = (req.user as User).id;
+      const updated = await storage.updateUserCalendarFeatureToggles(userId, parsed.data);
+      return res.json(updated);
+    } catch (error) {
+      console.error("Update calendar feature toggles error:", error);
+      return res.status(500).json({ message: "Failed to update calendar feature toggles" });
     }
   });
 
@@ -1189,7 +1253,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       // Best-effort removal of associated Google Calendar events.
       try {
-        await deleteGoogleCalendarEventsForTask(req, task);
+        if (await ensureCalendarFeatureEnabled(req, res, "calendarAutoSyncOnTaskChanges")) {
+          await deleteGoogleCalendarEventsForTask(req, task);
+        }
       } catch {
         // Don't let GCal cleanup failure prevent task deletion.
       }
@@ -1408,6 +1474,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/calendar/google/sync/status", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "googleSyncEnabled"))) {
+      return;
+    }
     try {
       const status = await getGoogleCalendarSyncStatus(req);
       res.json(status);
@@ -1417,6 +1486,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/calendar/google/sync/start", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "googleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         returnPath: z.string().optional(),
@@ -1434,6 +1506,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/calendar/google/oauth/callback", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "googleSyncEnabled"))) {
+      return;
+    }
     try {
       const userId = (req.user as User | undefined)?.id || "unknown";
       const hasCode = typeof req.query.code === "string";
@@ -1455,6 +1530,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/calendar/google/debug", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "googleSyncEnabled"))) {
+      return;
+    }
     try {
       const userId = (req.user as User | undefined)?.id;
       if (!userId) {
@@ -1491,6 +1569,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/calendar/google/sync", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "googleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         selections: z
@@ -1526,6 +1607,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/calendar/google/sync/scope", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "googleSyncEnabled"))) {
+      return;
+    }
     try {
       const scope = await getGoogleCalendarSyncScope(req);
       res.json(scope);
@@ -1535,6 +1619,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/calendar/google/sync/scope", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "googleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         selections: z
@@ -1566,6 +1653,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/calendar/google/disconnect", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "googleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         deleteCalendar: z.boolean().optional(),
@@ -1580,6 +1670,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/calendar/apple/sync/status", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "appleSyncEnabled"))) {
+      return;
+    }
     try {
       const status = await getAppleCalendarSyncStatus(req);
       res.json(status);
@@ -1589,6 +1682,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/calendar/apple/debug/objects", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "appleSyncEnabled"))) {
+      return;
+    }
     try {
       const result = await listAppleCalendarObjects(req);
       res.json(result);
@@ -1598,6 +1694,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/calendar/apple/sync/connect", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "appleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         appleIdEmail: z.string().min(3),
@@ -1621,6 +1720,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/calendar/apple/sync/calendar", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "appleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         calendarId: z.string().optional(),
@@ -1642,6 +1744,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/calendar/apple/sync", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "appleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         selections: z
@@ -1678,6 +1783,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/calendar/apple/sync/scope", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "appleSyncEnabled"))) {
+      return;
+    }
     try {
       const scope = await getAppleCalendarSyncScope(req);
       res.json(scope);
@@ -1687,6 +1795,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/calendar/apple/sync/scope", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "appleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         selections: z
@@ -1718,6 +1829,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/calendar/apple/sync/disconnect", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "appleSyncEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         deleteCalendar: z.boolean().optional(),
@@ -1732,7 +1846,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Google calendar subscription feed: issue signed token for selected tasks.
-  app.post("/api/calendar/google/feed-token", async (req, res) => {
+  app.post("/api/calendar/google/feed-token", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "calendarExportEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         selections: z
@@ -2039,7 +2156,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Apple calendar subscription feed: issue signed token for selected tasks.
-  app.post("/api/calendar/apple/feed-token", async (req, res) => {
+  app.post("/api/calendar/apple/feed-token", requireAuth, async (req, res) => {
+    if (!(await ensureCalendarFeatureEnabled(req, res, "calendarExportEnabled"))) {
+      return;
+    }
     try {
       const bodySchema = z.object({
         selections: z
