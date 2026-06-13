@@ -5,7 +5,7 @@ import {
   type InsertMaintenanceTask,
 } from "../../shared/schema";
 
-export type DefaultTemplateType = "single_family" | "townhouse" | "condo" | "commercial" | "rental";
+export type DefaultTemplateType = "single_family" | "condo";
 
 export interface DefaultTemplateTaskSeed {
   sourceItemId: string;
@@ -67,28 +67,10 @@ const DEFAULT_TEMPLATE_FILES: TemplateFileConfig[] = [
     fileName: "maintenance-template-singleFamilyHome.json",
   },
   {
-    type: "townhouse",
-    name: "Townhouse",
-    description: "Balanced maintenance for attached homes with shared walls and individual system responsibilities.",
-    fileName: "maintenance-template-townhouse.json",
-  },
-  {
     type: "condo",
     name: "Condo",
     description: "Essential maintenance for condo owners covering unit-specific systems, appliances, and shared building responsibilities.",
     fileName: "maintenance-template-condo.json",
-  },
-  {
-    type: "commercial",
-    name: "Commercial Building",
-    description: "Professional maintenance schedules for office spaces, retail, and commercial properties.",
-    fileName: "maintenance-template-commercial.json",
-  },
-  {
-    type: "rental",
-    name: "Rental Property",
-    description: "Maintenance planning for landlord-managed rental properties and tenant turnover readiness.",
-    fileName: "maintenance-template-rental.json",
   },
 ];
 
@@ -185,10 +167,7 @@ export function loadDefaultTemplateSeeds(baseDir: string = process.cwd()): Defau
 export function summarizeDefaultTemplateSeeds(seeds: DefaultTemplateSeed[]): Record<DefaultTemplateType, number> {
   const summary = {
     single_family: 0,
-    townhouse: 0,
     condo: 0,
-    commercial: 0,
-    rental: 0,
   } as Record<DefaultTemplateType, number>;
 
   for (const seed of seeds) {

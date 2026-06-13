@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import {
   compareDateOnly,
   dayDiffDateOnly,
   MaintenanceTask,
   parseMaintenanceSchedule,
+  PropertyTemplate,
   toDateOnlyFromLocalDate,
   User,
   type UiSettingsTab,
@@ -18,9 +19,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ToastAction } from "@/components/ui/toast";
-import { Plus, Search, ClipboardList, Sparkles } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, Search, ClipboardList, Sparkles, ChevronDown, Home } from "lucide-react";
 import TaskCard from "@/components/task-card";
 import AddTaskModal from "@/components/add-task-modal";
+import AddPropertyModal from "@/components/add-property-modal";
 import ExportScheduleModal from "@/components/export-schedule-modal";
 import UserSettingsModal from "@/components/user-settings-modal";
 import AccountMenu from "@/components/account-menu";
@@ -47,11 +50,13 @@ const categoryColors = {
 
 export default function Dashboard() {
   const { templateId } = useParams();
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilters, setCategoryFilters] = useState<CategoryFilter[]>([]);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<UiSettingsTab | undefined>(undefined);
@@ -118,6 +123,12 @@ export default function Dashboard() {
   const { data: stats } = useQuery<TaskStats>({
     queryKey: ["/api/stats", { templateId }],
   });
+
+  const { data: properties } = useQuery<PropertyTemplate[]>({
+    queryKey: ["/api/properties"],
+    staleTime: Infinity,
+  });
+  const currentProperty = properties?.find(p => p.id === templateId);
 
   const { data: aiPreferences, isLoading: aiPreferencesLoading } = useQuery<{ aiProvider: "gemini" | "openai" | null; aiAgentEnabled: boolean }>({
     queryKey: ["/api/user/ai-preferences"],
@@ -974,6 +985,68 @@ export default function Dashboard() {
     );
   }
 
+  if (!templateId) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <h1 className="text-2xl font-bold text-primary">SimpleHome</h1>
+              {user && <AccountMenu user={user} onSettingsClick={() => setShowSettingsModal(true)} />}
+            </div>
+          </div>
+        </header>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Properties</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {properties?.map(p => (
+              <Card
+                key={p.id}
+                className="cursor-pointer hover:shadow-md transition-shadow border-2 border-transparent hover:border-primary"
+                onClick={() => setLocation(`/dashboard/${p.id}`)}
+              >
+                <CardContent className="p-6 flex items-center gap-3">
+                  <Home className="w-8 h-8 text-primary flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-gray-900">{p.name}</p>
+                    <p className="text-sm text-gray-500 capitalize">{p.type.replace("_", "-")}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {(properties?.length ?? 0) < 5 && (
+              <Card
+                className="cursor-pointer hover:shadow-md transition-shadow border-2 border-dashed border-gray-300 hover:border-primary"
+                onClick={() => setShowAddPropertyModal(true)}
+              >
+                <CardContent className="p-6 flex items-center gap-3 text-gray-500 hover:text-primary">
+                  <Plus className="w-8 h-8 flex-shrink-0" />
+                  <p className="font-medium">Add Property</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+        <UserSettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => { setShowSettingsModal(false); setSettingsInitialTab(undefined); }}
+          currentTimezone={user?.timezone ?? null}
+          currentName={user?.name ?? ""}
+          initialTab={settingsInitialTab}
+        />
+        <AddPropertyModal
+          isOpen={showAddPropertyModal}
+          onClose={() => setShowAddPropertyModal(false)}
+          onSuccess={(template) => {
+            setShowAddPropertyModal(false);
+            queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+            setLocation(`/dashboard/${template.id}`);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -985,11 +1058,32 @@ export default function Dashboard() {
                 <h1 className="text-2xl font-bold text-primary cursor-pointer">🏠 SimpleHome</h1>
               </Link>
             </div>
-            <nav className="hidden md:block">
-              <div className="ml-10 flex items-baseline space-x-4">
-                <Link href="/dashboard" className="text-primary font-medium px-3 py-2 rounded-md text-sm">Dashboard</Link>
-                <Link href="/" className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm">Templates</Link>
-              </div>
+            <nav className="hidden md:flex items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-1 font-medium">
+                    {currentProperty?.name ?? "Select Property"}
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {properties?.map(p => (
+                    <DropdownMenuItem key={p.id} onClick={() => setLocation(`/dashboard/${p.id}`)}>
+                      {p.id === templateId
+                        ? <span className="font-medium">{p.name} ✓</span>
+                        : p.name}
+                    </DropdownMenuItem>
+                  ))}
+                  {(properties?.length ?? 0) < 5 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setShowAddPropertyModal(true)}>
+                        <Plus className="h-3 w-3 mr-2" /> Add Property
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </nav>
             <div className="flex items-center space-x-3">
               {user && (
@@ -1328,6 +1422,16 @@ export default function Dashboard() {
         selectedTasks={selectedTasksForBulkFill}
         isSubmitting={bulkSubmitting}
         onSubmit={handleBulkFillSubmit}
+      />
+
+      <AddPropertyModal
+        isOpen={showAddPropertyModal}
+        onClose={() => setShowAddPropertyModal(false)}
+        onSuccess={(template) => {
+          setShowAddPropertyModal(false);
+          queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+          setLocation(`/dashboard/${template.id}`);
+        }}
       />
     </div>
   );

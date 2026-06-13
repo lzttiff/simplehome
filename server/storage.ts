@@ -337,24 +337,6 @@ export class MongoDBStorage implements IStorage {
         description: "Essential maintenance for condo owners covering unit-specific systems, appliances, and shared building responsibilities.",
         taskCount: 80
       },
-      {
-        name: "Townhouse",
-        type: "townhouse",
-        description: "Balanced maintenance for attached homes with shared walls and individual system responsibilities.",
-        taskCount: 120
-      },
-      {
-        name: "Commercial Building",
-        type: "commercial",
-        description: "Professional maintenance schedules for office spaces, retail, and commercial properties.",
-        taskCount: 200
-      },
-      {
-        name: "Rental Property",
-        type: "rental",
-        description: "Landlord-focused maintenance with tenant safety priorities and investment protection.",
-        taskCount: 110
-      }
     ];
     
     const templateIdMap = new Map<string, string>();

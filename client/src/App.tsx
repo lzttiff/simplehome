@@ -1,4 +1,5 @@
-import { Route, useRoute } from "wouter";
+import { useEffect } from "react";
+import { Route, useLocation } from "wouter";
 import { queryClient, getQueryFn } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,10 +18,27 @@ function useUser() {
   });
 }
 
-function Router() {
-  const { data: user, isLoading } = useUser();
+function usePropertyCount(enabled: boolean) {
+  return useQuery<{ count: number }>({
+    queryKey: ["/api/properties/count"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
 
-  if (isLoading) {
+function RedirectToDashboard() {
+  const [, navigate] = useLocation();
+  useEffect(() => { navigate("/dashboard"); }, [navigate]);
+  return null;
+}
+
+function Router() {
+  const { data: user, isLoading: userLoading } = useUser();
+  const { data: count, isLoading: countLoading } = usePropertyCount(!!user);
+
+  if (userLoading || (user && countLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-500">Loading...</p>
@@ -32,10 +50,13 @@ function Router() {
     return <AuthPage />;
   }
 
-  // Use Route components to properly extract URL parameters
+  const isNewUser = count?.count === 0;
+
   return (
     <>
-      <Route path="/" component={TemplateSelection} />
+      <Route path="/">
+        {isNewUser ? <TemplateSelection /> : <RedirectToDashboard />}
+      </Route>
       <Route path="/dashboard/:templateId?" component={Dashboard} />
       <Route path="/:rest*" component={NotFound} />
     </>

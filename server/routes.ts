@@ -76,7 +76,7 @@ import {
   setAppleCalendarSyncScope,
   updateAppleCalendarId,
 } from "./services/appleCalendarSync";
-import { initializeUserDefaultTemplates } from "./services/userTemplateInit";
+import { initializeUserProperty } from "./services/userTemplateInit";
 import passport from "passport";
 import { requireAuth, hashPassword, verifyPassword } from "./auth";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
@@ -425,7 +425,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const passwordHash = await hashPassword(password);
       const user = await storage.createUser({ email, password, name, passwordHash });
-      await initializeUserDefaultTemplates(user.id, storage);
 
       // Log in immediately after registration
       req.login(user, (err) => {
@@ -1188,26 +1187,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-  // Property Templates
-  app.get("/api/templates", requireAuth, async (req, res) => {
+  // Properties
+  app.get("/api/properties", requireAuth, async (req, res) => {
     try {
-      const userId = (req.user as { id?: string } | undefined)?.id ?? null;
-      const templates = await storage.getPropertyTemplates(userId);
-      res.json(templates);
+      const userId = (req.user as User).id;
+      const properties = await storage.getPropertyTemplates(userId);
+      res.json(properties);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch templates" });
+      res.status(500).json({ message: "Failed to fetch properties" });
     }
   });
 
-  app.get("/api/templates/:id", async (req, res) => {
+  app.get("/api/properties/count", requireAuth, async (req, res) => {
     try {
-      const template = await storage.getPropertyTemplate(req.params.id);
-      if (!template) {
-        return res.status(404).json({ message: "Template not found" });
-      }
-      res.json(template);
+      const userId = (req.user as User).id;
+      const properties = await storage.getPropertyTemplates(userId);
+      res.json({ count: properties.length });
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch template" });
+      res.status(500).json({ message: "Failed to fetch property count" });
+    }
+  });
+
+  app.post("/api/properties", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { type, name } = req.body;
+      const validTypes = ["single_family", "condo"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ message: "Invalid property type" });
+      }
+      const existing = await storage.getPropertyTemplates(userId);
+      if (existing.length >= 5) {
+        return res.status(409).json({ message: "Maximum of 5 properties reached" });
+      }
+      const template = await initializeUserProperty(userId, type, name?.trim() || undefined, storage);
+      res.status(201).json(template);
+    } catch (error) {
+      console.error("Property creation error:", error);
+      res.status(500).json({ message: "Failed to create property" });
+    }
+  });
+
+  app.get("/api/properties/:id", requireAuth, async (req, res) => {
+    try {
+      const property = await storage.getPropertyTemplate(req.params.id);
+      if (!property) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+      res.json(property);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch property" });
     }
   });
 
