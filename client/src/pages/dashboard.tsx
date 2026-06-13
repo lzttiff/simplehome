@@ -112,16 +112,13 @@ export default function Dashboard() {
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery<MaintenanceTask[]>({
     queryKey: ["/api/tasks", { search: searchTerm, templateId }],
+    enabled: !!templateId,
   });
   const tasks = tasksData ?? EMPTY_TASKS;
 
-  // Debug logging
-  console.log('Dashboard - templateId:', templateId);
-  console.log('Dashboard - tasks count:', tasks.length);
-  console.log('Dashboard - sample task templateIds:', tasks.slice(0, 3).map(t => ({ title: t.title, templateId: t.templateId })));
-
   const { data: stats } = useQuery<TaskStats>({
     queryKey: ["/api/stats", { templateId }],
+    enabled: !!templateId,
   });
 
   const { data: properties } = useQuery<PropertyTemplate[]>({
